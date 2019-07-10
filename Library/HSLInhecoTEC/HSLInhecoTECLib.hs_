@@ -1,0 +1,2339 @@
+// ===========================================================================
+// Library for use with Inheco Single and Multi TEC Controllers
+//
+// Copyright (C) 2010 by HAMILTON Bonaduz, CH
+// All rights reserved.
+// ===========================================================================
+//
+// Inspired by the code from Inheco MTECController by Steve Griffin
+//
+// 2010-06-25 V1.0  Dirk Hollstein
+// 2012-10-22 V1.1  Bernd Huf reworked for better readability
+// ===========================================================================
+
+#ifndef __HSLMTec_Impl__
+  #define __HSLMTec_Impl__ 1
+
+  #ifndef __HSLStrLib_hsl__
+    #include "HSLStrLib.hsl"
+  #endif
+
+  #ifndef __ASWGLOBAL_hsl__
+    #include "ASWStandard/ASWGlobal/ASWGlobal.hsl"
+  #endif
+
+  #ifndef __TraceLevel_hsl__
+    #include "ASWStandard/TraceLevel/TraceLevel.hsl"
+  #endif
+
+  namespace HSLInhecoTECLib
+  {
+    // Exported return constants
+    const variable          CMD_FAIL            (0);
+    const variable          CMD_START           (1);
+    const variable          CMD_COMPLETE        (2);
+    const variable          CMD_ERROR           (3);
+    const variable          CMD_PROGRESS        (4);
+    const variable          CMD_ERRCOMPLETE     (5);
+
+    // Adaptable settings
+    const variable          LOWERDEVICEBOUND      (1);
+    const variable          UPPERDEVICEBOUND      (6);
+    const variable          LOWERCONTROLLERBOUND  (0);
+    const variable          UPPERCONTROLLERBOUND  (7);
+
+    // Static variables
+    global variable         HSLTECLib_ERROR_CODE               ("000");
+    global static variable  HSLTECLib_LibraryLastError         ("");
+    global static variable  HSLTECLib_LibraryTraceLevel        (TRACE_LEVEL_DEBUG);
+    global static variable  HSLTECLib_LibraryModuleName        ("HSLInhecoTECLib");
+    global static variable  HSLTECLib_LibrarySimulationMode    (ASWGLOBAL::BOOL::TRUE);
+
+    global static object    HSLTECLib_TECController;
+    global static variable  HSLTECLib_TECControllerConnected[] (8);
+
+    static global event     HSLTECLib_Semaphore;
+    static global variable  HSLTECLib_LibraryInitialized                 (ASWGLOBAL::BOOL::FALSE);
+
+    // exported functions
+    function Initialize(variable iControllerID,
+                        variable iSimulationMode,
+                        variable& oErrorCode) variable;
+
+    function GetCalibrationDate(variable iControllerID,
+                                variable iDeviceID,
+                                variable& oCalibrationDate,
+                                variable& oErrorCode) variable;
+
+    function GetFirmwareVersion(variable iControllerID,
+                                variable iSelector,
+                                variable& oFirmwareInformation,
+                                variable& oErrorCode) variable;
+
+    function GetSensorValues(variable iControllerID,
+                             variable iSelector,
+                             variable& oSensorValues,
+                             variable& oErrorCode) variable;
+
+    function GetDeviceSerialNumber(variable iControllerID,
+                                   variable iDeviceID,
+                                   variable& oDeviceSerialNumber,
+                                   variable& oErrorCode) variable;
+
+    function GetDeviceType(variable iControllerID,
+                           variable iDeviceID,
+                           variable& oDeviceType,
+                           variable& oErrorCode) variable;
+
+    function GetReservoirStatus(variable iControllerID,
+                                variable iDeviceID,
+                                variable& oReservoirStatus,
+                                variable& oErrorCode) variable;
+
+    function GetActualDeviceTemperature(variable iControllerID,
+                                        variable iDeviceID,
+                                        variable iFlag,
+                                        variable& oTargetTemperatur,
+                                        variable& oErrorCode) variable;
+
+    function GetTargetTemperature(variable iControllerID,
+                                  variable iDeviceID,
+                                  variable& oTargetTemperature,
+                                  variable& oErrorCode) variable;
+
+    function SetTargetTemperature(variable iControllerID,
+                                  variable iDeviceID,
+                                  variable iTargetTemperature,
+                                  variable& oErrorCode) variable;
+
+    function GetHeaterEnableStatus(variable iControllerID,
+                                   variable iDeviceID,
+                                   variable& iFlag,
+                                   variable& oHeatingStatus,
+                                   variable& oErrorCode) variable;
+
+    function StartTemperatureControl(variable iControllerID,
+                                     variable iDeviceID,
+                                     variable& oErrorCode) variable;
+
+    function StopTemperatureControl(variable iControllerID,
+                                    variable iDeviceID,
+                                    variable& oErrorCode) variable;
+
+    function SetShakerRevolutions(variable iControllerID,
+                                  variable iDeviceID,
+                                  variable iShakerRevolutions,
+                                  variable& oErrorCode) variable;
+
+    function GetShakerRevolutions(variable iControllerID,
+                                  variable iDeviceID,
+                                  variable& oShakerRevolutions,
+                                  variable& oErrorCode) variable;
+
+    function SetShakerShape(variable iControllerID,
+                            variable iDeviceID,
+                            variable iShakerShape,
+                            variable& oErrorCode) variable;
+
+    function GetShakerShape(variable iControllerID,
+                            variable iDeviceID,
+                            variable& oShakerShape,
+                            variable& oErrorCode) variable;
+
+    function GetShakerStatus(variable iControllerID,
+                             variable iDeviceID,
+                             variable& oStatus,
+                             variable& oErrorCode) variable;
+
+    function StartShaker(variable iControllerID,
+                         variable iDeviceID,
+                         variable& oErrorCode) variable;
+
+    function StopShaker(variable iControllerID,
+                        variable iDeviceID,
+                        variable& oErrorCode) variable;
+
+    function GetLastError(variable& oLibraryLastError) void;
+
+    function GetDescriptionForErrorCode(variable& iErrorCode,
+                                        variable& oErrorDescription) variable;
+
+    function SetTraceLevel(variable iTraceLevel) variable;
+
+    function GetTraceLevel(variable& oTraceLevel) void;
+
+    function SendCommandString(variable iControllerID,
+                               variable iCommandString,
+                               variable& oResponse) variable;
+
+    // Helper functions
+    private function        CheckForInitialization(variable iControllerID) variable;
+
+    private function        CheckBool(variable iVariable,
+                                      variable iTraceEntry,
+                                      variable iFunctionName) variable;
+
+    private function        CheckInteger(variable iVariable,
+                                         variable iTraceEntry,
+                                         variable iFunctionName) variable;
+
+    private function        CheckIntegerRange(variable iVariable,
+                                              variable iTraceEntry,
+                                              variable iMin,
+                                              variable iMax,
+                                              variable iFunctionName) variable;
+
+    private function        SendCommandToController(string iCommand,
+                                                    variable &iControllerID,
+                                                    variable& oControllerResponse,
+                                                    variable& oErrorCode) variable;
+
+    private function        StatusTrace(variable iState,
+                                        variable iTraceLevel,
+                                        variable iTraceString,
+                                        variable iFunctionName) void;
+
+    private function        CheckString(variable iVariable,
+                                        variable iTraceEntry,
+                                        variable iFunctionName) variable;
+
+    private function        CheckSimulationMode() variable;
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //function Initialize
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function Initialize(variable iControllerID,
+                        variable iSimulationMode,
+                        variable& oErrorCode) variable
+    {
+      variable Counter;
+      variable Result;
+
+      HSLTECLib_LibraryTraceLevel = TRACELEVEL::GetTraceLevel();
+
+      // Check all input variables for type and range
+      if(!CheckInteger(iControllerID, "iController", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(iControllerID, "iController", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckBool(iSimulationMode, "iSimulationMode", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      HSLTECLib_LibrarySimulationMode = iSimulationMode;
+
+      if(HSLTECLib_LibrarySimulationMode)
+      {
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_RELEASE, "HSLTECLib running in simulation mode.", GetFunctionName());
+        HSLTECLib_LibraryInitialized = ASWGLOBAL::BOOL::TRUE;
+        HSLTECLib_TECControllerConnected.SetAt(iControllerID, ASWGLOBAL::BOOL::TRUE);
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+
+      if(!HSLTECLib_LibraryInitialized)
+      {
+        for (Counter = LOWERCONTROLLERBOUND; Counter < UPPERCONTROLLERBOUND + 1; Counter++)
+          HSLTECLib_TECControllerConnected.SetAt(Counter, ASWGLOBAL::BOOL::FALSE);
+        HSLTECLib_LibraryInitialized = ASWGLOBAL::BOOL::TRUE;
+      }
+
+      if(HSLTECLib_TECControllerConnected.GetAt(iControllerID) == ASWGLOBAL::BOOL::TRUE)
+      {
+        // Controller is already connected
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_NONE, "ControllerID " + IStr(iControllerID) + " is already connected.", GetFunctionName());
+        HSLTECLib_ERROR_CODE = "004";
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return (ASWGLOBAL::BOOL::TRUE);
+      }
+      else
+      {
+        // Connect to Controller
+        if(HSLTECLib_TECController.IsNull())
+        {
+          HSLTECLib_TECController.CreateObject("InhecoMTCdll.GlobCom");
+          if(HSLTECLib_TECController.IsNull())
+          {
+            HSLTECLib_TECControllerConnected.SetAt(iControllerID, ASWGLOBAL::BOOL::FALSE);
+            HSLTECLib_ERROR_CODE = "002";
+            oErrorCode    = HSLTECLib_ERROR_CODE;
+            HSLTECLib_LibraryLastError = "Failed to create communication object from InhecoMTCdll.dll!";
+            StatusTrace(CMD_ERRCOMPLETE, TRACE_LEVEL_NONE, HSLTECLib_LibraryLastError, GetFunctionName());
+            return(ASWGLOBAL::BOOL::FALSE);
+          }
+          HSLTECLib_TECController.InitDll();
+          HSLTECLib_Semaphore.SetEvent();
+        }
+
+        Result = HSLTECLib_TECController.FindTheUniversalControl(iControllerID);
+
+        if(Result == 0)
+        {
+          // Failed to connect to controller
+          HSLTECLib_TECControllerConnected.SetAt(iControllerID, ASWGLOBAL::BOOL::FALSE);
+          HSLTECLib_ERROR_CODE = "003";
+          oErrorCode    = HSLTECLib_ERROR_CODE;
+          HSLTECLib_LibraryLastError = "Failed to find the controller for ControllerID " + IStr(iControllerID) + "!";
+          StatusTrace(CMD_ERRCOMPLETE, TRACE_LEVEL_NONE, HSLTECLib_LibraryLastError, GetFunctionName());
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+        else if(Result == 1)
+        {
+          // Succeeded to connect to controller
+          HSLTECLib_TECControllerConnected.SetAt(iControllerID, ASWGLOBAL::BOOL::TRUE);
+          HSLTECLib_ERROR_CODE = "000";
+          oErrorCode    = HSLTECLib_ERROR_CODE;
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Controller ID " + IStr(iControllerID) + " is successfully connected.", GetFunctionName());
+          return(ASWGLOBAL::BOOL::TRUE);
+        }
+      }
+      return(ASWGLOBAL::BOOL::FALSE);
+    } // Initialize
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //function GetCalibrationDate
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetCalibrationDate(variable iControllerID,
+                                variable iDeviceID,
+                                variable& oCalibrationDate,
+                                variable& oErrorCode) variable
+    {
+      // iControllerID: identifies the controller to be queried
+      // iDeviceID:     identifies the device to be queried. (0: controller (mainboard) itself, 1-6: devices @ slot no.)
+      string    Command;
+      string    CommandWord("RCM");
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oControllerResponse;
+      variable  Length;
+      string    sCR;
+      string    Message("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckIntegerRange(iDeviceID, "DeviceID", 0, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      Command = IStr(iControllerID);
+      Command = Command + CommandWord;
+      Command = Command + IStr(iDeviceID);
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Querying controller " + IStr(iControllerID) + " of device " + IStr(iDeviceID), GetFunctionName());
+
+      if(SendCommandToController(Command, iControllerID, oControllerResponse, oErrorCode))
+      {
+        // success
+        Result      = ASWGLOBAL::BOOL::TRUE;
+        sCR         = oControllerResponse;
+        Length      = sCR.GetLength();
+        Length      = Length - 5;
+        oCalibrationDate = sCR.Mid(5,Length);
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Controller " + IStr(iControllerID) + " is was calibrated @ " + oCalibrationDate, GetFunctionName());
+      }
+      else
+      {
+        // no success
+        Message = "Cannot get calibration date of device ";
+        Message = Message + IStr(iDeviceID);
+        Message = Message + " @ controller ";
+        Message = Message + IStr(iControllerID);
+        Message = Message + " with command: ";
+        Message = Message + Command;
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // GetCalibrationDate
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function GetFirmwareVersion
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetFirmwareVersion(variable iControllerID,
+                                variable iSelector,
+                                variable& oFirmwareInformation,
+                                variable& oErrorCode) variable
+    {
+      string    Command;
+      string    CommandWord("RFV");
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oControllerResponse;
+      variable  Length;
+      string    sCR;
+      string    Message("");
+      variable  Selector("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iSelector, "iSelector", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckIntegerRange(iSelector, "iSelector", 0, 4, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      if(iSelector == 0) Selector = "Bootstrap Version";
+      if(iSelector == 1) Selector = "Application Version";
+      if(iSelector == 2) Selector = "Report serial number";
+      if(iSelector == 3) Selector = "Report actual hardware version";
+      if(iSelector == 4) Selector = "Report Inheco copyright";
+
+      Command = IStr(iControllerID);
+      Command = Command + CommandWord;
+      Command = Command + IStr(iSelector);
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Querying controller " + IStr(iControllerID) + " with selector " + IStr(iSelector) + " for " + Selector, GetFunctionName());
+
+      if(SendCommandToController(Command, iControllerID, oControllerResponse, oErrorCode))
+      {
+        // success
+        Result      = ASWGLOBAL::BOOL::TRUE;
+        sCR         = oControllerResponse;
+        Length      = sCR.GetLength();
+        Length      = Length - 5;
+        oFirmwareInformation = sCR.Mid(5,Length);
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Controller " + IStr(iControllerID) + " " + Selector + " "+oFirmwareInformation, GetFunctionName());
+      }
+      else
+      {
+        // no success
+        Message = "Cannot get firmware information @ selector ";
+        Message = Message + IStr(iSelector);
+        Message = Message + " @ controller ";
+        Message = Message + IStr(iControllerID);
+        Message = Message + " with command: ";
+        Message = Message + Command;
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+    return(Result);
+    } // GetFirmwareVersion
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function GetSensorValues
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetSensorValues(variable iControllerID,
+                             variable iSelector,
+                             variable& oSensorValues,
+                             variable& oErrorCode) variable
+    {
+      string    Command;
+      string    CommandWord("RHV");
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oControllerResponse;
+      variable  Length;
+      string    sCR;
+      string    Message("");
+      variable  Selector("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iSelector, "iSelector", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckIntegerRange(iSelector, "iSelector", 0, 4, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      if(iSelector == 0) Selector = "Value Power Supply [1/10 V]";
+      if(iSelector == 1) Selector = "Housing Fan [on / off]";
+      if(iSelector == 2) Selector = "Temperature Sensor 1 (Housing) [1/10 °C]";
+      if(iSelector == 3) Selector = "relative Humidity Sensor 1 (Housing) [1/10 %]";
+      if(iSelector == 4) Selector = "Temperature Sensor 2 (Housing) [1/10 °C]";
+      if(iSelector == 5) Selector = "Temperature Sensor 1 (External) [1/10 °C]";
+      if(iSelector == 6) Selector = "relative Humidity Sensor (External) [1/10 %]";
+      if(iSelector == 7) Selector = "Analogue Sensor 1 (External) [1/10 %]";
+      if(iSelector == 8) Selector = "Analogue Sensor 2 (External) [1/10 %]";
+      if(iSelector == 9) Selector = "Maximum measured temperature [1/10 %]";
+
+      Command = IStr(iControllerID);
+      Command = Command + CommandWord;
+      Command = Command + IStr(iSelector);
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Querying controller " + IStr(iControllerID) + " with selector " + IStr(iSelector) + " for " + Selector, GetFunctionName());
+
+      if(SendCommandToController(Command, iControllerID, oControllerResponse, oErrorCode))
+      {
+        // success
+        Result      = ASWGLOBAL::BOOL::TRUE;
+        sCR         = oControllerResponse;
+        Length      = sCR.GetLength();
+        Length      = Length - 5;
+        oSensorValues = sCR.Mid(5,Length);
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Controller " + IStr(iControllerID) + " " + Selector + " " + oSensorValues, GetFunctionName());
+      }
+      else
+      {
+        // no success
+        Message = "Cannot get firmware information @ selector ";
+        Message = Message + IStr(iSelector);
+        Message = Message + " @ controller ";
+        Message = Message + IStr(iControllerID);
+        Message = Message + " with command: ";
+        Message = Message + Command;
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // GetSensorValues
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //function GetDeviceSerialNumber
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetDeviceSerialNumber(variable iControllerID,
+                                   variable iDeviceID,
+                                   variable& oDeviceSerialNumber,
+                                   variable& oErrorCode) variable
+    {
+      string    Command;
+      string    CommandWord("RSN");
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oControllerResponse;
+      variable  Length;
+      string    sCR;
+      string    Message("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "iDeviceID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckIntegerRange(iDeviceID, "iDeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      Command = IStr(iControllerID);
+      Command = Command + CommandWord;
+      Command = Command + IStr(iDeviceID);
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Querying device " + IStr(iDeviceID) + " at controller " + IStr(iControllerID), GetFunctionName());
+
+      if(SendCommandToController(Command, iControllerID, oControllerResponse, oErrorCode))
+      {
+        // success
+        Result      = ASWGLOBAL::BOOL::TRUE;
+        sCR         = oControllerResponse;
+        Length      = sCR.GetLength();
+        Length      = Length - 5;
+        oDeviceSerialNumber = sCR.Mid(5,Length);
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Queried device " + IStr(iDeviceID) + " at controller " + IStr(iControllerID) + " responds: " + oDeviceSerialNumber, GetFunctionName());
+      }
+      else
+      {
+        // no success
+        Message = "Cannot get serial number from device ";
+        Message = Message + IStr(iDeviceID);
+        Message = Message + " @ controller ";
+        Message = Message + IStr(iControllerID);
+        Message = Message + " with command: ";
+        Message = Message + Command;
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // GetDeviceSerialNumber
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function GetDeviceType
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetDeviceType(variable iControllerID,
+                           variable iDeviceID,
+                           variable& oDeviceType,
+                           variable& oErrorCode) variable
+    {
+      string    Command;
+      string    CommandWord("RTD");
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oControllerResponse;
+      variable  Length;
+      string    sCR;
+      string    Message("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckIntegerRange(iDeviceID, "DeviceID", 0, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      Command = IStr(iControllerID);
+      Command = Command + CommandWord;
+      Command = Command + IStr(iControllerID);
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Querying controller " + IStr(iControllerID) + " of device " + IStr(iDeviceID), GetFunctionName());
+
+      if(SendCommandToController(Command, iControllerID, oControllerResponse, oErrorCode))
+      {
+        // success
+        Result      = ASWGLOBAL::BOOL::TRUE;
+        sCR         = oControllerResponse;
+        Length      = sCR.GetLength();
+        Length      = Length - 5;
+        oDeviceType = sCR.Mid(5,Length);
+
+        if(iDeviceID == 0)
+        { // asking for controller device
+          if(IVal(oDeviceType) == 0)
+          {
+            StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Controller " + IStr(iControllerID) + " is of SingleTEC kind", GetFunctionName());
+          }
+          else if(IVal(oDeviceType) == 1)
+          {
+            StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Controller " + IStr(iControllerID) + " is of MultiTEC kind", GetFunctionName());
+          }
+        }
+        else
+        { // asking for external devices connected to the slot
+          if(IVal(oDeviceType) == 0)
+          {
+            StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " is a Thermoshake.", GetFunctionName());
+          }
+          else if(IVal(oDeviceType) == 1)
+          {
+            StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " is an CPAC.", GetFunctionName());
+          }
+          else if(IVal(oDeviceType) == 2)
+          {
+            StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " is a Teleshake.", GetFunctionName());
+          }
+          else if(IVal(oDeviceType) == 3)
+          {
+            StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " is unknown.", GetFunctionName());
+          }
+          else if(IVal(oDeviceType) == 4)
+          {
+            StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " is a CPAC Ultraflat 2TEC.", GetFunctionName());
+          }
+          else
+          {
+            StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " is unknown.", GetFunctionName());
+          }
+        }
+      }
+      else
+      {
+        // no success
+        Message = "Cannot get type of device ";
+        Message = Message + IStr(iDeviceID);
+        Message = Message + " @ controller ";
+        Message = Message + IStr(iControllerID);
+        Message = Message + " with command: ";
+        Message = Message + Command;
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // GetDeviceType
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  GetReservoirStatus
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetReservoirStatus(variable iControllerID,
+                                variable iDeviceID,
+                                variable& oReservoirStatus,
+                                variable& oErrorCode) variable
+    {
+      string    Command;
+      string    CommandWord("RRS");
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oControllerResponse;
+      string    sCR;
+      string    Message("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      Command = IStr(iDeviceID);
+      Command = Command + CommandWord;
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Sending controller " + IStr(iControllerID) + " of device " + IStr(iDeviceID), GetFunctionName());
+
+      if(SendCommandToController(Command, iControllerID, oControllerResponse, oErrorCode))
+      {
+        // success
+        Result = ASWGLOBAL::BOOL::TRUE;
+        sCR = oControllerResponse;
+        oReservoirStatus = sCR.Mid(5,1);
+        if(oReservoirStatus == "0")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " responds the value: " + oReservoirStatus + ": Reservoir is below 1/3 (please refill reservoir)!", GetFunctionName());
+        }
+        else if(oReservoirStatus == "1")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " responds the value: " + oReservoirStatus + ": Reservoir is at least 2/3 Full!", GetFunctionName());
+        }
+      }
+      else
+      {
+        // no success
+        Message = "Cannot get reservoir state of device ";
+        Message = Message + IStr(iDeviceID);
+        Message = Message + " @ controller ";
+        Message = Message + IStr(iControllerID);
+        Message = Message + " with command: ";
+        Message = Message + Command;
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // GetReservoirStatus
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function GetActualDeviceTemperature
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetActualDeviceTemperature(variable iControllerID,
+                                        variable iDeviceID,
+                                        variable iFlag,
+                                        variable& oTargetTemperatur,
+                                        variable& oErrorCode) variable
+    {
+      string    Command;
+      string    CommandWord("RAT");
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oControllerResponse;
+      variable  Length;
+      string    sCR;
+      string    Message("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      Command = IStr(iDeviceID);
+      Command = Command + CommandWord;
+      if(IStr(iFlag) == "1" || IStr(iFlag) == "2")
+      {
+        Command = Command + IStr(iFlag);
+      }
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Sending controller " + IStr(iControllerID) + " of device " + IStr(iDeviceID), GetFunctionName());
+
+      if(SendCommandToController(Command, iControllerID, oControllerResponse, oErrorCode))
+      {
+        // success
+        Result = ASWGLOBAL::BOOL::TRUE;
+        sCR = oControllerResponse;
+        Length = sCR.GetLength();
+        Length = Length - 5;
+        oTargetTemperatur = sCR.Mid(5,Length);
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " responds the value: " + oTargetTemperatur, GetFunctionName());
+      }
+      else
+      {
+        // no success
+        Message = "Cannot get target temperature of device ";
+        Message = Message + IStr(iDeviceID);
+        Message = Message + " @ controller ";
+        Message = Message + IStr(iControllerID);
+        Message = Message + " with command: ";
+        Message = Message + Command;
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // GetActualDeviceTemperature
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function GetTargetTemperature
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetTargetTemperature(variable iControllerID,
+                                  variable iDeviceID,
+                                  variable& oTargetTemperature,
+                                  variable& oErrorCode) variable
+    {
+      string    Command;
+      string    CommandWord("RTT");
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oControllerResponse;
+      variable  Length;
+      string    sCR;
+      string    Message("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    
+      if(!CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      Command = IStr(iDeviceID);
+      Command = Command + CommandWord;
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Sending controller " + IStr(iControllerID) + " of device " + IStr(iDeviceID), GetFunctionName());
+
+      if(SendCommandToController(Command, iControllerID, oControllerResponse, oErrorCode))
+      {
+        // success
+        Result = ASWGLOBAL::BOOL::TRUE;
+        sCR = oControllerResponse;
+        Length = sCR.GetLength();
+        Length = Length - 5;
+        oTargetTemperature = sCR.Mid(5,Length);
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " responds the value: " + oTargetTemperature, GetFunctionName());
+      }
+      else
+      {
+        // no success
+        Message = "Cannot get target temperature of device ";
+        Message = Message + IStr(iDeviceID);
+        Message = Message + " @ controller ";
+        Message = Message + IStr(iControllerID);
+        Message = Message + " with command: ";
+        Message = Message + Command;
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // GetTargetTemperature
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function SetTargetTemperature
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function SetTargetTemperature(variable iControllerID,
+                                  variable iDeviceID,
+                                  variable iTargetTemperature,
+                                  variable& oErrorCode) variable
+    {
+      string    Command;
+      string    CommandWord("STT");
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oStatus("");
+      variable  Message;
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()) || !CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()) || !CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking iShakerPattern on valid range for value
+      if(!CheckInteger(iTargetTemperature, "iTargetTemperature", GetFunctionName()) || !CheckIntegerRange(iTargetTemperature, "iTargetTemperature", 0, 1999, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Setting " + IStr(iTargetTemperature) + " 1/10 °C for device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID), GetFunctionName());
+
+      Command = IStr(iDeviceID);
+      Command = Command + CommandWord;
+      Command = Command + IStr(iTargetTemperature);
+
+      if(SendCommandToController(Command, iControllerID, oStatus, oErrorCode))
+      {
+        // success
+        Result = ASWGLOBAL::BOOL::TRUE;
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Temperature of device " + IStr(iDeviceID) + " set to " + IStr(iTargetTemperature) + " 1/10 °C.", GetFunctionName());
+      }
+      else
+      {
+        // no success
+        Result = ASWGLOBAL::BOOL::FALSE;
+        Message = "Cannot set temperature of device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // SetTargetTemperature
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function GetHeaterEnableStatus
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetHeaterEnableStatus(variable iControllerID,
+                                   variable iDeviceID,
+                                   variable& iFlag,
+                                   variable& oHeatingStatus,
+                                   variable& oErrorCode) variable
+    {
+      string    Command;
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oControllerResponse;
+      string    sCR;
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()) || !CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()) || !CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking iFlag on valid range for value
+      if(!CheckInteger(iFlag, "iFlag", GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(iFlag, "iFlag", 1, 2, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      Result  = ASWGLOBAL::BOOL::FALSE;
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Asking controller " + IStr(iControllerID) + " for HeaterEnable status of device " + IStr(iDeviceID), GetFunctionName());
+
+      Command = IStr(iDeviceID);
+      Command = Command + "RHE";
+      if(IStr(iFlag) == "1")
+      {
+        Command = Command + IStr(iFlag);
+      }
+
+      if(SendCommandToController(Command, iControllerID, oControllerResponse, oErrorCode))
+      {
+        // success
+        Result = ASWGLOBAL::BOOL::TRUE;
+        sCR    = oControllerResponse;
+        oHeatingStatus = sCR.Mid(5,1);
+        if(oHeatingStatus == "0")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "HeatingEnableStatus of device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " is set to heating.", GetFunctionName());
+        }
+        if(oHeatingStatus == "1")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "HeatingEnableStatus of device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " is set to cooling.", GetFunctionName());
+        }
+        if(oHeatingStatus == "2")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "HeatingEnableStatus of device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + " is set off.", GetFunctionName());
+        }
+      }
+      return(Result);
+    } // GetHeaterEnableStatus
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function StartTemperatureControl
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function StartTemperatureControl(variable iControllerID,
+                                     variable iDeviceID,
+                                     variable& oErrorCode) variable
+    {
+      string    Command;
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oResponse;
+      variable  Message("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()) || !CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()) || !CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      Command = IStr(iDeviceID);
+      Command = Command + "ATE1";
+
+      if(SendCommandToController(Command, iControllerID, oResponse, oErrorCode))
+      {
+        Message = "TemperaturControl successfully started on device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, Message, GetFunctionName());
+        Result = ASWGLOBAL::BOOL::TRUE;
+      }
+      else
+      {
+        Message = "TemperaturControl failed to start on device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // StartTemperatureControl
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function StopTemperatureControl
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function StopTemperatureControl(variable iControllerID,
+                                    variable iDeviceID,
+                                    variable& oErrorCode) variable
+    {
+      string    Command;
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oResponse;
+      variable  Message("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()) || !CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()) || !CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      Command = IStr(iDeviceID);
+      Command = Command + "ATE0";
+
+      if(SendCommandToController(Command, iControllerID, oResponse, oErrorCode))
+      {
+        Message = "TemperaturControl successfully stopped on device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, Message, GetFunctionName());
+        Result = ASWGLOBAL::BOOL::TRUE;
+      }
+      else
+      {
+        Message = "TemperaturControl failed to stopp on device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // StopTemperatureControl
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  SetShakerRevolutions
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function SetShakerRevolutions(variable iControllerID,
+                                  variable iDeviceID,
+                                  variable iShakerRevolutions,
+                                  variable& oErrorCode) variable
+    {
+      string    Command;
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oStatus("");
+      variable  Message;
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()) || !CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()) || !CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking iShakerPattern on valid range for value
+      if(!CheckInteger(iShakerRevolutions, "iShakerRevolutions", GetFunctionName()) || !CheckIntegerRange(iShakerRevolutions, "iShakerRevolutions", 60, 2000, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Setting " + IStr(iShakerRevolutions) + " revolutions for shaker " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID), GetFunctionName());
+
+      Command = IStr(iDeviceID);
+      Command = Command + "SSR";
+      Command = Command + IStr(iShakerRevolutions);
+
+      if(SendCommandToController(Command, iControllerID, oStatus, oErrorCode))
+      {
+        // success
+        Result = ASWGLOBAL::BOOL::TRUE;
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Shaker " + IStr(iDeviceID) + " set to " + IStr(iShakerRevolutions) + " revolutions.", GetFunctionName());
+      }
+      else
+      {
+        // no success
+        Result = ASWGLOBAL::BOOL::FALSE;
+        Message = "Cannot set revolutions of shaker " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // SetShakerRevolutions
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  GetShakerRevolutions
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetShakerRevolutions(variable iControllerID,
+                                  variable iDeviceID,
+                                  variable& oShakerRevolutions,
+                                  variable& oErrorCode) variable
+    {
+      string    Command;
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oControllerResponse;
+      variable  Length;
+      string    sCR;
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()) || !CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()) || !CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Asking controller " + IStr(iControllerID) + " for revolutions of shaker " + IStr(iDeviceID), GetFunctionName());
+
+      Command = IStr(iDeviceID);
+      Command = Command + "RSR";
+
+      if(SendCommandToController(Command, iControllerID, oControllerResponse, oErrorCode))
+      {
+        // success
+        Result = ASWGLOBAL::BOOL::TRUE;
+        sCR = oControllerResponse;
+        Length = sCR.GetLength();
+        Length = Length - 5;
+        oShakerRevolutions = sCR.Mid(5,Length);
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Revolutions of shaker " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID) + "set to: " + oShakerRevolutions, GetFunctionName());
+      }
+      else
+      {
+        // no success
+        Result = ASWGLOBAL::BOOL::FALSE;
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, "Cannot recieve revolutions of shaker " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID), GetFunctionName());
+        HSLTECLib_LibraryLastError = "Cannot recieve revolutions of shaker " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // GetShakerRevolutions
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  SetShakerShape
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function SetShakerShape(variable iControllerID,
+                            variable iDeviceID,
+                            variable iShakerShape,
+                            variable& oErrorCode) variable
+    {
+      string    Command;
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oStatus("");
+      variable  Message;
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()) || !CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()) || !CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking iShakerPattern on valid range for value
+      if(!CheckInteger(iShakerShape, "iShakerShape", GetFunctionName()) || !CheckIntegerRange(iShakerShape, "iShakerShape", 0, 5, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Setting shape " + IStr(iShakerShape) + "for shaker " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID), GetFunctionName());
+
+      Command = IStr(iDeviceID);
+      Command = Command + "SSS";
+      Command = Command + IStr(iShakerShape);
+
+      if(SendCommandToController(Command, iControllerID, oStatus, oErrorCode))
+      {
+        // success
+        Result = ASWGLOBAL::BOOL::TRUE;
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Shaker " + IStr(iDeviceID) + " set to shape." + IStr(iShakerShape), GetFunctionName());
+      }
+      else
+      {
+        // no success
+        Result = ASWGLOBAL::BOOL::FALSE;
+        Message = "Cannot set shape of shaker " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // SetShakerShape
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function GetShakerShape
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetShakerShape(variable iControllerID,
+                            variable iDeviceID,
+                            variable& oShakerShape,
+                            variable& oErrorCode) variable
+    {
+      string    Command;
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  ControllerResponse("");
+      string    sCR("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()) || !CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()) || !CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Asking controller " + IStr(iControllerID) + " for pattern of shaker " + IStr(iDeviceID), GetFunctionName());
+
+      Command = IStr(iDeviceID);
+      Command = Command + "RSS";
+      Result = ASWGLOBAL::BOOL::FALSE;
+
+      if(SendCommandToController(Command, iControllerID, ControllerResponse, oErrorCode))
+      {
+        // success
+        Result = ASWGLOBAL::BOOL::TRUE;
+        sCR = ControllerResponse;
+        oShakerShape = sCR.Mid(5,1);
+        if(oShakerShape == "0")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Shaker " + IStr(iDeviceID) + " Pattern 0: circles anticlockwise.", GetFunctionName());
+        }
+        else if(oShakerShape == "1")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Shaker " + IStr(iDeviceID) + " Pattern 1: circles clockwise.", GetFunctionName());
+        }
+        else if(oShakerShape == "2")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Shaker " + IStr(iDeviceID) + " Pattern 2: moves up left - down right.", GetFunctionName());
+        }
+        else if(oShakerShape == "3")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Shaker " + IStr(iDeviceID) + " Pattern 3: moves up right down left.", GetFunctionName());
+        }
+        else if(oShakerShape == "4")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Shaker " + IStr(iDeviceID) + " Pattern 4: moves up-down.", GetFunctionName());
+        }
+        else if(oShakerShape == "5")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Shaker " + IStr(iDeviceID) + " Pattern 5: moves left-right.", GetFunctionName());
+        }
+        else
+        {
+          // status unknown
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Shaker " + IStr(iDeviceID) + " Pattern is UNKNOWN.", GetFunctionName());
+          HSLTECLib_ERROR_CODE = "006";
+          oErrorCode = HSLTECLib_ERROR_CODE;
+        }
+      }
+      else
+      {
+        // no success
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, "Cannot recieve status of Shaker " + IStr(iDeviceID) + " from controller " + IStr(iControllerID), GetFunctionName());
+        HSLTECLib_LibraryLastError = "Cannot recieve status of Shaker " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // GetShakerShape
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function GetShakerStatus
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetShakerStatus(variable iControllerID,
+                             variable iDeviceID,
+                             variable& oStatus,
+                             variable& oErrorCode) variable
+    {
+      string    Command;
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oControllerResponse;
+      string    sCR("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()) || !CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()) || !CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Asking controller " + IStr(iControllerID) + " for state of Shaker " + IStr(iDeviceID), GetFunctionName());
+
+      Command = IStr(iDeviceID);
+      Command = Command + "RSE";
+
+      if(SendCommandToController(Command, iControllerID, oControllerResponse, oErrorCode))
+      {
+        Result  = ASWGLOBAL::BOOL::TRUE;
+        sCR     = oControllerResponse;
+        oStatus = sCR.Mid(5,1);
+        if(oStatus == "0")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Shaker " + IStr(iDeviceID) + " is OFF.", GetFunctionName());
+        }
+        else if(oStatus == "1")
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "Shaker " + IStr(iDeviceID) + " is ON.", GetFunctionName());
+        }
+        else
+        {
+          StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "State of Shaker " + IStr(iDeviceID) + " is UNKNOWN.", GetFunctionName());
+          HSLTECLib_ERROR_CODE = "006";
+          oErrorCode = HSLTECLib_ERROR_CODE;
+          Result = ASWGLOBAL::BOOL::TRUE;
+        }
+      }
+      else
+      {
+        Result = ASWGLOBAL::BOOL::FALSE;
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, "Cannot recieve status of Shaker " + IStr(iDeviceID) + " from controller " + IStr(iControllerID), GetFunctionName());
+        HSLTECLib_LibraryLastError = "Cannot recieve status of Shaker " + IStr(iDeviceID) + " from controller " + IStr(iControllerID) + IStr(iControllerID);
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // GetShakerStatus
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function StartShaker
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function StartShaker(variable iControllerID,
+                         variable iDeviceID,
+                         variable& oErrorCode) variable
+    {
+      string    Command;
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  oResponse;
+      variable  Message("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()) || !CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()) || !CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      Command = IStr(iDeviceID);
+      Command = Command + "ASE1";
+
+      if(SendCommandToController(Command, iControllerID, oResponse, oErrorCode))
+      {
+        Message = "Shaker successfully started on device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, Message, GetFunctionName());
+        Result = ASWGLOBAL::BOOL::TRUE;
+      }
+      else
+      {
+        Message = "Shaker failed to start on device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+
+      return(Result);
+    } // StartShaker
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function StopShaker
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function StopShaker(variable iControllerID,
+                        variable iDeviceID,
+                        variable& oErrorCode) variable
+    {
+      string    Command;
+      variable  oResponse;
+      variable  Result(ASWGLOBAL::BOOL::FALSE);
+      variable  Message("");
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "ControllerID", GetFunctionName()) || !CheckIntegerRange(iControllerID, "ControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // Checking DeviceID on valid range for value
+      if(!CheckInteger(iDeviceID, "DeviceID", GetFunctionName()) || !CheckIntegerRange(iDeviceID, "DeviceID", LOWERDEVICEBOUND, UPPERDEVICEBOUND, GetFunctionName()))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      Command = IStr(iDeviceID);
+      Command = Command + "ASE0";
+
+      if(SendCommandToController(Command, iControllerID, oResponse, oErrorCode))
+      {
+        Message = "Shaker successfully stopped on device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, Message, GetFunctionName());
+        Result = ASWGLOBAL::BOOL::TRUE;
+      }
+      else
+      {
+        Message = "Shaker failed to stopp on device " + IStr(iDeviceID) + " @ controller " + IStr(iControllerID);
+        StatusTrace(CMD_ERROR, TRACE_LEVEL_NONE, Message, GetFunctionName());
+        HSLTECLib_LibraryLastError = Message;
+        oErrorCode = HSLTECLib_ERROR_CODE;
+      }
+      return(Result);
+    } // StopShaker
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function GetLastError
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetLastError(variable& oLibraryLastError) void
+    {
+        oLibraryLastError = HSLTECLib_LibraryLastError;
+    } // GetLastError
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // GetDescriptionForError
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function GetDescriptionForErrorCode(variable& iErrorCode,
+                                        variable& oErrorDescription) variable
+    {
+      if(!CheckString(iErrorCode, "iErrorCode", GetFunctionName()))
+        return(ASWGLOBAL::BOOL::FALSE);
+
+      oErrorDescription = "";
+      if(iErrorCode == "000") oErrorDescription = "No error";
+      if(iErrorCode == "001") oErrorDescription = "Library in simulation mode";
+      if(iErrorCode == "002") oErrorDescription = "Failed to create communication object from InhecoMTCdll.dll";
+      if(iErrorCode == "003") oErrorDescription = "Failed to find the controller for the specified ControllerID";
+      if(iErrorCode == "004") oErrorDescription = "Trying to initialize a controller that is already initialized";
+      if(iErrorCode == "005") oErrorDescription = "Trying to send a command to a controller that is not initialized";
+      if(iErrorCode == "006") oErrorDescription = "Shaker did not answer";
+      if(iErrorCode == "007") oErrorDescription = "Controller did not answer";
+
+      if(iErrorCode == "201") oErrorDescription = "Value is not a bool";
+      if(iErrorCode == "202") oErrorDescription = "Value is not an integer";
+      if(iErrorCode == "203") oErrorDescription = "Value is not inside the range bounds";
+      if(iErrorCode == "204") oErrorDescription = "Value is not a string";
+
+      if(iErrorCode == "TEC_0") oErrorDescription = "inheco TEC: Normal return message. Command successfull";
+      if(iErrorCode == "TEC_1") oErrorDescription = "inheco TEC: External message protocol violation.";
+      if(iErrorCode == "TEC_2") oErrorDescription = "inheco TEC: Internal message protocol violation.";
+      if(iErrorCode == "TEC_3") oErrorDescription = "inheco TEC: Command not executable.";
+      if(iErrorCode == "TEC_4") oErrorDescription = "inheco TEC: Command unknown.";
+      if(iErrorCode == "TEC_5") oErrorDescription = "inheco TEC: Wrong parameter.";
+      if(iErrorCode == "TEC_6") oErrorDescription = "inheco TEC: Reset detected.";
+      if(iErrorCode == "TEC_7") oErrorDescription = "inheco TEC: Slot Id unknown.";
+      if(iErrorCode == "TEC_8") oErrorDescription = "inheco TEC: Wrong keyword.";
+      if(iErrorCode == "TEC_9") oErrorDescription = "inheco TEC: Timeout from slot-module.";
+      if(iErrorCode == "TEC_A") oErrorDescription = "inheco TEC: Busy with an action command or startup.";
+      if(iErrorCode == "TEC_B") oErrorDescription = "inheco TEC: Reserved.";
+      if(iErrorCode == "TEC_C") oErrorDescription = "inheco TEC: Housing temperature not OK.";
+      if(iErrorCode == "TEC_D") oErrorDescription = "inheco TEC: Response time too long.";
+      if(iErrorCode == "TEC_E") oErrorDescription = "inheco TEC: Voltage power supply not OK.";
+      if(iErrorCode == "TEC_F") oErrorDescription = "inheco TEC: Housing fan not OK.";
+      if(iErrorCode == "TEC_G") oErrorDescription = "inheco TEC: Device temp not OK.";
+      if(iErrorCode == "TEC_H") oErrorDescription = "inheco TEC: RPM too high.";
+      if(iErrorCode == "TEC_I") oErrorDescription = "inheco TEC: CPAC voltage not OK.";
+      if(iErrorCode == "TEC_K") oErrorDescription = "inheco TEC: TEC current too low.";
+      if(iErrorCode == "TEC_R") oErrorDescription = "inheco TEC: Cable Break or Shortcut PT100.";
+      if(iErrorCode == "TEC_T") oErrorDescription = "inheco TEC: Delta T too high.";
+      if(iErrorCode == "TEC_W") oErrorDescription = "inheco TEC: Wrong device connected.";
+
+      if(oErrorDescription != "") return(ASWGLOBAL::BOOL::TRUE);
+      return(ASWGLOBAL::BOOL::FALSE);  
+    } // GetDescriptionForErrorCode
+
+     ////////////////////////////////////////////////////////////////////////////
+    //
+    // function SetTraceLevel
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function SetTraceLevel(variable iTraceLevel) variable
+    {
+        if(!CheckIntegerRange(iTraceLevel, "iTraceLevel", TRACE_LEVEL_NONE, TRACE_LEVEL_DEBUG, GetFunctionName())) return(ASWGLOBAL::BOOL::FALSE);
+
+        StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "iTraceLevel = " + IStr(iTraceLevel), GetFunctionName());
+
+        HSLTECLib_LibraryTraceLevel = iTraceLevel;
+
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, "", GetFunctionName());
+
+        return(ASWGLOBAL::BOOL::TRUE);
+
+    } // SetTraceLevel
+
+    //////////////////////////////////////////////////////////////////////////
+    //
+    // GetTraceLevel
+    //
+    //////////////////////////////////////////////////////////////////////////
+    function GetTraceLevel(variable& oTraceLevel) void
+    {
+      oTraceLevel = HSLTECLib_LibraryTraceLevel;
+    }// GetTraceLevel
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // private function CheckForInitialization
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    private function CheckForInitialization(variable ControllerID) variable
+    {
+      variable Result(ASWGLOBAL::BOOL::FALSE);
+      if(HSLTECLib_TECControllerConnected.GetAt(ControllerID) == ASWGLOBAL::BOOL::TRUE)
+      {
+        return (ASWGLOBAL::BOOL::TRUE);
+      }
+      else
+      {
+        StatusTrace(CMD_FAIL, TRACE_LEVEL_NONE, "ControllerID" + IStr(ControllerID) + " is not initialized!", GetFunctionName());
+        HSLTECLib_LibraryLastError = "ControllerID" + IStr(ControllerID) + " is not initialized!";
+        HSLTECLib_ERROR_CODE = "005";
+        return(Result);
+      }
+    }
+ 
+    //////////////////////////////////////////////////////////////////////////
+    //
+    //function SendCommandString
+    //
+    //////////////////////////////////////////////////////////////////////////
+    private function SendCommandString(variable iControllerID,
+                                       variable iCommandString,
+                                       variable& oResponse) variable
+    {
+      variable MessageString("");
+      variable Result(ASWGLOBAL::BOOL::FALSE);
+      timer Delay;
+
+      // Checking ControllerID on valid range for value
+      if(!CheckInteger(iControllerID, "iControllerID", GetFunctionName()))
+      {
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(iControllerID, "iControllerID", LOWERCONTROLLERBOUND, UPPERCONTROLLERBOUND, GetFunctionName()))
+      {
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(CheckSimulationMode())
+      {
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      // Checks end
+
+      HSLTECLib_Semaphore.WaitEvent(hslInfinite);
+
+      Delay.SetTimer(0.1, 0);
+      Delay.WaitTimer(ASWGLOBAL::BOOL::FALSE, ASWGLOBAL::BOOL::FALSE);
+      HSLTECLib_TECController.FindTheUniversalControl(iControllerID);
+      HSLTECLib_TECController.WriteOnly(iCommandString);
+      MessageString = "Sent command " + iCommandString;
+      MessageString = MessageString + " to ControllerID ";
+      MessageString = MessageString + IStr(iControllerID);
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, MessageString, GetFunctionName());
+
+      Delay.SetTimer(0.1, 0);
+      Delay.WaitTimer(ASWGLOBAL::BOOL::FALSE, ASWGLOBAL::BOOL::FALSE);
+      oResponse = HSLTECLib_TECController.ReadSync();
+
+      MessageString = "Response from ControllerID ";
+      MessageString = MessageString + IStr(iControllerID);
+      MessageString = MessageString + ": ";
+      MessageString = MessageString + oResponse;
+      StatusTrace(CMD_PROGRESS, TRACE_LEVEL_DEBUG, MessageString, GetFunctionName());
+
+      HSLTECLib_Semaphore.SetEvent();
+
+      return(Result);
+    } // SendCommandString
+
+    //////////////////////////////////////////////////////////////////////////
+    //
+    // private function CheckBool
+    //
+    //////////////////////////////////////////////////////////////////////////
+    private function CheckBool(variable iVariable,
+                               variable iTraceEntry,
+                               variable iFunctionName) variable
+    {
+      if(GetType(iVariable) == "i")
+        if(iVariable == ASWGLOBAL::BOOL::TRUE || iVariable == ASWGLOBAL::BOOL::FALSE)
+          return(ASWGLOBAL::BOOL::TRUE);
+      HSLTECLib_LibraryLastError = "Input parameter " + iTraceEntry + " is not of type bool";
+      HSLTECLib_ERROR_CODE = "201";
+      StatusTrace(CMD_ERRCOMPLETE, TRACE_LEVEL_NONE, HSLTECLib_LibraryLastError, iFunctionName);
+      return(ASWGLOBAL::BOOL::FALSE);
+    } // CheckBool
+
+    //////////////////////////////////////////////////////////////////////////
+    //
+    // private function CheckInteger
+    //
+    //////////////////////////////////////////////////////////////////////////
+    private function CheckInteger(variable iVariable,
+                                  variable iTraceEntry,
+                                  variable iFunctionName) variable
+    {
+      if(GetType(iVariable) == "i")
+        return(ASWGLOBAL::BOOL::TRUE);
+      HSLTECLib_LibraryLastError = "Input parameter " + iTraceEntry + " is not of type integer";
+      HSLTECLib_ERROR_CODE = "202";
+      StatusTrace(CMD_ERRCOMPLETE, TRACE_LEVEL_NONE, HSLTECLib_LibraryLastError, iFunctionName);
+      return(ASWGLOBAL::BOOL::FALSE);
+    } // CheckInteger
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //private function CheckIntegerRange
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    private function CheckIntegerRange(variable iVariable,
+                                       variable iTraceEntry,
+                                       variable iMin,
+                                       variable iMax,
+                                       variable iFunctionName) variable
+    {
+      if(GetType(iVariable) == "i")
+        if(iVariable >= iMin && iVariable <= iMax)
+          return(ASWGLOBAL::BOOL::TRUE);
+        else
+          HSLTECLib_LibraryLastError = "Parameter " + iTraceEntry + " is out of range("+ IStr(iMin) + ".." + IStr(iMax) + ")!";
+      else
+        HSLTECLib_LibraryLastError = "Input parameter " + iTraceEntry + " is not of type integer";
+      HSLTECLib_ERROR_CODE = "203";
+      StatusTrace(CMD_ERRCOMPLETE, TRACE_LEVEL_NONE, HSLTECLib_LibraryLastError, iFunctionName);
+      return(ASWGLOBAL::BOOL::FALSE);
+    } // CheckIntegerRange
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // private function SendCommandToController
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    private function SendCommandToController(string iCommand,
+                                             variable iControllerID,
+                                             variable& oControllerResponse,
+                                             variable& oErrorCode) variable
+    {
+      string  ControllerResponse("");
+      string  ControllerError("");
+      string  MessageString("");
+      timer   Delay;
+
+      if(!CheckForInitialization(iControllerID))
+      {
+        oErrorCode = HSLTECLib_ERROR_CODE;
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      HSLTECLib_Semaphore.WaitEvent(hslInfinite);
+
+      Delay.SetTimer(0.1, 0);
+      Delay.WaitTimer(ASWGLOBAL::BOOL::FALSE, ASWGLOBAL::BOOL::FALSE);
+      HSLTECLib_TECController.FindTheUniversalControl(iControllerID);
+      HSLTECLib_TECController.WriteOnly(iCommand);
+      MessageString = "Sent command " + iCommand;
+      MessageString = MessageString + " to ControllerID ";
+      MessageString = MessageString + IStr(iControllerID);
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, MessageString, GetFunctionName());
+
+      Delay.SetTimer(0.1, 0);
+      Delay.WaitTimer(ASWGLOBAL::BOOL::FALSE, ASWGLOBAL::BOOL::FALSE);
+      ControllerResponse = HSLTECLib_TECController.ReadSync();
+
+      MessageString = "Response from ControllerID ";
+      MessageString = MessageString + IStr(iControllerID);
+      MessageString = MessageString + ": ";
+      MessageString = MessageString + ControllerResponse;
+      StatusTrace(CMD_PROGRESS, TRACE_LEVEL_DEBUG, MessageString, GetFunctionName());
+
+      HSLTECLib_Semaphore.SetEvent();
+
+      // check wether controller sent status reply
+      if(ControllerResponse.GetLength() > 0)
+      {
+        // controller gave answer
+        oControllerResponse = ControllerResponse;
+        if(ControllerResponse.GetLength() >= 5)
+        {
+          ControllerError = ControllerResponse.Mid(4,1);
+        }
+      }
+      else 
+      {
+        // no answer from controller
+        ControllerError = "007";
+        MessageString = "TEC_" + ControllerError;
+        HSLTECLib_ERROR_CODE    = MessageString;
+        oErrorCode    = HSLTECLib_ERROR_CODE;
+        MessageString = "Controller: ";
+        MessageString = MessageString + IStr(iControllerID);
+        MessageString = MessageString + " did not answer!";
+        HSLTECLib_LibraryLastError = MessageString;
+        StatusTrace(CMD_FAIL, TRACE_LEVEL_NONE, MessageString, GetFunctionName());
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(0 == ControllerError.Compare("0"))
+      {
+        HSLTECLib_ERROR_CODE = "TEC_0";
+        oErrorCode    = HSLTECLib_ERROR_CODE;
+        MessageString = "Command: ";
+        MessageString = MessageString + iCommand;
+        MessageString = MessageString + " for ControllerID ";
+        MessageString = MessageString + IStr(iControllerID);
+        MessageString = MessageString + " succeeded with response: ";
+        MessageString = MessageString + ControllerResponse;
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_DEBUG, MessageString, GetFunctionName());
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      else if(0 == ControllerError.Compare("6"))
+      {
+        HSLTECLib_ERROR_CODE    = "TEC_0";
+        oErrorCode    = HSLTECLib_ERROR_CODE;
+        MessageString = "Reset detected.";
+        StatusTrace(CMD_PROGRESS, TRACE_LEVEL_DEBUG, MessageString, GetFunctionName()); 
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      else
+      {
+        MessageString = "TEC_" + ControllerError;
+        HSLTECLib_ERROR_CODE    = MessageString;
+        oErrorCode    = HSLTECLib_ERROR_CODE;
+        MessageString = "Command: ";
+        MessageString = MessageString + iCommand;
+        MessageString = MessageString + " for ControllerID ";
+        MessageString = MessageString + IStr(iControllerID);
+        MessageString = MessageString + " failed with response: ";
+        MessageString = MessageString + ControllerResponse;
+        HSLTECLib_LibraryLastError = MessageString;
+        StatusTrace(CMD_FAIL, TRACE_LEVEL_NONE, MessageString, GetFunctionName());
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    } // SendCommandToController
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // private function CheckString
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    private function CheckString(variable iVariable,
+                                 variable iTraceEntry,
+                                 variable iFunctionName) variable
+    {
+      variable FunctionName(GetFunctionName());
+
+      if(GetType(iVariable) == "s")
+        return(ASWGLOBAL::BOOL::TRUE);
+
+      HSLTECLib_ERROR_CODE = "204";
+      HSLTECLib_LibraryLastError = "Parameter " + iTraceEntry + " is not of type string!";
+      StatusTrace(CMD_ERRCOMPLETE, TRACE_LEVEL_NONE, HSLTECLib_LibraryLastError, iFunctionName);
+      return(ASWGLOBAL::BOOL::FALSE);
+    } // CheckString
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // private function CheckSimulationMode
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    private function CheckSimulationMode() variable
+    {
+      if(HSLTECLib_LibrarySimulationMode)
+      {
+        HSLTECLib_ERROR_CODE = "001";
+        HSLTECLib_LibraryLastError = "Inheco TEC-Library in simulation mode.";
+        StatusTrace(CMD_START, TRACE_LEVEL_NONE, "Inheco TEC-Library in simulation mode.", GetFunctionName());
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      else return (ASWGLOBAL::BOOL::FALSE);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // private function StatusTrace
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    private function StatusTrace(variable iState,
+                                 variable iTraceLevel,
+                                 variable iTraceString, variable iFunctionName) void
+    {
+      if(iTraceLevel <= HSLTECLib_LibraryTraceLevel)
+      {
+        iFunctionName = StrMid(iFunctionName, StrReverseFind(iFunctionName, ":") + 1, StrGetLength(iFunctionName));
+        FormatTrace("LIBRARY: " + HSLTECLib_LibraryModuleName, iFunctionName, iState, " ", iTraceString);
+      }
+    }// StatusTrace
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  function Terminate()
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function Terminate()
+    {
+      variable  StopShakerCommand("ASE0");
+      variable  StopHeaterCommand("AHE0");
+      variable  ControllerCounter;
+      variable  DeviceCounter;
+      string    Command;
+      variable  Response("");
+      variable  ErrorCode("");
+
+      if(!HSLTECLib_LibraryInitialized)
+      {
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_RELEASE, "Library not initialized!", GetFunctionName());
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+
+      if(HSLTECLib_LibrarySimulationMode)
+      {
+        StatusTrace(CMD_COMPLETE, TRACE_LEVEL_RELEASE, "Running in simulation mode", GetFunctionName());
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+
+      StatusTrace(CMD_START, TRACE_LEVEL_DEBUG, "Stopping all Inheco TEC device activities!", GetFunctionName());
+
+      for (ControllerCounter = LOWERCONTROLLERBOUND; ControllerCounter < UPPERCONTROLLERBOUND; ControllerCounter++)
+      {
+        // Access all controllers
+        if(HSLTECLib_TECControllerConnected.ElementAt(ControllerCounter))
+        {
+          // Reset all attached devices
+          HSLTECLib_TECController.FindTheUniversalControl(ControllerCounter);
+          for (DeviceCounter = 1; DeviceCounter <= 6; DeviceCounter++)
+          {
+            //stop shaking
+            Command = "";
+            Command = Command + IStr(DeviceCounter);
+            Command = Command + StopShakerCommand;
+
+            if(SendCommandToController(Command, ControllerCounter, Response, ErrorCode))
+            {
+              StatusTrace(CMD_PROGRESS, TRACE_LEVEL_NONE, "Device " + IStr(DeviceCounter) + " @controller " + IStr(ControllerCounter) + ": Shaker stopped.", GetFunctionName());
+            }
+
+            //stop heating
+            Command = "";
+            Command = Command + IStr(DeviceCounter);
+            Command = Command + StopHeaterCommand;
+
+            if(SendCommandToController(Command, ControllerCounter, Response, ErrorCode))
+            {
+              StatusTrace(CMD_PROGRESS, TRACE_LEVEL_NONE, "Device " + IStr(DeviceCounter) + " @controller " + IStr(ControllerCounter) + ": Heater stopped.", GetFunctionName());
+            }
+          }
+        }
+      }
+
+      StatusTrace(CMD_COMPLETE, TRACE_LEVEL_NONE, "Devices stopped!", GetFunctionName());
+
+      HSLTECLib_Semaphore.WaitEvent(hslInfinite);
+      HSLTECLib_TECController.ReleaseObject();
+      HSLTECLib_LibrarySimulationMode = ASWGLOBAL::BOOL::FALSE;
+      HSLTECLib_LibraryInitialized = hslFalse;
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // Terminate
+  } // end of namespace HSLInhecoTECLib
+#endif
+// $$author=BHuf$$valid=0$$time=2012-10-23 16:05$$checksum=da1c21a6$$length=083$$

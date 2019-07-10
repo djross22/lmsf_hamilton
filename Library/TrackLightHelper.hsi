@@ -1,0 +1,715 @@
+// {{{ 2 "IncludeGuard" "PragmaOnce"
+#pragma once
+// }} ""
+#include "HSLUtilLib.hsl"
+#include "HSLTrcLib.hsl"
+#include "HSLUtilLib2.hsl"
+#include "HSLStrLib.hsl"
+#include "HSLArrLib.hsl"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+#include "HSLMETEDLib.hs_"
+#include "HSLMECCLib.hs_"
+// }} ""
+// {{{ 2 "LibraryNamespace" "Begin"
+namespace TRACKLIGHTHELPER {
+// }} ""
+global variable TurnLightOff(3); // This command turns the loading lights off for a track or all tracks.
+global variable TurnLightOn(1); // This command will turn the lights solidly on for a track or all tracks.
+global variable TurnLightOnBlinking(2); // This command will turn the loading lights on and make them blink for a track, or all tracks.
+variable __trackLightArraySize__(56);
+variable hexadecimalTrackString_BlinkSteady;
+variable binaryChunk_OnOff;
+variable binaryChunk_SteadyBlinking;
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{{ 2 "SubmethodForwardDeclaration" ""
+function PerformTrackLightCommand( variable trackNumber, variable command, device & star ) variable ;
+// }} ""
+function _InitLibrary() {
+// {{ 2 "AutoInitBlock" ""
+// }} ""
+}
+function _ExitLibrary() {
+// {{ 2 "AutoExitBlock" ""
+// }} ""
+}
+// {{{ 5 "PerformTrackLightCommand" "Begin"
+function PerformTrackLightCommand( variable trackNumber, variable command, device & star ) variable {
+// }} ""
+private variable isValid;
+private variable trackIndex;
+private variable trackIndexLoopCounter;
+private variable __hexadecimalLookupArray__[];
+private variable __binaryLookupArray__[];
+private variable retVal;
+private variable commandString;
+private variable OnOffArraySize;
+private variable BlinkSteadyArraySize;
+private variable hexadecimalTrackString_OnOff;
+private variable VALUE_OnOff;
+private variable VALUE_SteadyBlinking;
+private variable INDEX_OnOff(0);
+private variable INDEX_SteadyBlinking(0);
+// {{ 5 "PerformTrackLightCommand" "InitLocals"
+// }} ""
+// {{ 1 1 0 "e23f83bf_ee0a_4cf2_95df005bc43cf18e" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 2 1 0 "e34a6c45_8b8b_46e1_84c7094739fcabb6" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 3 1 0 "28952dcc_3a82_4374_ad5f574056e2520a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace4(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 1, Translate(" with trackNumber: "), trackNumber, Translate(" and command: "), command);
+// }} ""
+// {{{ 4 1 0 "0758d119_572f_4af1_be52fe94ac2228d1" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+isValid = Util::IsInteger(trackNumber);
+// }} ""
+// {{ 5 1 0 "25dad7af_1ef2_4dd5_bca5c92139f35cd2" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (isValid == 0)
+{
+// }} ""
+// {{{ 6 1 0 "d77c9607_a4bc_4e99_99b08b56e831d620" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 3, Translate("The trackNumber variable specified was not an integer! Please check that it is a variable type and not a string."), Translate(""));
+// }} ""
+// {{{ 7 1 0 "1520898e_aafb_40e4_b6ae35a07e98ab73" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 5, Translate(""), Translate(""));
+// }} ""
+// {{{ 8 1 0 "3ae66993_c004_4f76_a81278c3d3b9d615" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (1);
+// }} ""
+// {{ 9 1 0 "25dad7af_1ef2_4dd5_bca5c92139f35cd2" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 10 1 0 "5b9f3eaf_1392_43c6_bc4214789cf13df9" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (trackNumber < 0)
+{
+// }} ""
+// {{{ 11 1 0 "1219dc23_be1a_4487_bb63f913b7657b22" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 5, Translate("The trackNumber must be in the range [0...55]. 0 indicates that the command issue will apply to all tracks."), Translate(""));
+// }} ""
+// {{{ 12 1 0 "c4a66336_b711_46b6_8bf77a8ff8f35cce" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (1);
+// }} ""
+// {{ 13 1 0 "5b9f3eaf_1392_43c6_bc4214789cf13df9" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 14 1 0 "5c6dacff_3abe_4c5f_94083dbfc0ae1576" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (trackNumber > 55)
+{
+// }} ""
+// {{{ 15 1 0 "1a206c43_946f_4bb3_8d19df0b720c2727" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 5, Translate("The trackNumber must be in the range [0...55]. 0 indicates that the command issue will apply to all tracks."), Translate(""));
+// }} ""
+// {{{ 16 1 0 "f2f20bef_41f1_460f_97cba72998193e01" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (1);
+// }} ""
+// {{ 17 1 0 "5c6dacff_3abe_4c5f_94083dbfc0ae1576" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 18 1 0 "16687ddb_aa91_48fe_bf7d744f44481e00" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+isValid = Util::IsInteger(command);
+// }} ""
+// {{ 19 1 0 "78b89eaa_03d5_4707_bd83697ca7e29ee5" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (isValid == 0)
+{
+// }} ""
+// {{{ 20 1 0 "f5923ad7_a473_4d86_a1e4b3943c7bced6" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 3, Translate("The command variable specified was not valid. Please check that it was selected from one of the TrackLightHelper:: variables in the drop down.!"), Translate(""));
+// }} ""
+// {{{ 21 1 0 "bc4eee32_a83d_4daa_b7ec2666848c5377" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 5, Translate(""), Translate(""));
+// }} ""
+// {{{ 22 1 0 "66bb246d_6727_4dd3_ac5d8f14ff03bbff" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (1);
+// }} ""
+// {{ 23 1 0 "78b89eaa_03d5_4707_bd83697ca7e29ee5" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 24 1 0 "1335e6b9_f185_44c5_a9734ddc9b997a81" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (command != TurnLightOn)
+{
+// }} ""
+// {{ 25 1 0 "170afec0_305b_4ad6_b0fd53c8a82960e6" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (command != TurnLightOnBlinking)
+{
+// }} ""
+// {{ 26 1 0 "0227a7fd_a575_46cc_ab29c91590b786cc" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (command != TurnLightOff)
+{
+// }} ""
+// {{{ 27 1 0 "9b9a0a23_55b9_45f7_96fdd0c261441f70" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 5, Translate("The command specified was not recognized. Please check that it is one from the TrackLightHelper:: variables in the dropdown"), Translate(""));
+// }} ""
+// {{{ 28 1 0 "8a87bb31_1f64_4252_83fb3024a010e767" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (1);
+// }} ""
+// {{ 29 1 0 "0227a7fd_a575_46cc_ab29c91590b786cc" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 30 1 0 "170afec0_305b_4ad6_b0fd53c8a82960e6" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 31 1 0 "1335e6b9_f185_44c5_a9734ddc9b997a81" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 32 1 0 "5153cf89_869b_4e00_a25dcd7e66af3fe7" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 33 1 0 "539f4308_3160_4a35_8dee61b4fb5625cd" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 34 1 0 "f2103b5d_0a8a_400e_a2d25f81141c9b2a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+OnOffArraySize = VarArrGetSize(0);
+// }} ""
+// {{{ 35 1 0 "79f1539f_98a7_43ca_b38fa329b59fd95f" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+BlinkSteadyArraySize = VarArrGetSize(1);
+// }} ""
+//step 1: check if either rows are empty
+if(OnOffArraySize == 0 || BlinkSteadyArraySize == 0)
+{
+    variable index(0);
+
+    //step 2: set columns to 56 elements 
+    VarArrSetSize(0, __trackLightArraySize__);
+    VarArrSetSize(1, __trackLightArraySize__);
+
+    //step 3: set defaults (off/steady)
+    while(index < __trackLightArraySize__)
+    {
+         VarArrSetAt(0, index, 0); //set track lights off
+         VarArrSetAt(0, index, 0); //set to steady
+         index++;
+    }
+}
+// {{ 37 1 0 "5153cf89_869b_4e00_a25dcd7e66af3fe7" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 38 1 0 "e34a6c45_8b8b_46e1_84c7094739fcabb6" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 39 1 0 "2fc7977c_2d03_42fe_b24a9df6ad1fe6b2" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 40 1 0 "8c33d311_c7ac_4157_9d5767e78660c5b1" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 41 1 0 "4c42685a_2448_43a9_ae89fc10ec1e84ac" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (trackNumber == 0)
+{
+// }} ""
+// {{ 42 1 0 "35cf3d7a_098d_4af6_98575980bd889a62" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(trackIndexLoopCounter = 0; trackIndexLoopCounter < 55;)
+{
+trackIndexLoopCounter = trackIndexLoopCounter + 1;
+// }} ""
+// {{ 43 1 0 "8cb38b5a_b004_44fe_82b9c1e0c59f152d" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (command == TurnLightOff)
+{
+// }} ""
+// {{{ 44 1 0 "726c097a_82db_40aa_a6ea409664f84092" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(0, trackNumber, 0);
+// }} ""
+// {{{ 45 1 0 "379898da_8465_4c5e_96063764eed6f592" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(1, trackNumber, 0);
+// }} ""
+// {{ 46 1 0 "8cb38b5a_b004_44fe_82b9c1e0c59f152d" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 47 1 0 "583987bc_d3f7_4a53_a9d0914ca83c1379" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (command == TurnLightOn)
+{
+// }} ""
+// {{{ 48 1 0 "11bf7060_b354_4bf9_b331ba09a5ef2257" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(0, trackNumber, 1);
+// }} ""
+// {{{ 49 1 0 "56d72652_ed1b_44ad_a9d28c1e8c8295d2" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(1, trackNumber, 0);
+// }} ""
+// {{ 50 1 0 "583987bc_d3f7_4a53_a9d0914ca83c1379" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 51 1 0 "ae8c4772_f6bb_461b_9f253edf9b86f360" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (command == TurnLightOnBlinking)
+{
+// }} ""
+// {{{ 52 1 0 "04227ec7_305b_4fd3_aa1d2ece3a848a71" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(0, trackNumber, 1);
+// }} ""
+// {{{ 53 1 0 "e99ea503_317e_47f6_a7d7fc5d08ea1f83" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(1, trackNumber, 1);
+// }} ""
+// {{ 54 1 0 "ae8c4772_f6bb_461b_9f253edf9b86f360" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 55 1 0 "a1544ed0_8f5e_4630_b37416307cc11013" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+trackNumber = trackNumber + 1;
+// }} ""
+// {{ 56 1 0 "35cf3d7a_098d_4af6_98575980bd889a62" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 57 1 0 "4c42685a_2448_43a9_ae89fc10ec1e84ac" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 58 1 0 "8dfdd022_cf18_47b8_89651ed5319c7263" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 59 1 0 "b4fd599b_5463_4fb7_b68cbddee2c1e643" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+trackNumber = trackNumber - 1;
+// }} ""
+// {{ 60 1 0 "0d8f3bc1_edde_469d_8ad778ead285b8f7" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (command == TurnLightOff)
+{
+// }} ""
+// {{{ 61 1 0 "9f80e08a_d090_4b09_948e42b465eb403c" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(1, trackNumber, 0);
+// }} ""
+// {{{ 62 1 0 "bb879b89_8b80_4c37_8f68f2b78b7fc789" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(0, trackNumber, 0);
+// }} ""
+// {{ 63 1 0 "0d8f3bc1_edde_469d_8ad778ead285b8f7" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 64 1 0 "980855cc_8c32_43ab_ad325ae8803b3bbf" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (command == TurnLightOn)
+{
+// }} ""
+// {{{ 65 1 0 "1cd92d24_9b0a_462f_8788d1c02b00f882" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(0, trackNumber, 1);
+// }} ""
+// {{{ 66 1 0 "1f4d155e_7837_4e99_83dfd5a9bfa7c76f" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(1, trackNumber, 0);
+// }} ""
+// {{ 67 1 0 "980855cc_8c32_43ab_ad325ae8803b3bbf" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 68 1 0 "3b61a122_c768_4b21_85a8539e7a890530" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (command == TurnLightOnBlinking)
+{
+// }} ""
+// {{{ 69 1 0 "4cb94a30_a2b1_49e1_b7dff5610fd2897d" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(0, trackNumber, 1);
+// }} ""
+// {{{ 70 1 0 "317d8f80_6e3f_4b18_b588ff36754bfb22" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+VarArrSetAt(1, trackNumber, 1);
+// }} ""
+// {{ 71 1 0 "3b61a122_c768_4b21_85a8539e7a890530" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 72 1 0 "4c42685a_2448_43a9_ae89fc10ec1e84ac" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 73 1 0 "b14278f1_dd0e_4c93_b181f463e57350dd" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 74 1 0 "d5b32b23_6088_4399_b327dd98e73f6351" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 75 1 0 "2532a486_1ab1_4821_ba8c6c82ec64fc10" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+trackIndex = 0;
+// }} ""
+// {{ 76 1 0 "8c4ac259_372a_4b30_a0bee46b79662a7e" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+hexadecimalTrackString_OnOff = "";
+// }} ""
+// {{ 77 1 0 "41045d8d_8e51_4408_b9f0ba100d536ff0" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+hexadecimalTrackString_BlinkSteady = "";
+// }} ""
+// {{ 78 1 0 "f589ff08_e95e_4e3f_97e80f445a702a58" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 79 1 0 "e4a258ad_d7e6_44a6_8d6b40314e58f3a0" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 80 1 0 "96282533_f45a_4813_809084492ef135a4" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 81 1 0 "f6d33acc_7565_4b35_a99ca89b1a95d582" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+__binaryLookupArray__.SetSize(0);
+// }} ""
+// {{ 82 1 0 "f09c7c19_4216_4a4a_add8fd7f7141600d" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("0000");
+// }} ""
+// {{ 83 1 0 "92807191_013a_41cb_a4d92fb4e205d9f4" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("0001");
+// }} ""
+// {{ 84 1 0 "709a6860_0e2c_4e53_9aac1f5c36a0e21d" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("0010");
+// }} ""
+// {{ 85 1 0 "c4996db1_9269_488b_8d023dba488e2a2c" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("0011");
+// }} ""
+// {{ 86 1 0 "cbbea218_e995_492a_b354d645a11229cf" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("0100");
+// }} ""
+// {{ 87 1 0 "0c9dca0f_98ef_40dd_a918a6c9e0dbb476" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("0101");
+// }} ""
+// {{ 88 1 0 "1e0b2e26_93d7_4837_bcce6408ea5471fd" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("0110");
+// }} ""
+// {{ 89 1 0 "0e1d167d_5e78_41db_9e3e60d4f4492fb1" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("0111");
+// }} ""
+// {{ 90 1 0 "5bd5d930_7c0e_4068_bb6e16d679d1b903" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("1000");
+// }} ""
+// {{ 91 1 0 "410ae734_c15e_452b_883af28454a802c2" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("1001");
+// }} ""
+// {{ 92 1 0 "8fc7eda2_d82c_43b5_8a7a870e4f11bcb4" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("1010");
+// }} ""
+// {{ 93 1 0 "606aa5e2_753e_4f4c_9c62545cb5ce8029" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("1011");
+// }} ""
+// {{ 94 1 0 "cdf23f9b_5ad4_441d_9e02cadb174807b5" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("1100");
+// }} ""
+// {{ 95 1 0 "5224f640_f3f1_47ff_8931e3fbc2d7f551" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("1101");
+// }} ""
+// {{ 96 1 0 "e47b2525_d7fd_4c2e_94a96a4c3b591f36" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("1110");
+// }} ""
+// {{ 97 1 0 "61256c21_0642_49d6_8828a2f7879a2898" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__binaryLookupArray__.AddAsLast("1111");
+// }} ""
+// {{ 98 1 0 "96282533_f45a_4813_809084492ef135a4" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 99 1 0 "00f0cf77_ba20_423b_9498e61c743fa05e" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 100 1 0 "ba846e27_3c3c_4c28_b70ba843931384c0" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 101 1 0 "9744b2c5_7a95_4b7b_b35ffc54f35d71e0" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+__hexadecimalLookupArray__.SetSize(0);
+// }} ""
+// {{ 102 1 0 "9e50c30d_3b52_4b94_ad2c57c543f45a97" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("0");
+// }} ""
+// {{ 103 1 0 "22044607_adb3_4698_914a898f86a16f53" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("1");
+// }} ""
+// {{ 104 1 0 "6b1f15b4_383c_446a_b7c6882db85dd1fb" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("2");
+// }} ""
+// {{ 105 1 0 "72547663_8868_41e5_b5e284ad3e983b44" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("3");
+// }} ""
+// {{ 106 1 0 "006ef086_813a_421b_a4c57303ee35125c" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("4");
+// }} ""
+// {{ 107 1 0 "44c8f901_f48c_4129_b1651a2608ac98c0" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("5");
+// }} ""
+// {{ 108 1 0 "062a2b23_a6f7_4391_b5b88a68432a795c" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("6");
+// }} ""
+// {{ 109 1 0 "87db0c1c_17b5_42d6_926f210bcda0bfd2" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("7");
+// }} ""
+// {{ 110 1 0 "2ca279ac_365d_4977_941510929b12b818" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("8");
+// }} ""
+// {{ 111 1 0 "dc790cdd_c282_40c9_98f32c88057e7185" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("9");
+// }} ""
+// {{ 112 1 0 "c5b82508_a177_4bff_8dcaf686985775ba" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("A");
+// }} ""
+// {{ 113 1 0 "dd5e0167_95ba_43d8_ae53719d9b9dc877" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("B");
+// }} ""
+// {{ 114 1 0 "43670eb8_16c8_48f4_b075cfe785e179b0" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("C");
+// }} ""
+// {{ 115 1 0 "7d415bae_1d21_4e59_adf08161fa9fedc9" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("D");
+// }} ""
+// {{ 116 1 0 "7fd57965_568f_467a_ba86233982d581e6" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("E");
+// }} ""
+// {{ 117 1 0 "861d79de_6965_4111_8115d1995441e52e" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+__hexadecimalLookupArray__.AddAsLast("F");
+// }} ""
+// {{ 118 1 0 "00f0cf77_ba20_423b_9498e61c743fa05e" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 119 1 0 "f589ff08_e95e_4e3f_97e80f445a702a58" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 120 1 0 "7808e1a2_56d7_44e3_86d26b0222fc0fe3" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 121 1 0 "ab4d3f18_391e_49c6_a826de3e59b2b8b4" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+trackIndexLoopCounter = 0;
+while (trackIndex < __trackLightArraySize__)
+{
+trackIndexLoopCounter = trackIndexLoopCounter + 1;
+// }} ""
+// {{ 122 1 0 "95a96ac6_f900_4f38_ba176929e929924b" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+    binaryChunk_OnOff = 
+     StrIStr(VarArrGetAt(0, trackIndex+3))
+   + StrIStr(VarArrGetAt(0, trackIndex+2))
+   + StrIStr(VarArrGetAt(0, trackIndex+1))
+   + StrIStr(VarArrGetAt(0, trackIndex));
+
+    binaryChunk_SteadyBlinking = 
+     StrIStr(VarArrGetAt(1, trackIndex+3))
+   + StrIStr(VarArrGetAt(1, trackIndex+2))
+   + StrIStr(VarArrGetAt(1, trackIndex+1))
+   + StrIStr(VarArrGetAt(1, trackIndex));
+// {{ 124 1 0 "95a96ac6_f900_4f38_ba176929e929924b" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 125 1 0 "b9fad4e5_3d5a_4e57_8bca691bce06bd4e" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 126 1 0 "f74327c8_42bb_46ef_b98d9491ad7dc8ab" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+retVal = Util::Lookup(__binaryLookupArray__, binaryChunk_OnOff, INDEX_OnOff);
+// }} ""
+// {{ 127 1 0 "23494ae7_99dc_4274_8a72819c584d8f6e" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (retVal == 0)
+{
+// }} ""
+// {{ 128 1 0 "48c8eb15_8484_4468_bac8365c33e0615f" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 129 1 0 "51840b24_4f99_49da_83ba9c1458121c86" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace4(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 3, Translate("Binary lookup failed!. The following binary chunk ["), binaryChunk_OnOff, Translate("] was not found in the binary array. The binary and hexadecimal arrays will be traced below: "), Translate(""));
+// }} ""
+// {{{ 130 1 0 "db408fa4_ff99_42cb_81d476541a425d62" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+Util2::Debug::TraceArray_2(Translate("-- Binary and Hexadecimal lookup arrays --"), __binaryLookupArray__, __hexadecimalLookupArray__);
+// }} ""
+// {{{ 131 1 0 "67e81565_aa24_48a7_9150e6736628a026" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 5, Translate(""), Translate(""));
+// }} ""
+// {{{ 132 1 0 "8a5675e6_0967_482d_a71d5aa1213402eb" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (1);
+// }} ""
+// {{ 133 1 0 "23494ae7_99dc_4274_8a72819c584d8f6e" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 134 1 0 "f14eb18b_9766_46c3_a07ad3c7e4f8d875" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+retVal = Util::Lookup(__binaryLookupArray__, binaryChunk_SteadyBlinking, INDEX_SteadyBlinking);
+// }} ""
+// {{ 135 1 0 "51b42863_6245_4efd_9274fbd0f4b597ad" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (retVal == 0)
+{
+// }} ""
+// {{ 136 1 0 "6b0cac10_b907_4ee3_8d8c1491a089f53f" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 137 1 0 "4fa0f6d5_262c_4fb7_9d02f0b28780a5d1" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace4(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 3, Translate("Binary lookup failed!. The following binary chunk ["), binaryChunk_SteadyBlinking, Translate("] was not found in the binary array. The binary and hexadecimal arrays will be traced below: "), Translate(""));
+// }} ""
+// {{{ 138 1 0 "0064e236_8165_499f_b2dd28798df7f687" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+Util2::Debug::TraceArray_2(Translate("-- Binary and Hexadecimal lookup arrays --"), __binaryLookupArray__, __hexadecimalLookupArray__);
+// }} ""
+// {{{ 139 1 0 "64ece3c4_514a_43fe_b8620920be4ce6a3" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 5, Translate(""), Translate(""));
+// }} ""
+// {{{ 140 1 0 "222b18fa_ec27_4e94_8adf0eb9122a1a62" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (1);
+// }} ""
+// {{ 141 1 0 "51b42863_6245_4efd_9274fbd0f4b597ad" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 142 1 0 "b9fad4e5_3d5a_4e57_8bca691bce06bd4e" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 143 1 0 "9a870b08_3d7c_4ec7_9e24df15bab7f1f9" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 144 1 0 "c922e302_4719_4074_8a44dc454a9c79a4" "{3293659E-F71E-472f-AFB4-6A674E32B114}"
+onerror goto errLabel_7787F2D8FD9144a898D7831A9EB656B4 ;
+err.Clear();
+// }} ""
+// {{ 145 1 0 "023f5206_2125_4397_b55a6d88b7d3dd93" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+/* {{ 1 "" "0" */ if(0){  /* }} "" */
+// {{{ 146 1 0 "fbc06c6b_e640_4466_a62fcfb9053ac913" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace8(Translate("for chunk: "), binaryChunk_OnOff, Translate(" retrieved index: "), INDEX_OnOff, Translate(" at trackIndex: "), trackIndex, Translate(""), Translate(""));
+// }} ""
+/* {{ 1 "" "1" */ } /* }} "" */
+// {{ 147 1 0 "c2667b10_496f_46e1_a9b727c68439147a" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+INDEX_OnOff = INDEX_OnOff + 1;
+// }} ""
+// {{ 148 1 0 "14142418_8f4e_48f5_bc8fd2d60c978f45" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+VALUE_OnOff=__hexadecimalLookupArray__.GetAt(INDEX_OnOff-1);
+// }} ""
+/* {{ 1 "" "0" */ if(0){  /* }} "" */
+// {{{ 149 1 0 "2c8f140a_23e0_45b4_8d6883d75c4a4a0e" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace8(Translate("for chunk: "), binaryChunk_OnOff, Translate(" retrieved index: "), INDEX_OnOff, Translate(" and hex value: "), VALUE_OnOff, Translate(""), Translate(""));
+// }} ""
+/* {{ 1 "" "1" */ } /* }} "" */
+// {{ 150 1 0 "c922e302_4719_4074_8a44dc454a9c79a4" "{3293659E-F71E-472f-AFB4-6A674E32B114}"
+errLabel_7787F2D8FD9144a898D7831A9EB656B4 : {}
+onerror goto 0;
+if (err.GetId() != 0)   /* skip handler if no error */
+{
+// }} ""
+// {{ 151 1 0 "eb1be668_9871_4514_a81715f751f92a36" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 152 1 0 "ab0a7c4a_d2fe_47a7_b8a34ef7596e4722" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace4(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 3, Translate("Hex lookup failed!. The following binary index ["), INDEX_OnOff, Translate("] was not found in the binary lookup array. The binary and hexadecimal arrays will be traced below: "), Translate(""));
+// }} ""
+// {{{ 153 1 0 "31985212_ec06_4fbc_84448e3dcf1a7ba5" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+Util2::Debug::TraceArray_2(Translate("-- Binary and Hexadecimal lookup arrays --"), __binaryLookupArray__, __hexadecimalLookupArray__);
+// }} ""
+// {{{ 154 1 0 "ea3de614_d0c5_427b_8fec3fa0fe36aa3a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 5, Translate(""), Translate(""));
+// }} ""
+// {{{ 155 1 0 "806e68af_b686_4a6b_a6371ebb7891c0c1" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (1);
+// }} ""
+// {{ 156 1 0 "c922e302_4719_4074_8a44dc454a9c79a4" "{3293659E-F71E-472f-AFB4-6A674E32B114}"
+}   /* end if from skip handler if no error */
+// }} ""
+// {{ 157 1 0 "b0f84429_a759_4b68_9668369c4061bbfa" "{3293659E-F71E-472f-AFB4-6A674E32B114}"
+onerror goto errLabel_54DEE3504BA048e79E690BF5FE589A77 ;
+err.Clear();
+// }} ""
+// {{ 158 1 0 "09995d0d_f733_4798_b9c02fbe2b704537" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+/* {{ 1 "" "0" */ if(0){  /* }} "" */
+// {{{ 159 1 0 "0b37cf9a_089c_4644_ac9c1381638ee714" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace8(Translate("for chunk: "), binaryChunk_SteadyBlinking, Translate(" retrieved index: "), INDEX_SteadyBlinking, Translate(" at trackIndex: "), trackIndex, Translate(""), Translate(""));
+// }} ""
+/* {{ 1 "" "1" */ } /* }} "" */
+// {{ 160 1 0 "37960ab5_c404_45f6_9a4d1b9222667ac7" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+INDEX_SteadyBlinking = INDEX_SteadyBlinking + 1;
+// }} ""
+// {{ 161 1 0 "24f15097_c217_4408_812e05937d1b1eed" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+VALUE_SteadyBlinking=__hexadecimalLookupArray__.GetAt(INDEX_SteadyBlinking-1);
+// }} ""
+/* {{ 1 "" "0" */ if(0){  /* }} "" */
+// {{{ 162 1 0 "8b546b71_3ef0_491f_a39c25b293e28f49" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace8(Translate("for chunk: "), binaryChunk_SteadyBlinking, Translate(" retrieved index: "), INDEX_SteadyBlinking, Translate(" and hex value: "), VALUE_SteadyBlinking, Translate(""), Translate(""));
+// }} ""
+/* {{ 1 "" "1" */ } /* }} "" */
+// {{ 163 1 0 "b0f84429_a759_4b68_9668369c4061bbfa" "{3293659E-F71E-472f-AFB4-6A674E32B114}"
+errLabel_54DEE3504BA048e79E690BF5FE589A77 : {}
+onerror goto 0;
+if (err.GetId() != 0)   /* skip handler if no error */
+{
+// }} ""
+// {{ 164 1 0 "efc7e0ca_dcc8_4b62_aeea39b39ec59c15" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 165 1 0 "249e16fa_43ff_49e5_8f47a5578664f9f1" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace4(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 3, Translate("Hex lookup failed!. The following binary index ["), INDEX_SteadyBlinking, Translate("] was not found in the binary lookup array. The binary and hexadecimal arrays will be traced below: "), Translate(""));
+// }} ""
+// {{{ 166 1 0 "7056f348_4414_4a1f_b0e344735a9066c0" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+Util2::Debug::TraceArray_2(Translate("-- Binary and Hexadecimal lookup arrays --"), __binaryLookupArray__, __hexadecimalLookupArray__);
+// }} ""
+// {{{ 167 1 0 "e0607c2d_b7ed_4672_837bf68cce029a1b" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 5, Translate(""), Translate(""));
+// }} ""
+// {{{ 168 1 0 "d8e89732_206b_48e9_a7355e84d53afaa3" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (1);
+// }} ""
+// {{ 169 1 0 "b0f84429_a759_4b68_9668369c4061bbfa" "{3293659E-F71E-472f-AFB4-6A674E32B114}"
+}   /* end if from skip handler if no error */
+// }} ""
+// {{ 170 1 0 "9a870b08_3d7c_4ec7_9e24df15bab7f1f9" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 171 1 0 "613ea668_dd68_43a0_983b7505e05d33d8" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 172 1 0 "47741170_cb48_4b17_bd9729346b9e3766" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+hexadecimalTrackString_OnOff = VALUE_OnOff + hexadecimalTrackString_OnOff;
+// }} ""
+// {{ 173 1 0 "2d339792_595f_4e8b_ac3a12318577be36" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+hexadecimalTrackString_BlinkSteady = VALUE_SteadyBlinking + hexadecimalTrackString_BlinkSteady;
+// }} ""
+// {{ 174 1 0 "613ea668_dd68_43a0_983b7505e05d33d8" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 175 1 0 "80d94bdf_9789_4d2b_8f15e086014d8ea4" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 176 1 0 "282d911a_e3bf_484b_9892a20bb3af55e5" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+trackIndex = trackIndex + 4;
+// }} ""
+// {{ 177 1 0 "80d94bdf_9789_4d2b_8f15e086014d8ea4" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 178 1 0 "ab4d3f18_391e_49c6_a826de3e59b2b8b4" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+/* {{ 1 "" "0" */ if(0){  /* }} "" */
+// {{{ 179 1 0 "81ab14d9_05a5_4eea_8a03f78df454ab31" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace8(Translate("exited the loop"), Translate("and the hex string for row 0 is: ["), hexadecimalTrackString_OnOff, Translate("] and the hex string for row 1 is ["), hexadecimalTrackString_BlinkSteady, Translate("]"), Translate(""), Translate(""));
+// }} ""
+/* {{ 1 "" "1" */ } /* }} "" */
+// {{ 180 1 0 "7808e1a2_56d7_44e3_86d26b0222fc0fe3" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 181 1 0 "b14278f1_dd0e_4c93_b181f463e57350dd" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 182 1 0 "2fc7977c_2d03_42fe_b24a9df6ad1fe6b2" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 183 1 0 "ad29f687_da6f_4c1b_af78bc02bfaa4898" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 184 1 0 "93111e78_3b11_4bfa_82a377a54e7e30b6" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+commandString = Translate("cb") + hexadecimalTrackString_BlinkSteady;
+// }} ""
+/* {{ 1 "" "0" */ if(0){  /* }} "" */
+// {{{ 185 1 0 "5162a746_0418_4fc9_bf67a65a2dadc1fe" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace8(Translate("Command string for blinking ["), commandString, Translate("]"), Translate(""), Translate(""), Translate(""), Translate(""), Translate(""));
+// }} ""
+/* {{ 1 "" "1" */ } /* }} "" */
+// {{ 186 1 0 "90288f70_1b4e_4ec6_9df20bb3a4f71465" "star:{1FB5DA01-3ACB-11d4-AE1F-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = star.FirmwareCommand("90288f70_1b4e_4ec6_9df20bb3a4f71465");
+}
+// }} ""
+// {{ 187 1 0 "f7279c43_7dcd_40d6_8c974ccb92801865" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+commandString = Translate("cl") + hexadecimalTrackString_OnOff;
+// }} ""
+/* {{ 1 "" "0" */ if(0){  /* }} "" */
+// {{{ 188 1 0 "39503fbc_0444_46ce_8cc6ab2f2f2a4c31" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace8(Translate("Command string for on/off ["), commandString, Translate("]"), Translate(""), Translate(""), Translate(""), Translate(""), Translate(""));
+// }} ""
+/* {{ 1 "" "1" */ } /* }} "" */
+// {{ 189 1 0 "c5aa38e4_b0f6_4c6e_a8c166577807603e" "star:{1FB5DA01-3ACB-11d4-AE1F-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = star.FirmwareCommand("c5aa38e4_b0f6_4c6e_a8c166577807603e");
+}
+// }} ""
+// {{ 190 1 0 "ad29f687_da6f_4c1b_af78bc02bfaa4898" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 191 1 0 "51922c1a_c85f_4dad_a1a8ef732c0c588c" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcFormatTrace(Translate("TrackLightHelper::"), Translate("PerformTrackLightCommand"), 2, Translate(""), Translate(""));
+// }} ""
+// {{{ 192 1 0 "17f592b4_c201_44da_ac3a334f47680633" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (0);
+// }} ""
+// {{{ 5 "PerformTrackLightCommand" "End"
+}
+// }} ""
+/* {{ 2 "SubmethodInsertLine" "" */ // }} ""
+// {{{ 2 "LibraryNamespace" "End"
+} // library namespace
+// }} ""
+// $$author=koontz_a$$valid=0$$time=2016-02-16 14:47$$checksum=d13565ff$$length=087$$

@@ -1,0 +1,458 @@
+// This is a part of the Vector Database Worklist Management Library.
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+//
+// Modification History
+// 2006-03-01  bandenmatten
+//             Initial file creation.
+// 2007-05-10  sgriffin
+//             1. Add function to set a monitoring mode.
+//             2. Add function to query if an abort was initiated from 
+//                this library.
+// 2007-05-11  sgriffin
+//             1. Add the function GetMonitorMode
+//             2. Add the function IsMonitoringStarted
+// 2007-06-08  sgriffin
+//             1. Added a flag for the state of the MessageDlg. There
+//					   was an issue where OnAbort leaves the dialog open.
+//					2. Fixed an issue if the transition dialog was displayed
+//						during OnAbort.
+
+#ifndef __HSLSensorLibImpl_hsl__
+#define __HSLSensorLibImpl_hsl__	1
+
+
+
+// ----------------------------------------------------------------------------------------------------
+// Includes
+// ----------------------------------------------------------------------------------------------------
+
+
+
+
+// Interface to the Tadm Analysis Framework
+namespace SensorLib
+{
+	// ----------------------------------------------------------------------------------------------------
+	// Varables:
+	// Note: that these variables are declared to be global this is because it is nessary
+	// to access thes variables across thread boundaries
+	// ----------------------------------------------------------------------------------------------------
+   const variable MONITORMODE_DEFAULT(0);
+   const variable MONITORMODE_NO_ACTION(1);
+   const variable MONITORMODE_ABORT(2);
+
+	global event    ETerminateThread;
+	global object   oHXMessageDLG;
+	global object   iHXMessageDLG;
+
+	global variable blInitialized;
+	global variable blThreadIsRunning;
+	global variable szFirmWareVer;
+	global variable szSolidTitle;
+	global variable szSolidWasteMsg;
+
+   global variable monitorMode(MONITORMODE_DEFAULT);
+   global variable bAbortFlag;
+	global variable bMessageDlgIsOpen;
+
+	// ----------------------------------------------------------------------------------------------------
+	// Private Functions:
+	// ----------------------------------------------------------------------------------------------------
+	synchronized function MonitorThread() void
+   {
+		variable bSolidWaste;
+		variable bLiquidWaste;
+		variable siErrorID;        
+		variable siCount(0);
+      variable threadTerminateFlag(0);
+
+		onerror goto ErrorHandler;
+		
+		Trace("Waste Monitor Thread is running !");
+		blThreadIsRunning = hslTrue;
+
+      while ( (threadTerminateFlag == 0) && (blThreadIsRunning == hslTrue) )
+      {
+         siCount = siCount + 1;
+         if (siCount >= 30)
+         {
+			   siCount = 0;
+			   Trace("Checking Sensors...");
+         }
+
+         // check our monitoring mode...
+         if ( (monitorMode == MONITORMODE_DEFAULT) || (monitorMode == MONITORMODE_ABORT) )
+         {
+            // Check Solid Waste
+            bSolidWaste = iHXMessageDLG.CheckSolidWaste();
+   			if (!bSolidWaste)
+   			{
+   				iHXMessageDLG.GetErrorInfo (siErrorID);
+   				if (siErrorID == 0)
+   				{
+                  if (monitorMode == MONITORMODE_DEFAULT)
+                  {
+      					Trace("Solid Waste ",bSolidWaste);
+      					iHXMessageDLG.ShowHXMessageDLG (szSolidTitle, szSolidWasteMsg);
+      					blThreadIsRunning = hslFalse;
+							bMessageDlgIsOpen = hslTrue;
+      					pause;
+      					blThreadIsRunning = hslTrue;
+      					iHXMessageDLG.CloseHXMessageDLG ();
+							bMessageDlgIsOpen = hslFalse;
+                  }
+                  else
+                  {
+         			   Trace("MonitorMode = MONITORMODE_ABORT");
+
+                     // set the abort flag and abort after the loop
+                     bAbortFlag = 1;
+                     threadTerminateFlag = ETerminateThread.SetEvent();
+                  }
+   				}
+   				else
+   				{
+   					Trace("Error: ", siErrorID);
+   				}
+            }
+
+            if (monitorMode == MONITORMODE_NO_ACTION)
+            {
+               // do nothing!
+   			   Trace("MonitorMode = MONITORMODE_NO_ACTION");
+            }
+
+			}
+         // WaitEvent returns 0 if still waiting or non-zero if the event was triggered.
+         threadTerminateFlag = ETerminateThread.WaitEvent(1);
+
+		}
+		blThreadIsRunning = hslFalse;
+
+      if (bAbortFlag == 1)
+      {
+			blInitialized = hslFalse;
+			iHXMessageDLG.CloseCommPort();
+			iHXMessageDLG.ReleaseObject();
+
+         abort;
+      }
+
+		return;
+
+      
+		ErrorHandler:
+		{
+		     Trace(err.GetDescription());
+		     MessageBox("ErrorHandler","RunControlledAssay",0,5000);
+		     err.Clear();
+		     onerror resume next;
+		}
+      blThreadIsRunning = hslFalse;
+		Trace("Sensor Monitor Failed");
+
+	}
+
+	// ----------------------------------------------------------------------------------------------------
+	// The SensorLib abort handler. The handler is registered in the initialize 
+	// ----------------------------------------------------------------------------------------------------
+   function OnAbortSensorLib() void
+   {
+		Trace(GetFunctionName(), "Sensor Abort Lib Called");
+		blThreadIsRunning = hslFalse;
+		if (blInitialized)
+		{
+			if (bMessageDlgIsOpen == hslTrue)
+			{
+				iHXMessageDLG.CloseHXMessageDLG();
+			}
+
+			// if displayed, close the transition dialog
+			iHXMessageDLG.CloseTransitionDLG();
+
+			iHXMessageDLG.CloseCommPort();
+			iHXMessageDLG.ReleaseObject();
+
+			Trace(GetFunctionName(), "Sensor Monitoring Completed");
+			blInitialized = hslFalse;
+		}
+
+   }
+
+	// ----------------------------------------------------------------------------------------------------
+	// Interface functions:
+	// ----------------------------------------------------------------------------------------------------
+	function Initialize (variable CommPort) variable 
+	{
+		variable bResult;
+		variable siErrorID;
+		variable szErrorDesc;
+
+      // Initialize should should always set the abort flag to hslFalse.
+      bAbortFlag  = 0;
+      monitorMode = MONITORMODE_DEFAULT;
+
+		if (blInitialized == hslTrue)
+		{
+         // If the board is already initialized, we must assume that
+         // the method programmer has prior knowledge with regard to
+         // the set monitoring mode.
+		   Trace("Initialize: Sensor Board is already Initialized");
+		}
+		else
+		{
+         RegisterAbortHandler("SensorLib::OnAbortSensorLib");
+
+
+			blInitialized = hslFalse; // This necessary because blInitialized may be undefined
+			blThreadIsRunning = hslFalse;
+		
+			oHXMessageDLG.CreateObject("HXMessageDLG.CHXMessageDLG");
+			oHXMessageDLG.GetObject  ("IHXMessageDLG",iHXMessageDLG);
+
+
+			bResult = iHXMessageDLG.IntializeBoard(CommPort);
+			if (bResult)
+			{
+				siErrorID = -1;
+				iHXMessageDLG.GetErrorInfo (siErrorID);
+				Trace("Error ",siErrorID);
+				if (siErrorID == 0)
+				{
+
+					szFirmWareVer = "V1.00 54260-01 A";
+					blInitialized = iHXMessageDLG.ValidateFirmWareID(szFirmWareVer);
+					Trace("Expected Firmware Version: ", szFirmWareVer);
+					szFirmWareVer = iHXMessageDLG.GetFirmWareID();
+					Trace("Actual   Firmware Version: ", szFirmWareVer);
+					Trace("Board Initialized: ",blInitialized);
+				}
+			}
+			szSolidTitle     = "Solid Waste";
+			szSolidWasteMsg  = "Please remove solid waste";
+		
+		}
+		return (blInitialized);
+	}
+
+	function StartMonitor(variable  SolidTitle, variable SolidWasteMsg) void
+	{
+      timer t;
+		variable handle;
+		if (blInitialized == hslFalse)
+		{
+		    Trace("StartMonitor called prior to successfull Initialization of Sensor Board");
+		    return;
+		}
+		if (blInitialized) 
+		{
+			szSolidTitle     = SolidTitle; 
+			szSolidWasteMsg  = SolidWasteMsg; 
+			handle = Fork("MonitorThread");
+
+         t.SetTimer( .5 );
+         t.WaitTimer( hslFalse, hslFalse );
+		}
+	}
+
+	function StopMonitor () void
+	{
+	   timer WtTimer;
+		if (blInitialized)
+		{
+		   if (blThreadIsRunning)
+			{
+			   ETerminateThread.SetEvent();
+			   Trace("Primary Thread Called ETerminateThread");
+			   while (blThreadIsRunning == hslTrue)
+			   {
+				   WtTimer.SetTimer(2);
+					WtTimer.WaitTimer();
+			   }
+			}
+			else
+			{
+				iHXMessageDLG.CloseHXMessageDLG ();
+			}
+			iHXMessageDLG.CloseCommPort();
+			iHXMessageDLG.ReleaseObject();
+			Trace("Sensor Monitor Completed");
+			blInitialized = hslFalse;
+		}
+		else
+		{
+		    Trace("StopMonitor called prior to successful Initialization of Sensor Board");
+		}
+	}
+
+	function WaitForTransitionOfSolidWaste(variable szMsg, variable szTitle, variable szButton) variable  
+	{
+		object message;
+		variable bSolidWaste;
+		variable siErrorID;        
+
+		onerror goto ErrorHandler;
+
+		if (blInitialized == hslFalse)
+		{
+		    Trace("WaitForTransitionOfSolidWaste called prior to successful Initialization of Sensor Board");
+		    return(0);
+		}
+
+		bSolidWaste =  iHXMessageDLG.WaitForTransition(szTitle, szMsg, szButton);
+		iHXMessageDLG.GetErrorInfo (siErrorID);
+		if (siErrorID != 0)
+		{
+			Trace("Error: ", siErrorID);
+		}
+		
+		return (bSolidWaste);
+
+		ErrorHandler:
+
+		{
+		     Trace(err.GetDescription());
+		     err.Clear();
+		}
+		return (0);
+
+	}
+
+	function CheckLiquid() variable  
+	{
+		variable bLiquidWaste;
+		variable siErrorID;           
+
+		if (blInitialized == hslFalse)
+		{
+		    Trace("CheckLiquid called prior to successful Initialization of Sensor Board");
+		    return(0);
+		}
+		bLiquidWaste = iHXMessageDLG.CheckLiquidWaste1();
+		if (!bLiquidWaste)
+		{
+			iHXMessageDLG.GetErrorInfo (siErrorID);
+			if (siErrorID == 0)
+			{
+				Trace("Liquid Waste ", bLiquidWaste);
+				return (0);
+			}
+			else
+			{
+				Trace("Error: ", siErrorID);
+			}
+
+
+		}
+		return (1);
+	}
+
+	function CheckSolidWaste() variable  
+	{
+		variable bSolidWaste;
+		variable siErrorID;           
+		if (blInitialized == hslFalse)
+		{
+		    Trace("CheckSolidWaste called prior to successful Initialization of Sensor Board");
+		    return(0);
+		}
+		bSolidWaste = iHXMessageDLG.CheckSolidWaste();
+		if (!bSolidWaste)
+		{
+			iHXMessageDLG.GetErrorInfo (siErrorID);
+			if (siErrorID == 0)
+			{
+				Trace("Solid Waste ", bSolidWaste);
+				return (0);
+			}
+			else
+			{
+				Trace("Error: ", siErrorID);
+			}
+
+
+		}
+		return (1);
+	}
+
+
+	// ------------------------------------------------------------------------
+	//  After the monitoring thread has been started, monitoring is performed 
+   //  according to the following rules for 'Mode'.
+   //
+   //  MONITORMODE_DEFAULT(0)
+   //    This is the default monitoring mode. If the solid waste container
+   //    is removed, the ML_STAR will enter a paused state until the waste
+   //    container is returned.
+   //
+   //  MONITORMODE_NO_ACTION(1)
+   //    This mode will NOT cause the ML_STAR to pause until the waste
+   //    container is returned.
+   //     
+   //  MONITORMODE_ABORT(2)
+   //    This mode will abort the method.
+   //
+   //  If the input mode is outside of the acceptable range, the default mode 
+   //  is assumed.
+	// ------------------------------------------------------------------------
+	function SetMonitorMode(variable Mode) void
+	{
+      // verify the input
+      if ( (Mode < MONITORMODE_DEFAULT) || (Mode > MONITORMODE_ABORT) )
+      {
+         Trace("MonitorMode is not within range - assuming the mode MONITORMODE_DEFAULT(0).");
+         monitorMode = MONITORMODE_DEFAULT;
+         return;
+      }
+
+      monitorMode = Mode;
+   }
+
+	// ------------------------------------------------------------------------
+	//  
+   //  This function returns an internal flag to indicate if this library was
+   //  the cause of an abort while the monitoring thread is active.
+   //
+   //  Returns true if the monitoring thread has been started and the mode of 
+   //  monitoring is set to MONITORMODE_ABORT(2), otherwise false.
+	//
+   // ------------------------------------------------------------------------
+   function GetWasteSensorAbortFlag() variable
+   {
+      return (bAbortFlag);
+   }
+
+
+	// ------------------------------------------------------------------------
+	//  
+   //  This function returns the current monitoring mode. Is the board is not 
+   //  initialized, the value of -1 is returned.
+	//  
+	// ------------------------------------------------------------------------
+   function GetMonitorMode() variable
+   {
+      variable retval(-1);
+
+      if (blInitialized == hslTrue)
+         retval = monitorMode;
+
+      return (retval);
+   }
+
+	// ------------------------------------------------------------------------
+	//  
+   //  This function returns the current status of the monitoring thread.
+	//  
+	// ------------------------------------------------------------------------
+   function IsMonitoringStarted() variable
+   {
+      return (blThreadIsRunning);
+   }
+
+}
+
+#endif
+
+
+// $$author=griffin_s$$valid=1$$time=2007-06-13 06:57$$checksum=980d0c23$$length=086$$

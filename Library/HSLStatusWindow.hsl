@@ -1,0 +1,134 @@
+//--------------------------------------------------------------------------------------------------
+// This is a part of the HSL Library.
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+//
+// This Library represents a status window with a user defined status message. The GUI contains a window 
+// with an textbox to display status messages. The status window will be located in the top right corner 
+// on the screen.
+//
+// Modification History
+// 2008-09-09  mschloenvoigt : Initial file creation.
+// 2009-05-04  mschloenvoigt : Renamed Show()-method to Init() and made functions <safe> to 
+//                             avoid crashes especially in case of multiple usage.
+//--------------------------------------------------------------------------------------------------
+
+#ifndef __HSLStatusWindow_hsl__
+#define __HSLStatusWindow_hsl__ 1
+
+namespace HSLStatusWindow
+{
+
+   private object statusForm;
+
+   //---------------------------------------------------------
+   // Analyzes the COM object. If necessary it creates a 
+   // reference to the COM object.
+   //---------------------------------------------------------
+	private function ComObjectIsValid() variable
+	{
+      if (statusForm.IsNull())
+		{
+         if( statusForm.CreateObject("Hamilton.StatusWindow") == 0 )//fails
+         {
+            Trace(GetFunctionName(), "Couldn't initialize COM object.");
+            return(hslFalse);
+         }
+		}
+      return(hslTrue);
+	}
+
+   //---------------------------------------------------------
+   // Initializes the status window object dialog and popups 
+   // a dialog in top right corner on the screen.
+   //---------------------------------------------------------
+	function Init( ) 
+	{
+		if( ComObjectIsValid() )
+		   statusForm.Initialize(GetHWnd());
+	}
+
+   //---------------------------------------------------------
+   // Closes the status window and releases the reference to 
+   // the used window object.
+   //
+   // Return:
+   // Returns true if the function succeeds and false otherwise.
+   //---------------------------------------------------------
+	function Close( ) variable
+	{
+		if( ComObjectIsValid() )
+      {
+         statusForm.Close();
+	   	if( statusForm.ReleaseObject() != 0 )
+            return(hslTrue);
+      }
+      return(hslFalse);
+	}
+
+   //---------------------------------------------------------
+   // Displays the given text in the status window. The previous 
+   // window content will be removed before displaying the given text.
+   // Call this method with an empty string to clean up the status window.
+   //
+   // Parameters:
+   // i_strStatusText (IN) - Text associated with the control to be displayed.
+   //---------------------------------------------------------
+   function SetStatusText(variable i_strStatusText) void
+	{
+		if( ComObjectIsValid() )
+   		statusForm.SetStatusText(i_strStatusText);
+	}
+
+   //---------------------------------------------------------
+   // Appends the given text to the existing content in the status window.
+   //
+   // Parameters:
+   // i_strTextToAppend (IN) - Text should be append.
+   //---------------------------------------------------------
+   function AppendStatusText(variable i_strTextToAppend) void
+	{
+		if( ComObjectIsValid() )
+		   statusForm.AppendStatusText(i_strTextToAppend);
+	}
+
+   //---------------------------------------------------------
+   // Returns a reference to the specified interface on the window object.
+   //
+   // Parameters:
+   // o_WndHandle (OUT) -  A reference to an object to retrieve 
+   //                      the specified interface on this object.
+   //
+   // Return:
+   // Returns true if an object handle could be assigned or false if not.
+   //---------------------------------------------------------
+	function GetWndHandle( object &o_WndHandle ) variable
+	{
+		if( ComObjectIsValid() )
+      {
+         o_WndHandle = statusForm;
+         return(hslTrue);
+      }
+      return(hslFalse);
+	}
+
+   //---------------------------------------------------------
+   // Sets the window handle.
+   //
+   // Parameters:
+   // io_WndHandle (IN, OUT) - Object value that identifies 
+   //                          the window object to be set.
+   //---------------------------------------------------------
+	function SetWndHandle( object &io_WndHandle )
+	{
+		if (!statusForm.IsNull())
+		{
+         statusForm.Close();
+		   statusForm.ReleaseObject();
+      }
+      statusForm = io_WndHandle;
+	}
+}
+
+#endif //__HSLStatusWindow_hsl__
+// $$author=marsll_hamilton$$valid=0$$time=2009-05-04 15:49$$checksum=045229a6$$length=092$$
