@@ -4,11 +4,21 @@ global device ML_STAR ("Lid movement from stacker test.lay", "ML_STAR", hslTrue)
  namespace _Method { #include "Common\\LMSF_Utilities.hs_" } 
  namespace _Method { #include "HSLTrcLib.hsl" } 
 #include "Lid movement from stacker test.res"
+ namespace _Method { #include "HSLML_STARLib.hsl" } 
+ namespace _Method { #include "NIST\\Libraries\\NIST_Device_Controllers.hs_" } 
 /* {{ 2 "LibraryInsertLine" "" */ // }} ""
 dialog dialogHandle2;
 variable loop_num;
 variable loopCounter1;
 dialog dialogHandle1;
+variable bln_Global_SimulatorMode;
+variable str_Global_ODTCIPAddress;
+variable ODTC;
+dialog dialogHandle63B4014A832F409888D8D356C1535F58;
+dialog dialogHandle214A1B8AF4364c1c8728D3BC349ADF2F;
+variable odtc_script_path;
+variable odtc_script_time;
+variable odtc_script_id;
 /* {{ 2 "VariableInsertLine" "" */ // }} ""
 // {{ 2 "TemplateIncludeBlock" ""
  namespace _Method { #include "HSLMETEDLib.hs_" } 
@@ -40,52 +50,103 @@ PTL::SetLoadingStateDefault("KitLotCheckEnabled", hslFalse);
 ISWAP_PLATEANDLIDMOVEMENT::_InitLibrary();
 NIST_TRUSEQNANO_PROCESSES::_InitLibrary();
 LMSF_UTILITIES::_InitLibrary();
+NIST_DEVICE_CONTROLLERS::_InitLibrary();
 ::RegisterAbortHandler( "OnAbort");
 // }} ""
-// {{ 1 1 0 "b8525ea9_f677_4096_895058410bc0529d" "{B31F3539-5D80-11d4-A5EB-0050DA737D89}"
+// {{{ 1 1 0 "ad77e159_6559_4e0e_b1cb2c0b68dd4b0f" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+bln_Global_SimulatorMode = HSLML_STAR::IsSimulatorMode(ML_STAR);
+// }} ""
+// {{ 2 1 0 "da057cbd_048d_4154_b94920f036199102" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+str_Global_ODTCIPAddress = Translate("192.168.88.253");
+// }} ""
+// {{{ 3 1 0 "5f53357f_484d_4320_a8cfba770f8513ae" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::InitODTC(str_Global_ODTCIPAddress, ODTC);
+// }} ""
+// {{{ 4 1 0 "22847808_3ceb_48f8_a194b5f8e8fb8ffc" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 1);
+// }} ""
+// {{ 5 1 0 "b8525ea9_f677_4096_895058410bc0529d" "{B31F3539-5D80-11d4-A5EB-0050DA737D89}"
 dialogHandle2.SetInputSize(1);
 dialogHandle2.SetInputField(0, Translate("how many reps?"), hslInteger, 50, 1, 200);
 dialogHandle2.ShowInput("", hslInfinite, hslOKOnly | hslDefButton1);
 loop_num = dialogHandle2.GetInputField(0);
 // }} ""
-// {{ 2 1 0 "cbae202f_9d78_435b_bdcd18a8c03f9609" "ML_STAR:{1C0C0CB0-7C87-11D3-AD83-0004ACB1DCB2}"
+// {{ 6 1 0 "cbae202f_9d78_435b_bdcd18a8c03f9609" "ML_STAR:{1C0C0CB0-7C87-11D3-AD83-0004ACB1DCB2}"
 {
 	variable arrRetValues[];
 	arrRetValues = ML_STAR._1C0C0CB0_7C87_11D3_AD83_0004ACB1DCB2("cbae202f_9d78_435b_bdcd18a8c03f9609"); // Initialize
 }
 // }} ""
-// {{ 3 1 0 "6704e051_3b86_44ef_b9c4cf13adfd6e68" "ML_STAR:{EA251BFB-66DE-48D1-83E5-6884B4DD8D11}"
+// {{ 7 1 0 "6704e051_3b86_44ef_b9c4cf13adfd6e68" "ML_STAR:{EA251BFB-66DE-48D1-83E5-6884B4DD8D11}"
 {
 	variable arrRetValues[];
 	arrRetValues = ML_STAR._EA251BFB_66DE_48D1_83E5_6884B4DD8D11("6704e051_3b86_44ef_b9c4cf13adfd6e68"); // MoveAutoLoad
 }
 // }} ""
-// {{ 4 1 0 "c332506c_3924_4745_8f001d996f6e3306" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+// {{{ 8 1 0 "4baa2829_73cf_455c_a701a2c9cf3a73b3" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 0);
+// }} ""
+// {{ 9 1 0 "5f5f5df3_49b2_4969_99a06f759ac75ca5" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+odtc_script_path = "C:\\Program Files (x86)\\HAMILTON\\Methods\\GSF-IMS Project\\E. coli Methods\\Post-Selection PCR Prep\\PCR_Initialization.xml";
+// }} ""
+// {{{ 10 1 0 "48df425c_33d6_43a7_9182864e2a8b5ffc" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::StartScriptODTC(ODTC, odtc_script_path, odtc_script_time, odtc_script_id);
+// }} ""
+// {{{ 11 1 0 "f563891b_58fc_4385_ad18f14d9b5e5c44" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::WaitForScriptODTC(ODTC, odtc_script_time, odtc_script_id);
+// }} ""
+// {{{ 12 1 0 "8251eb58_d74d_40b1_b2a395843b7d93d2" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 1);
+// }} ""
+// {{ 13 1 0 "c332506c_3924_4745_8f001d996f6e3306" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
 {
 for(loopCounter1 = 0; loopCounter1 < loop_num;)
 {
 loopCounter1 = loopCounter1 + 1;
 // }} ""
-// {{ 5 1 0 "80cc0662_6192_434f_95307db0a6b69557" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+// {{ 14 1 0 "80cc0662_6192_434f_95307db0a6b69557" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
 MECC::TraceComment(Translate("********************************************************************************************"));
 // }} ""
-// {{{ 6 1 0 "46574cde_5404_4915_924a92b85af2cae5" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+// {{{ 15 1 0 "46574cde_5404_4915_924a92b85af2cae5" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
 TrcTrace(Translate("loop number: "), loopCounter1);
 // }} ""
-// {{ 7 1 0 "8415d36b_0a13_4fd3_be38d62e3ce3c698" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+// {{ 16 1 0 "8415d36b_0a13_4fd3_be38d62e3ce3c698" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
 MECC::TraceComment(Translate("********************************************************************************************"));
 // }} ""
-// {{{ 8 1 0 "2c5e2341_e3c4_4e44_8b772b16f89a09b3" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+// {{{ 17 1 0 "2c5e2341_e3c4_4e44_8b772b16f89a09b3" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 ISWAP_PLATEANDLIDMOVEMENT::MovePCRPlateWithLid(ML_STAR.PCR_Plate, ML_STAR.PCR_Plate_lid, ML_STAR.PCR_Plate_ODTC, ML_STAR.PCR_Plate_ODTC_lid, 0, 0, ML_STAR);
 // }} ""
-// {{ 9 1 0 "d6b263f6_3491_440a_bfe91e770030c6a7" "{21E07B31-8D2E-11d4-A3B8-002035848439}"
+/* {{ 1 "" "0" */ if(0){  /* }} "" */
+// {{ 18 1 0 "d6b263f6_3491_440a_bfe91e770030c6a7" "{21E07B31-8D2E-11d4-A3B8-002035848439}"
 dialogHandle1.SetOutput(Translate("pause"));
 dialogHandle1.ShowOutput("", hslOKOnly | hslInformation | hslDefButton1, hslInfinite);
 // }} ""
-// {{{ 10 1 0 "a4dd79b3_bffc_4870_bad881d0728f5a82" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+/* {{ 1 "" "1" */ } /* }} "" */
+// {{{ 19 1 0 "68a6eebe_d50b_4d8f_8d12663910184449" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 0);
+// }} ""
+// {{ 20 1 0 "49f5bc18_e695_4b1e_bb0602b1ece6d1b8" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+odtc_script_path = "C:\\Program Files (x86)\\HAMILTON\\Methods\\GSF-IMS Project\\E. coli Methods\\Post-Selection PCR Prep\\PCR_Step_1.xml";
+// }} ""
+// {{{ 21 1 0 "31728557_d2e9_48e8_bc0552a9948f01eb" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::StartScriptODTC(ODTC, odtc_script_path, odtc_script_time, odtc_script_id);
+// }} ""
+// {{{ 22 1 0 "3e180c0e_4396_4af7_ac69b82de25c7776" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::WaitForScriptODTC(ODTC, odtc_script_time, odtc_script_id);
+// }} ""
+// {{{ 23 1 0 "6e172e91_3ad4_4e86_b0adff8660e39c3f" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 1);
+// }} ""
+/* {{ 1 "" "0" */ if(0){  /* }} "" */
+// {{ 24 1 0 "5314a05a_77fe_4458_a1717217c8511b66" "{21E07B31-8D2E-11d4-A3B8-002035848439}"
+dialogHandle214A1B8AF4364c1c8728D3BC349ADF2F.SetOutput(Translate("pause"));
+dialogHandle214A1B8AF4364c1c8728D3BC349ADF2F.ShowOutput("", hslOKOnly | hslInformation | hslDefButton1, hslInfinite);
+// }} ""
+/* {{ 1 "" "1" */ } /* }} "" */
+// {{{ 25 1 0 "a4dd79b3_bffc_4870_bad881d0728f5a82" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 ISWAP_PLATEANDLIDMOVEMENT::MovePCRPlateWithLid(ML_STAR.PCR_Plate_ODTC, ML_STAR.PCR_Plate_ODTC_lid, ML_STAR.PCR_Plate, ML_STAR.PCR_Plate_lid, 0, 0, ML_STAR);
 // }} ""
-// {{ 11 1 0 "c332506c_3924_4745_8f001d996f6e3306" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+// {{ 26 1 0 "c332506c_3924_4745_8f001d996f6e3306" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
 }
 }
 // }} ""
@@ -93,8 +154,9 @@ ISWAP_PLATEANDLIDMOVEMENT::MovePCRPlateWithLid(ML_STAR.PCR_Plate_ODTC, ML_STAR.P
 ISWAP_PLATEANDLIDMOVEMENT::_ExitLibrary();
 NIST_TRUSEQNANO_PROCESSES::_ExitLibrary();
 LMSF_UTILITIES::_ExitLibrary();
+NIST_DEVICE_CONTROLLERS::_ExitLibrary();
 // }} ""
 // {{{ 5 "main" "End"
 } }
 // }} ""
-// $$author=Hamilton$$valid=0$$time=2019-07-12 11:24$$checksum=04b300af$$length=087$$
+// $$author=Hamilton$$valid=0$$time=2019-07-12 12:57$$checksum=6c45bfdd$$length=087$$
