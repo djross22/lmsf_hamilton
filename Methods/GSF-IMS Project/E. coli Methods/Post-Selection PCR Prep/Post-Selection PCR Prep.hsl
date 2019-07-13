@@ -4,21 +4,28 @@
  namespace _Method { #include "HSLTrcLib.hsl" } 
  namespace _Method { #include "HSLML_STARLib.hsl" } 
  namespace _Method { #include "NIST\\Libraries\\NIST_Device_Controllers.hs_" } 
+ namespace _Method { #include "HslHamHeaterShakerLib.hsl" } 
+ namespace _Method { #include "NIST\\Libraries\\NIST_TruSeqNano_Prep.hs_" } 
 #include "Post-Selection PCR Prep.res"
 /* {{ 2 "LibraryInsertLine" "" */ // }} ""
-dialog dialogHandle2;
 variable loop_num;
 variable loopCounter1;
 dialog dialogHandle1;
 variable bln_Global_SimulatorMode;
 variable str_Global_ODTCIPAddress;
 variable ODTC;
-dialog dialogHandle63B4014A832F409888D8D356C1535F58;
 dialog dialogHandle214A1B8AF4364c1c8728D3BC349ADF2F;
 variable odtc_script_path;
 variable odtc_script_time;
 variable odtc_script_id;
 global device ML_STAR ("Post-Selection PCR Prep.lay", "ML_STAR", hslTrue);
+variable var_Global_HHSNode3;
+variable HHS3;
+variable SetTempHHS3;
+variable pipette_volume;
+variable mix_volume;
+variable loopCounter3;
+variable primer_mix_volume;
 /* {{ 2 "VariableInsertLine" "" */ // }} ""
 // {{ 2 "TemplateIncludeBlock" ""
  namespace _Method { #include "HSLMETEDLib.hs_" } 
@@ -51,112 +58,752 @@ ISWAP_PLATEANDLIDMOVEMENT::_InitLibrary();
 NIST_TRUSEQNANO_PROCESSES::_InitLibrary();
 LMSF_UTILITIES::_InitLibrary();
 NIST_DEVICE_CONTROLLERS::_InitLibrary();
+NIST_TRUSEQNANO_PREP::_InitLibrary();
 ::RegisterAbortHandler( "OnAbort");
 // }} ""
-// {{{ 1 1 0 "ad77e159_6559_4e0e_b1cb2c0b68dd4b0f" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
-bln_Global_SimulatorMode = HSLML_STAR::IsSimulatorMode(ML_STAR);
+// {{{ 1 1 0 "831c3c31_2739_4343_840f2acd0b01b7ec" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+StartUp();
 // }} ""
-// {{ 2 1 0 "da057cbd_048d_4154_b94920f036199102" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
-str_Global_ODTCIPAddress = Translate("192.168.88.253");
+// {{ 2 1 0 "964bf5c1_b809_414c_9cc7011aa2f09a82" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
 // }} ""
-// {{{ 3 1 0 "5f53357f_484d_4320_a8cfba770f8513ae" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
-NIST_DEVICE_CONTROLLERS::InitODTC(str_Global_ODTCIPAddress, ODTC);
-// }} ""
-// {{{ 4 1 0 "22847808_3ceb_48f8_a194b5f8e8fb8ffc" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
-NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 1);
-// }} ""
-// {{ 5 1 0 "b8525ea9_f677_4096_895058410bc0529d" "{B31F3539-5D80-11d4-A5EB-0050DA737D89}"
-dialogHandle2.SetInputSize(1);
-dialogHandle2.SetInputField(0, Translate("how many reps?"), hslInteger, 50, 1, 200);
-dialogHandle2.ShowInput("", hslInfinite, hslOKOnly | hslDefButton1);
-loop_num = dialogHandle2.GetInputField(0);
-// }} ""
-// {{ 6 1 0 "cbae202f_9d78_435b_bdcd18a8c03f9609" "ML_STAR:{1C0C0CB0-7C87-11D3-AD83-0004ACB1DCB2}"
-{
-	variable arrRetValues[];
-	arrRetValues = ML_STAR._1C0C0CB0_7C87_11D3_AD83_0004ACB1DCB2("cbae202f_9d78_435b_bdcd18a8c03f9609"); // Initialize
-}
-// }} ""
-// {{ 7 1 0 "6704e051_3b86_44ef_b9c4cf13adfd6e68" "ML_STAR:{EA251BFB-66DE-48D1-83E5-6884B4DD8D11}"
-{
-	variable arrRetValues[];
-	arrRetValues = ML_STAR._EA251BFB_66DE_48D1_83E5_6884B4DD8D11("6704e051_3b86_44ef_b9c4cf13adfd6e68"); // MoveAutoLoad
-}
-// }} ""
-// {{{ 8 1 0 "4baa2829_73cf_455c_a701a2c9cf3a73b3" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+// {{{ 3 1 0 "4baa2829_73cf_455c_a701a2c9cf3a73b3" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 0);
 // }} ""
-// {{ 9 1 0 "5f5f5df3_49b2_4969_99a06f759ac75ca5" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
-odtc_script_path = "C:\\Program Files (x86)\\HAMILTON\\Methods\\GSF-IMS Project\\E. coli Methods\\Post-Selection PCR Prep\\PCR_Initialization.xml";
+// {{ 4 1 0 "79e8f8f6_9caa_4107_84ab64b4c3154a36" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+odtc_script_path = "C:\\Program Files (x86)\\HAMILTON\\Methods\\GSF-IMS Project\\E. coli Methods\\Post-Selection PCR Prep\\Restriction_Initialization.xml";
 // }} ""
-// {{{ 10 1 0 "48df425c_33d6_43a7_9182864e2a8b5ffc" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+// {{{ 5 1 0 "48df425c_33d6_43a7_9182864e2a8b5ffc" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 NIST_DEVICE_CONTROLLERS::StartScriptODTC(ODTC, odtc_script_path, odtc_script_time, odtc_script_id);
 // }} ""
-// {{{ 11 1 0 "f563891b_58fc_4385_ad18f14d9b5e5c44" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+// {{ 6 1 0 "964bf5c1_b809_414c_9cc7011aa2f09a82" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 7 1 0 "a5a687d7_72e7_4f82_8c8ff6dc24a13fef" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 8 1 0 "5c4a59e8_93d2_4073_bf853126425704c7" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Elution_Plate_lid, ML_STAR.Elution_Plate_Lid_Parking, 0, 1, ML_STAR);
+// }} ""
+// {{{ 9 1 0 "4035a1fd_5791_44ad_82bc70f27dacc71d" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveComfortLid(ML_STAR.PCR_Plate_lid, ML_STAR.PCR_Plate_Lid_Parking, 1, 1, ML_STAR);
+// }} ""
+// {{ 10 1 0 "a5a687d7_72e7_4f82_8c8ff6dc24a13fef" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 11 1 0 "b541f9de_ed29_486f_a2dd2473ce53ca0a" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 12 1 0 "5479521b_2cc5_4563_bdb4a0340069278b" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***************************************************************************\nTransfer DNA template from Elution Plate to PCR plate\n***************************************************************************"));
+// }} ""
+// {{ 13 1 0 "725b6e4a_a24d_4227_b3d804d188ff75f4" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+pipette_volume = 40;
+// }} ""
+// {{ 14 1 0 "c34664e2_3aac_491c_9f3ec8f218019c82" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+mix_volume = 30;
+// }} ""
+// {{ 15 1 0 "b8da8ae7_5fb2_4756_9964c81511a8c026" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter3 = 0;
+while (
+   (ML_STAR.Elution_Plate.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, ML_STAR.Elution_Plate, 1, ML_STAR.PCR_Plate, 1);
+loopCounter3 = loopCounter3 + 1;
+// }} ""
+// {{ 16 1 0 "02f2df4c_e5f0_4128_acb59583bb59be4d" "ML_STAR:{541143FA-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = ML_STAR._541143FA_7FA2_11D3_AD85_0004ACB1DCB2("02f2df4c_e5f0_4128_acb59583bb59be4d"); // TipPickUp
+}
+// }} ""
+// {{ 17 1 0 "ec24f195_46af_41d1_b33440554534ffa2" "ML_STAR:{541143F5-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = ML_STAR._541143F5_7FA2_11D3_AD85_0004ACB1DCB2("ec24f195_46af_41d1_b33440554534ffa2"); // Aspirate
+}
+// }} ""
+// {{ 18 1 0 "967d8db0_54e0_479e_bf71979c92f06d07" "ML_STAR:{541143F8-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = ML_STAR._541143F8_7FA2_11D3_AD85_0004ACB1DCB2("967d8db0_54e0_479e_bf71979c92f06d07"); // Dispense
+}
+// }} ""
+// {{ 19 1 0 "d9ad0e8f_d14d_466e_80bfb2ba3623f86c" "ML_STAR:{541143FC-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = ML_STAR._541143FC_7FA2_11D3_AD85_0004ACB1DCB2("d9ad0e8f_d14d_466e_80bfb2ba3623f86c"); // TipEject
+}
+// }} ""
+// {{ 20 1 0 "b8da8ae7_5fb2_4756_9964c81511a8c026" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (ML_STAR.Elution_Plate.GetCurrentPosition() > 0 && ML_STAR.Elution_Plate.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+ML_STAR.Elution_Plate.SetMax(ML_STAR.Elution_Plate.GetTotal());
+ML_STAR.PCR_Plate.SetMax(ML_STAR.PCR_Plate.GetTotal());
+ML_STAR.Elution_Plate.SetCurrentPosition(1);
+ML_STAR.PCR_Plate.SetCurrentPosition(1);
+}
+// }} ""
+// {{ 21 1 0 "c08d7444_23f6_4128_8928a4be3de96767" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***************************************************************************\nAdd Enzyme to PCR plate\n***************************************************************************"));
+// }} ""
+// {{ 22 1 0 "1bb1922f_4566_4dbe_ada496d89cb6520a" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+pipette_volume = 5;
+// }} ""
+// {{ 23 1 0 "4be41567_a6a9_41e6_8794ef45d09a0611" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+mix_volume = 30;
+// }} ""
+// {{ 24 1 0 "0bba4681_6a31_46ee_a4dd4c2ebab7997a" "{B558D25C-EB8A-4a43-8878-125E1847965C}"
+{
+sequence arrseqAspirate_265B3EF995A240b2AEFB4B8BA79E39E3[];
+sequence arrseqDispense_265B3EF995A240b2AEFB4B8BA79E39E3[];
+arrseqAspirate_265B3EF995A240b2AEFB4B8BA79E39E3.SetSize(1);
+arrseqAspirate_265B3EF995A240b2AEFB4B8BA79E39E3.SetAt(0, ML_STAR.Restr_Enzyme);
+arrseqDispense_265B3EF995A240b2AEFB4B8BA79E39E3.SetSize(1);
+arrseqDispense_265B3EF995A240b2AEFB4B8BA79E39E3.SetAt(0, ML_STAR.PCR_Plate);
+PTL::ResetPipettingStateAndSequences("");
+PTL::SetPipettingState("UserResponseTime", hslInfinite);
+PTL::SetPipettingState("ErrorHandling", 3);
+PTL::SetPipettingState("TipCountingEnabled", hslFalse);
+PTL::SetPipettingState("TipCountingIdentifier", "");
+PTL::SetPipettingState("CopyPatternEnabled", hslFalse);
+PTL::SetPipettingState("ExcludeErrorPositionsEnabled", hslFalse);
+PTL::SetPipettingState("CalibrateCarrierChannel", -1);
+PTL::SetPipettingState("InitializeCustomStepID", 0);
+PTL::SetPipettingState("LoadCarrierCustomStepID", 0);
+PTL::SetPipettingState("UnloadCarrierCustomStepID", 0);
+PTL::SetPipettingState("CalibrateCarrierCustomStepID", 0);
+PTL::SetPipettingState("TipPickupCustomStepID", 0);
+PTL::SetPipettingState("TipEjectCustomStepID", 0);
+PTL::SetPipettingState("AspirateCustomStepID", 0);
+PTL::SetPipettingState("DispenseCustomStepID", 0);
+PTL::SetPipettingState("PreDispenseCustomStepID", 0);
+PTL::SetPipettingState("PostDispenseCustomStepID", 0);
+PTL::SetPipettingState("StartNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("WaitNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("InitializeChannelVariable", "");
+PTL::SetPipettingState("InitializeEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupChannelVariable", "");
+PTL::SetPipettingState("TipPickupEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReloadable", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReducible", hslTrue);
+PTL::SetPipettingState("TipEjectChannelVariable", "");
+PTL::SetPipettingState("AspirateMode", 0);
+PTL::SetPipettingState("AspirateCLLDSensitivity", 5);
+PTL::SetPipettingState("AspirateFluidHeight", 0);
+PTL::SetPipettingState("AspirateSubmergeDepth", 2);
+PTL::SetPipettingState("AspirateChannelVariable", "");
+PTL::SetPipettingState("AspirateMaxHeightDiff", 0);
+PTL::SetPipettingState("AspiratePLLDSensitivity", 0);
+PTL::SetPipettingState("AspirateLiquidFollowing", hslTrue);
+PTL::SetPipettingState("AspirateUserDefinedLiquidClass", "Tip_50ulFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("AspirateSequenceReloadable", hslFalse);
+PTL::SetPipettingState("AspirateSequenceReducible", hslFalse);
+PTL::SetPipettingState("AspirateSequenceCurrentInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("AspirateSequenceCountInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCountFinalization", -8);
+PTL::SetPipettingState("AspirateSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseSubmergeDepth", 2);
+PTL::SetPipettingState("DispenseChannelVariable", "");
+PTL::SetPipettingState("DispenseCLLDSensitivity", 5);
+PTL::SetPipettingState("DispenseFluidHeight", 0);
+PTL::SetPipettingState("DispenseMode", 3);
+PTL::SetPipettingState("DispenseLiquidFollowing", hslTrue);
+PTL::SetPipettingState("DispenseUserDefinedLiquidClass", "Tip_50ulFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("DispenseSequenceReloadable", hslTrue);
+PTL::SetPipettingState("DispenseSequenceReducible", hslTrue);
+PTL::SetPipettingState("DispenseSequenceCurrentInitialization", -10);
+PTL::SetPipettingState("DispenseSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("DispenseSequenceCountInitialization", -10);
+PTL::SetPipettingState("DispenseSequenceCountFinalization", -8);
+PTL::SetPipettingState("DispenseSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseRestVolumeDestination", 0);
+PTL::SetPipettingState("DispenseRestVolumeToAspirateSequenceSurface", hslFalse);
+PTL::SetPipettingState("DispenseRestVolumeFluidHeight", 0);
+PTL::SetPipettingState("DispensePrerinsingMixCycles", 3);
+PTL::SetPipettingState("DispensePrerinsingMixPosition", 1);
+PTL::SetPipettingState("DispensePrerinsingMixVolume", mix_volume);
+if( 0 == PTL::Pipette3(ML_STAR, ML_STAR.MlStar50ulTipWithFilter, arrseqAspirate_265B3EF995A240b2AEFB4B8BA79E39E3, arrseqDispense_265B3EF995A240b2AEFB4B8BA79E39E3, 1, 1, pipette_volume, 0, 1, hslInfinite, hslInfinite, 1, "", ML_STAR.Restr_Enzyme, ML_STAR.PCR_Plate) )
+{
+    PTL::RaiseRuntimeError(-1573650176, PTL::IDS::smartStepPipette, PTL::IDS::smartStepFailed, "HxGRUCompCmd");
+}
+}
+
+// }} ""
+// {{ 25 1 0 "b541f9de_ed29_486f_a2dd2473ce53ca0a" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 26 1 0 "0f8b1381_cd54_43ef_ae68cfc80c0ab5fd" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 27 1 0 "772d42b1_5992_413d_8855cc10d57074ac" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveComfortLid(ML_STAR.PCR_Plate_Lid_Parking, ML_STAR.PCR_Plate_lid, 0, 1, ML_STAR);
+// }} ""
+// {{{ 28 1 0 "78b55f4b_cfda_4f68_b39869861aa1b18b" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Elution_Plate_Lid_Parking, ML_STAR.Elution_Plate_lid, 0, 1, ML_STAR);
+// }} ""
+// {{ 29 1 0 "0f8b1381_cd54_43ef_ae68cfc80c0ab5fd" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 30 1 0 "b16281dd_ea63_4c55_b0788af1df5cffac" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 31 1 0 "40d69ba8_351f_4ac2_a637110fea8b16f7" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 NIST_DEVICE_CONTROLLERS::WaitForScriptODTC(ODTC, odtc_script_time, odtc_script_id);
 // }} ""
-// {{{ 12 1 0 "8251eb58_d74d_40b1_b2a395843b7d93d2" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+// {{{ 32 1 0 "6597a1d3_5d63_4e40_af315ad16782a02d" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 1);
 // }} ""
-// {{ 13 1 0 "c332506c_3924_4745_8f001d996f6e3306" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
-{
-for(loopCounter1 = 0; loopCounter1 < loop_num;)
-{
-loopCounter1 = loopCounter1 + 1;
-// }} ""
-// {{ 14 1 0 "80cc0662_6192_434f_95307db0a6b69557" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
-MECC::TraceComment(Translate("********************************************************************************************"));
-// }} ""
-// {{{ 15 1 0 "46574cde_5404_4915_924a92b85af2cae5" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
-TrcTrace(Translate("loop number: "), loopCounter1);
-// }} ""
-// {{ 16 1 0 "8415d36b_0a13_4fd3_be38d62e3ce3c698" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
-MECC::TraceComment(Translate("********************************************************************************************"));
-// }} ""
-// {{{ 17 1 0 "2c5e2341_e3c4_4e44_8b772b16f89a09b3" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+// {{{ 33 1 0 "069d83b6_7323_4c6a_98729fec1775023f" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 ISWAP_PLATEANDLIDMOVEMENT::MovePCRPlateWithLid(ML_STAR.PCR_Plate, ML_STAR.PCR_Plate_lid, ML_STAR.PCR_Plate_ODTC, ML_STAR.PCR_Plate_ODTC_lid, 0, 0, ML_STAR);
 // }} ""
-/* {{ 1 "" "0" */ if(0){  /* }} "" */
-// {{ 18 1 0 "d6b263f6_3491_440a_bfe91e770030c6a7" "{21E07B31-8D2E-11d4-A3B8-002035848439}"
-dialogHandle1.SetOutput(Translate("pause"));
-dialogHandle1.ShowOutput("", hslOKOnly | hslInformation | hslDefButton1, hslInfinite);
-// }} ""
-/* {{ 1 "" "1" */ } /* }} "" */
-// {{{ 19 1 0 "68a6eebe_d50b_4d8f_8d12663910184449" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+// {{{ 34 1 0 "bae62cf2_a388_4c6f_95940774d14e2b95" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 0);
 // }} ""
-// {{ 20 1 0 "49f5bc18_e695_4b1e_bb0602b1ece6d1b8" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
-odtc_script_path = "C:\\Program Files (x86)\\HAMILTON\\Methods\\GSF-IMS Project\\E. coli Methods\\Post-Selection PCR Prep\\PCR_Step_1.xml";
+// {{ 35 1 0 "6098fe76_5c22_4bfd_baaaf6d3cd07553a" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+odtc_script_path = "C:\\Program Files (x86)\\HAMILTON\\Methods\\GSF-IMS Project\\E. coli Methods\\Post-Selection PCR Prep\\Restriction_Incubation.xml";
 // }} ""
-// {{{ 21 1 0 "31728557_d2e9_48e8_bc0552a9948f01eb" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+// {{{ 36 1 0 "5c7ced5c_7873_4e4a_894b2d75459a0110" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 NIST_DEVICE_CONTROLLERS::StartScriptODTC(ODTC, odtc_script_path, odtc_script_time, odtc_script_id);
 // }} ""
-// {{{ 22 1 0 "3e180c0e_4396_4af7_ac69b82de25c7776" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+// {{ 37 1 0 "b16281dd_ea63_4c55_b0788af1df5cffac" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 38 1 0 "db19f46b_fb32_482b_8f83c6ca6a8fcc97" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 39 1 0 "e34bd180_68b7_45fd_99ccd9182297c957" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (primer_mix_volume > 0)
+{
+// }} ""
+// {{{ 40 1 0 "673db82a_ccbc_462d_990c180c995dc615" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveComfortLid(ML_STAR.Primer_Plate_lid, ML_STAR.Primer_Plate_Lid_Parking, 1, 1, ML_STAR);
+// }} ""
+// {{ 41 1 0 "9aa14fc3_7706_4e29_92f956a0012e4077" "{B558D25C-EB8A-4a43-8878-125E1847965C}"
+{
+sequence arrseqAspirate_4D70C54339154cb08ACF878DFCAEA3F3[];
+sequence arrseqDispense_4D70C54339154cb08ACF878DFCAEA3F3[];
+arrseqAspirate_4D70C54339154cb08ACF878DFCAEA3F3.SetSize(1);
+arrseqAspirate_4D70C54339154cb08ACF878DFCAEA3F3.SetAt(0, ML_STAR.Primer_mix_from_1);
+arrseqDispense_4D70C54339154cb08ACF878DFCAEA3F3.SetSize(1);
+arrseqDispense_4D70C54339154cb08ACF878DFCAEA3F3.SetAt(0, ML_STAR.Primer_mix_to_1);
+PTL::ResetPipettingStateAndSequences("");
+PTL::SetPipettingState("UserResponseTime", hslInfinite);
+PTL::SetPipettingState("ErrorHandling", 3);
+PTL::SetPipettingState("TipCountingEnabled", hslFalse);
+PTL::SetPipettingState("TipCountingIdentifier", "");
+PTL::SetPipettingState("CopyPatternEnabled", hslFalse);
+PTL::SetPipettingState("ExcludeErrorPositionsEnabled", hslFalse);
+PTL::SetPipettingState("CalibrateCarrierChannel", -1);
+PTL::SetPipettingState("InitializeCustomStepID", 0);
+PTL::SetPipettingState("LoadCarrierCustomStepID", 0);
+PTL::SetPipettingState("UnloadCarrierCustomStepID", 0);
+PTL::SetPipettingState("CalibrateCarrierCustomStepID", 0);
+PTL::SetPipettingState("TipPickupCustomStepID", 0);
+PTL::SetPipettingState("TipEjectCustomStepID", 0);
+PTL::SetPipettingState("AspirateCustomStepID", 0);
+PTL::SetPipettingState("DispenseCustomStepID", 0);
+PTL::SetPipettingState("PreDispenseCustomStepID", 0);
+PTL::SetPipettingState("PostDispenseCustomStepID", 0);
+PTL::SetPipettingState("StartNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("WaitNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("InitializeChannelVariable", "");
+PTL::SetPipettingState("InitializeEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupChannelVariable", "");
+PTL::SetPipettingState("TipPickupEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReloadable", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReducible", hslTrue);
+PTL::SetPipettingState("TipEjectChannelVariable", "");
+PTL::SetPipettingState("AspirateMode", 0);
+PTL::SetPipettingState("AspirateCLLDSensitivity", 5);
+PTL::SetPipettingState("AspirateFluidHeight", 0);
+PTL::SetPipettingState("AspirateSubmergeDepth", 2);
+PTL::SetPipettingState("AspirateChannelVariable", "");
+PTL::SetPipettingState("AspirateMaxHeightDiff", 0);
+PTL::SetPipettingState("AspiratePLLDSensitivity", 0);
+PTL::SetPipettingState("AspirateLiquidFollowing", hslTrue);
+PTL::SetPipettingState("AspirateUserDefinedLiquidClass", "StandardVolumeFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("AspirateSequenceReloadable", hslFalse);
+PTL::SetPipettingState("AspirateSequenceReducible", hslFalse);
+PTL::SetPipettingState("AspirateSequenceCurrentInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("AspirateSequenceCountInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCountFinalization", -8);
+PTL::SetPipettingState("AspirateSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseSubmergeDepth", 0);
+PTL::SetPipettingState("DispenseChannelVariable", "");
+PTL::SetPipettingState("DispenseCLLDSensitivity", 0);
+PTL::SetPipettingState("DispenseFluidHeight", 0);
+PTL::SetPipettingState("DispenseMode", 3);
+PTL::SetPipettingState("DispenseLiquidFollowing", hslTrue);
+PTL::SetPipettingState("DispenseUserDefinedLiquidClass", "StandardVolumeFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("DispenseSequenceReloadable", hslTrue);
+PTL::SetPipettingState("DispenseSequenceReducible", hslTrue);
+PTL::SetPipettingState("DispenseSequenceCurrentInitialization", -10);
+PTL::SetPipettingState("DispenseSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("DispenseSequenceCountInitialization", -10);
+PTL::SetPipettingState("DispenseSequenceCountFinalization", -8);
+PTL::SetPipettingState("DispenseSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseRestVolumeDestination", 0);
+PTL::SetPipettingState("DispenseRestVolumeToAspirateSequenceSurface", hslFalse);
+PTL::SetPipettingState("DispenseRestVolumeFluidHeight", 0);
+PTL::SetPipettingState("DispensePrerinsingMixCycles", 3);
+PTL::SetPipettingState("DispensePrerinsingMixPosition", 1);
+PTL::SetPipettingState("DispensePrerinsingMixVolume", primer_mix_volume);
+if( 0 == PTL::Pipette3(ML_STAR, ML_STAR.MlStar300ulStandardVolumeTipWithFilter, arrseqAspirate_4D70C54339154cb08ACF878DFCAEA3F3, arrseqDispense_4D70C54339154cb08ACF878DFCAEA3F3, 1, 1, primer_mix_volume, 0, 1, hslInfinite, hslInfinite, 1, "", ML_STAR.Primer_mix_from_1, ML_STAR.Primer_mix_to_1) )
+{
+    PTL::RaiseRuntimeError(-1573650176, PTL::IDS::smartStepPipette, PTL::IDS::smartStepFailed, "HxGRUCompCmd");
+}
+}
+
+// }} ""
+// {{ 42 1 0 "38535ff7_2030_4be5_a3539eadf26cf3bf" "{B558D25C-EB8A-4a43-8878-125E1847965C}"
+{
+sequence arrseqAspirate_10362945D96F423c8F6C27879A0E893F[];
+sequence arrseqDispense_10362945D96F423c8F6C27879A0E893F[];
+arrseqAspirate_10362945D96F423c8F6C27879A0E893F.SetSize(1);
+arrseqAspirate_10362945D96F423c8F6C27879A0E893F.SetAt(0, ML_STAR.Primer_mix_from_2);
+arrseqDispense_10362945D96F423c8F6C27879A0E893F.SetSize(1);
+arrseqDispense_10362945D96F423c8F6C27879A0E893F.SetAt(0, ML_STAR.Primer_mix_to_2);
+PTL::ResetPipettingStateAndSequences("");
+PTL::SetPipettingState("UserResponseTime", hslInfinite);
+PTL::SetPipettingState("ErrorHandling", 3);
+PTL::SetPipettingState("TipCountingEnabled", hslFalse);
+PTL::SetPipettingState("TipCountingIdentifier", "");
+PTL::SetPipettingState("CopyPatternEnabled", hslFalse);
+PTL::SetPipettingState("ExcludeErrorPositionsEnabled", hslFalse);
+PTL::SetPipettingState("CalibrateCarrierChannel", -1);
+PTL::SetPipettingState("InitializeCustomStepID", 0);
+PTL::SetPipettingState("LoadCarrierCustomStepID", 0);
+PTL::SetPipettingState("UnloadCarrierCustomStepID", 0);
+PTL::SetPipettingState("CalibrateCarrierCustomStepID", 0);
+PTL::SetPipettingState("TipPickupCustomStepID", 0);
+PTL::SetPipettingState("TipEjectCustomStepID", 0);
+PTL::SetPipettingState("AspirateCustomStepID", 0);
+PTL::SetPipettingState("DispenseCustomStepID", 0);
+PTL::SetPipettingState("PreDispenseCustomStepID", 0);
+PTL::SetPipettingState("PostDispenseCustomStepID", 0);
+PTL::SetPipettingState("StartNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("WaitNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("InitializeChannelVariable", "11000000");
+PTL::SetPipettingState("InitializeEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupChannelVariable", "11000000");
+PTL::SetPipettingState("TipPickupEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReloadable", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReducible", hslTrue);
+PTL::SetPipettingState("TipEjectChannelVariable", "11000000");
+PTL::SetPipettingState("AspirateMode", 0);
+PTL::SetPipettingState("AspirateCLLDSensitivity", 5);
+PTL::SetPipettingState("AspirateFluidHeight", 0);
+PTL::SetPipettingState("AspirateSubmergeDepth", 2);
+PTL::SetPipettingState("AspirateChannelVariable", "11000000");
+PTL::SetPipettingState("AspirateMaxHeightDiff", 0);
+PTL::SetPipettingState("AspiratePLLDSensitivity", 0);
+PTL::SetPipettingState("AspirateLiquidFollowing", hslTrue);
+PTL::SetPipettingState("AspirateUserDefinedLiquidClass", "StandardVolumeFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("AspirateSequenceReloadable", hslFalse);
+PTL::SetPipettingState("AspirateSequenceReducible", hslFalse);
+PTL::SetPipettingState("AspirateSequenceCurrentInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("AspirateSequenceCountInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCountFinalization", -8);
+PTL::SetPipettingState("AspirateSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseSubmergeDepth", 0);
+PTL::SetPipettingState("DispenseChannelVariable", "11000000");
+PTL::SetPipettingState("DispenseCLLDSensitivity", 0);
+PTL::SetPipettingState("DispenseFluidHeight", 0);
+PTL::SetPipettingState("DispenseMode", 3);
+PTL::SetPipettingState("DispenseLiquidFollowing", hslTrue);
+PTL::SetPipettingState("DispenseUserDefinedLiquidClass", "StandardVolumeFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("DispenseSequenceReloadable", hslTrue);
+PTL::SetPipettingState("DispenseSequenceReducible", hslTrue);
+PTL::SetPipettingState("DispenseSequenceCurrentInitialization", -10);
+PTL::SetPipettingState("DispenseSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("DispenseSequenceCountInitialization", -10);
+PTL::SetPipettingState("DispenseSequenceCountFinalization", -8);
+PTL::SetPipettingState("DispenseSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseRestVolumeDestination", 0);
+PTL::SetPipettingState("DispenseRestVolumeToAspirateSequenceSurface", hslFalse);
+PTL::SetPipettingState("DispenseRestVolumeFluidHeight", 0);
+PTL::SetPipettingState("DispensePrerinsingMixCycles", 3);
+PTL::SetPipettingState("DispensePrerinsingMixPosition", 1);
+PTL::SetPipettingState("DispensePrerinsingMixVolume", primer_mix_volume);
+if( 0 == PTL::Pipette3(ML_STAR, ML_STAR.MlStar300ulStandardVolumeTipWithFilter, arrseqAspirate_10362945D96F423c8F6C27879A0E893F, arrseqDispense_10362945D96F423c8F6C27879A0E893F, 1, 1, primer_mix_volume, 0, 1, hslInfinite, hslInfinite, 1, "", ML_STAR.Primer_mix_from_2, ML_STAR.Primer_mix_to_2) )
+{
+    PTL::RaiseRuntimeError(-1573650176, PTL::IDS::smartStepPipette, PTL::IDS::smartStepFailed, "HxGRUCompCmd");
+}
+}
+
+// }} ""
+// {{{ 43 1 0 "8e1d80ba_1cfa_4fa6_89c3721846506bef" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveComfortLid(ML_STAR.Primer_Plate_Lid_Parking, ML_STAR.Primer_Plate_lid, 0, 1, ML_STAR);
+// }} ""
+// {{ 44 1 0 "e34bd180_68b7_45fd_99ccd9182297c957" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 45 1 0 "db19f46b_fb32_482b_8f83c6ca6a8fcc97" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 46 1 0 "31dc1565_739d_4a0e_82fd360508cf4226" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 47 1 0 "253c9041_e18a_4eac_92549e771171f812" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 NIST_DEVICE_CONTROLLERS::WaitForScriptODTC(ODTC, odtc_script_time, odtc_script_id);
 // }} ""
-// {{{ 23 1 0 "6e172e91_3ad4_4e86_b0adff8660e39c3f" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+// {{{ 48 1 0 "2b3658fd_627b_465f_96841d02a07cacc9" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 1);
 // }} ""
-/* {{ 1 "" "0" */ if(0){  /* }} "" */
-// {{ 24 1 0 "5314a05a_77fe_4458_a1717217c8511b66" "{21E07B31-8D2E-11d4-A3B8-002035848439}"
-dialogHandle214A1B8AF4364c1c8728D3BC349ADF2F.SetOutput(Translate("pause"));
-dialogHandle214A1B8AF4364c1c8728D3BC349ADF2F.ShowOutput("", hslOKOnly | hslInformation | hslDefButton1, hslInfinite);
-// }} ""
-/* {{ 1 "" "1" */ } /* }} "" */
-// {{{ 25 1 0 "a4dd79b3_bffc_4870_bad881d0728f5a82" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+// {{{ 49 1 0 "0ec0b414_75c0_426f_ab4e8fa238826fb6" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
 ISWAP_PLATEANDLIDMOVEMENT::MovePCRPlateWithLid(ML_STAR.PCR_Plate_ODTC, ML_STAR.PCR_Plate_ODTC_lid, ML_STAR.PCR_Plate, ML_STAR.PCR_Plate_lid, 0, 0, ML_STAR);
 // }} ""
-// {{ 26 1 0 "c332506c_3924_4745_8f001d996f6e3306" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+// {{ 50 1 0 "31dc1565_739d_4a0e_82fd360508cf4226" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 51 1 0 "02ddf48c_5272_4ad4_b7b21734dc4b429c" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 52 1 0 "b8186d2f_1fb5_4a79_90df2da07e0ce078" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 0);
+// }} ""
+// {{ 53 1 0 "c63d1557_c78f_4dbb_8eeb4c9ce4b96e02" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+odtc_script_path = "C:\\Program Files (x86)\\HAMILTON\\Methods\\GSF-IMS Project\\E. coli Methods\\Post-Selection PCR Prep\\PCR_Initialization.xml";
+// }} ""
+// {{{ 54 1 0 "2e2addbe_8754_4ade_9eb8f7434ddc3241" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::StartScriptODTC(ODTC, odtc_script_path, odtc_script_time, odtc_script_id);
+// }} ""
+// {{ 55 1 0 "02ddf48c_5272_4ad4_b7b21734dc4b429c" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 56 1 0 "726a86ae_3a02_4d99_9e9f18f00bf7a319" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 57 1 0 "1b4324b7_fd96_43bc_9feb6b2d2be03e37" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveComfortLid(ML_STAR.PCR_Plate_lid, ML_STAR.PCR_Plate_Lid_Parking, 0, 1, ML_STAR);
+// }} ""
+// {{{ 58 1 0 "63040349_2116_4b96_9bfe145bf897a1ba" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveComfortLid(ML_STAR.Primer_Plate_Lid_Parking, ML_STAR.Primer_Plate_lid, 1, 1, ML_STAR);
+// }} ""
+// {{ 59 1 0 "726a86ae_3a02_4d99_9e9f18f00bf7a319" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 60 1 0 "06bdc640_66be_4ec6_9afdbfc10a68667e" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 61 1 0 "3731e03f_6736_4eff_91294a49debf62cb" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***************************************************************************\nAdd Primers to PCR plate\n***************************************************************************"));
+// }} ""
+// {{ 62 1 0 "b1caaaa2_4064_4a4b_9dbdf2dcfe256fbd" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+pipette_volume = 2.5;
+// }} ""
+// {{ 63 1 0 "7cd83eff_ff32_430b_a39d271e14a1c4e7" "{B558D25C-EB8A-4a43-8878-125E1847965C}"
+{
+sequence arrseqAspirate_A0968F55D3E1469dAA58CC79E15355A4[];
+sequence arrseqDispense_A0968F55D3E1469dAA58CC79E15355A4[];
+arrseqAspirate_A0968F55D3E1469dAA58CC79E15355A4.SetSize(1);
+arrseqAspirate_A0968F55D3E1469dAA58CC79E15355A4.SetAt(0, ML_STAR.Primer_1);
+arrseqDispense_A0968F55D3E1469dAA58CC79E15355A4.SetSize(1);
+arrseqDispense_A0968F55D3E1469dAA58CC79E15355A4.SetAt(0, ML_STAR.PCR_Plate);
+PTL::ResetPipettingStateAndSequences("");
+PTL::SetPipettingState("UserResponseTime", hslInfinite);
+PTL::SetPipettingState("ErrorHandling", 3);
+PTL::SetPipettingState("TipCountingEnabled", hslFalse);
+PTL::SetPipettingState("TipCountingIdentifier", "");
+PTL::SetPipettingState("CopyPatternEnabled", hslFalse);
+PTL::SetPipettingState("ExcludeErrorPositionsEnabled", hslFalse);
+PTL::SetPipettingState("CalibrateCarrierChannel", -1);
+PTL::SetPipettingState("InitializeCustomStepID", 0);
+PTL::SetPipettingState("LoadCarrierCustomStepID", 0);
+PTL::SetPipettingState("UnloadCarrierCustomStepID", 0);
+PTL::SetPipettingState("CalibrateCarrierCustomStepID", 0);
+PTL::SetPipettingState("TipPickupCustomStepID", 0);
+PTL::SetPipettingState("TipEjectCustomStepID", 0);
+PTL::SetPipettingState("AspirateCustomStepID", 0);
+PTL::SetPipettingState("DispenseCustomStepID", 0);
+PTL::SetPipettingState("PreDispenseCustomStepID", 0);
+PTL::SetPipettingState("PostDispenseCustomStepID", 0);
+PTL::SetPipettingState("StartNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("WaitNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("InitializeChannelVariable", "");
+PTL::SetPipettingState("InitializeEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupChannelVariable", "");
+PTL::SetPipettingState("TipPickupEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReloadable", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReducible", hslTrue);
+PTL::SetPipettingState("TipEjectChannelVariable", "");
+PTL::SetPipettingState("AspirateMode", 0);
+PTL::SetPipettingState("AspirateCLLDSensitivity", 5);
+PTL::SetPipettingState("AspirateFluidHeight", 0);
+PTL::SetPipettingState("AspirateSubmergeDepth", 2);
+PTL::SetPipettingState("AspirateChannelVariable", "");
+PTL::SetPipettingState("AspirateMaxHeightDiff", 0);
+PTL::SetPipettingState("AspiratePLLDSensitivity", 0);
+PTL::SetPipettingState("AspirateLiquidFollowing", hslTrue);
+PTL::SetPipettingState("AspirateUserDefinedLiquidClass", "Tip_50ulFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("AspirateSequenceReloadable", hslFalse);
+PTL::SetPipettingState("AspirateSequenceReducible", hslFalse);
+PTL::SetPipettingState("AspirateSequenceCurrentInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("AspirateSequenceCountInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCountFinalization", -8);
+PTL::SetPipettingState("AspirateSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseSubmergeDepth", 2);
+PTL::SetPipettingState("DispenseChannelVariable", "");
+PTL::SetPipettingState("DispenseCLLDSensitivity", 5);
+PTL::SetPipettingState("DispenseFluidHeight", 0);
+PTL::SetPipettingState("DispenseMode", 3);
+PTL::SetPipettingState("DispenseLiquidFollowing", hslTrue);
+PTL::SetPipettingState("DispenseUserDefinedLiquidClass", "Tip_50ulFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("DispenseSequenceReloadable", hslFalse);
+PTL::SetPipettingState("DispenseSequenceReducible", hslFalse);
+PTL::SetPipettingState("DispenseSequenceCurrentInitialization", -9);
+PTL::SetPipettingState("DispenseSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("DispenseSequenceCountInitialization", -10);
+PTL::SetPipettingState("DispenseSequenceCountFinalization", -8);
+PTL::SetPipettingState("DispenseSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseRestVolumeDestination", 0);
+PTL::SetPipettingState("DispenseRestVolumeToAspirateSequenceSurface", hslFalse);
+PTL::SetPipettingState("DispenseRestVolumeFluidHeight", 0);
+if( 0 == PTL::Pipette3(ML_STAR, ML_STAR.MlStar50ulTipWithFilter, arrseqAspirate_A0968F55D3E1469dAA58CC79E15355A4, arrseqDispense_A0968F55D3E1469dAA58CC79E15355A4, 1, 1, pipette_volume, 0, 2, hslInfinite, hslInfinite, 1, "", ML_STAR.Primer_1, ML_STAR.PCR_Plate) )
+{
+    PTL::RaiseRuntimeError(-1573650176, PTL::IDS::smartStepPipette, PTL::IDS::smartStepFailed, "HxGRUCompCmd");
 }
 }
+
+// }} ""
+// {{ 64 1 0 "8cd2b2fe_59ea_4cb2_a4500b21a2d0fce8" "{B558D25C-EB8A-4a43-8878-125E1847965C}"
+{
+sequence arrseqAspirate_CF1776363E8F43a9B2F48565FC791776[];
+sequence arrseqDispense_CF1776363E8F43a9B2F48565FC791776[];
+arrseqAspirate_CF1776363E8F43a9B2F48565FC791776.SetSize(1);
+arrseqAspirate_CF1776363E8F43a9B2F48565FC791776.SetAt(0, ML_STAR.Primer_2);
+arrseqDispense_CF1776363E8F43a9B2F48565FC791776.SetSize(1);
+arrseqDispense_CF1776363E8F43a9B2F48565FC791776.SetAt(0, ML_STAR.PCR_Plate);
+PTL::ResetPipettingStateAndSequences("");
+PTL::SetPipettingState("UserResponseTime", hslInfinite);
+PTL::SetPipettingState("ErrorHandling", 3);
+PTL::SetPipettingState("TipCountingEnabled", hslFalse);
+PTL::SetPipettingState("TipCountingIdentifier", "");
+PTL::SetPipettingState("CopyPatternEnabled", hslFalse);
+PTL::SetPipettingState("ExcludeErrorPositionsEnabled", hslFalse);
+PTL::SetPipettingState("CalibrateCarrierChannel", -1);
+PTL::SetPipettingState("InitializeCustomStepID", 0);
+PTL::SetPipettingState("LoadCarrierCustomStepID", 0);
+PTL::SetPipettingState("UnloadCarrierCustomStepID", 0);
+PTL::SetPipettingState("CalibrateCarrierCustomStepID", 0);
+PTL::SetPipettingState("TipPickupCustomStepID", 0);
+PTL::SetPipettingState("TipEjectCustomStepID", 0);
+PTL::SetPipettingState("AspirateCustomStepID", 0);
+PTL::SetPipettingState("DispenseCustomStepID", 0);
+PTL::SetPipettingState("PreDispenseCustomStepID", 0);
+PTL::SetPipettingState("PostDispenseCustomStepID", 0);
+PTL::SetPipettingState("StartNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("WaitNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("InitializeChannelVariable", "");
+PTL::SetPipettingState("InitializeEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupChannelVariable", "");
+PTL::SetPipettingState("TipPickupEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReloadable", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReducible", hslTrue);
+PTL::SetPipettingState("TipEjectChannelVariable", "");
+PTL::SetPipettingState("AspirateMode", 0);
+PTL::SetPipettingState("AspirateCLLDSensitivity", 5);
+PTL::SetPipettingState("AspirateFluidHeight", 0);
+PTL::SetPipettingState("AspirateSubmergeDepth", 2);
+PTL::SetPipettingState("AspirateChannelVariable", "");
+PTL::SetPipettingState("AspirateMaxHeightDiff", 0);
+PTL::SetPipettingState("AspiratePLLDSensitivity", 0);
+PTL::SetPipettingState("AspirateLiquidFollowing", hslTrue);
+PTL::SetPipettingState("AspirateUserDefinedLiquidClass", "Tip_50ulFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("AspirateSequenceReloadable", hslFalse);
+PTL::SetPipettingState("AspirateSequenceReducible", hslFalse);
+PTL::SetPipettingState("AspirateSequenceCurrentInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("AspirateSequenceCountInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCountFinalization", -8);
+PTL::SetPipettingState("AspirateSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseSubmergeDepth", 2);
+PTL::SetPipettingState("DispenseChannelVariable", "");
+PTL::SetPipettingState("DispenseCLLDSensitivity", 5);
+PTL::SetPipettingState("DispenseFluidHeight", 0);
+PTL::SetPipettingState("DispenseMode", 3);
+PTL::SetPipettingState("DispenseLiquidFollowing", hslTrue);
+PTL::SetPipettingState("DispenseUserDefinedLiquidClass", "Tip_50ulFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("DispenseSequenceReloadable", hslFalse);
+PTL::SetPipettingState("DispenseSequenceReducible", hslFalse);
+PTL::SetPipettingState("DispenseSequenceCurrentInitialization", -9);
+PTL::SetPipettingState("DispenseSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("DispenseSequenceCountInitialization", -10);
+PTL::SetPipettingState("DispenseSequenceCountFinalization", -8);
+PTL::SetPipettingState("DispenseSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseRestVolumeDestination", 0);
+PTL::SetPipettingState("DispenseRestVolumeToAspirateSequenceSurface", hslFalse);
+PTL::SetPipettingState("DispenseRestVolumeFluidHeight", 0);
+if( 0 == PTL::Pipette3(ML_STAR, ML_STAR.MlStar50ulTipWithFilter, arrseqAspirate_CF1776363E8F43a9B2F48565FC791776, arrseqDispense_CF1776363E8F43a9B2F48565FC791776, 1, 1, pipette_volume, 0, 2, hslInfinite, hslInfinite, 1, "", ML_STAR.Primer_2, ML_STAR.PCR_Plate) )
+{
+    PTL::RaiseRuntimeError(-1573650176, PTL::IDS::smartStepPipette, PTL::IDS::smartStepFailed, "HxGRUCompCmd");
+}
+}
+
+// }} ""
+// {{ 65 1 0 "3db94059_6334_4dec_bd151531baaf443b" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***************************************************************************\nAdd PCR Master Mix to PCR plate\n***************************************************************************"));
+// }} ""
+// {{ 66 1 0 "22c2f7a4_a983_42c2_a5bb53618f2ab692" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+pipette_volume = 50;
+// }} ""
+// {{ 67 1 0 "c9e4ff54_dab6_4264_9710ddf5f0abae10" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+mix_volume = 50;
+// }} ""
+// {{ 68 1 0 "1f5b7e55_45ab_4846_aa9472178511c5bd" "{B558D25C-EB8A-4a43-8878-125E1847965C}"
+{
+sequence arrseqAspirate_9455D213095C4c75946FE862C043CD6E[];
+sequence arrseqDispense_9455D213095C4c75946FE862C043CD6E[];
+arrseqAspirate_9455D213095C4c75946FE862C043CD6E.SetSize(1);
+arrseqAspirate_9455D213095C4c75946FE862C043CD6E.SetAt(0, ML_STAR.Master_Mix);
+arrseqDispense_9455D213095C4c75946FE862C043CD6E.SetSize(1);
+arrseqDispense_9455D213095C4c75946FE862C043CD6E.SetAt(0, ML_STAR.PCR_Plate);
+PTL::ResetPipettingStateAndSequences("");
+PTL::SetPipettingState("UserResponseTime", hslInfinite);
+PTL::SetPipettingState("ErrorHandling", 3);
+PTL::SetPipettingState("TipCountingEnabled", hslFalse);
+PTL::SetPipettingState("TipCountingIdentifier", "");
+PTL::SetPipettingState("CopyPatternEnabled", hslFalse);
+PTL::SetPipettingState("ExcludeErrorPositionsEnabled", hslFalse);
+PTL::SetPipettingState("CalibrateCarrierChannel", -1);
+PTL::SetPipettingState("InitializeCustomStepID", 0);
+PTL::SetPipettingState("LoadCarrierCustomStepID", 0);
+PTL::SetPipettingState("UnloadCarrierCustomStepID", 0);
+PTL::SetPipettingState("CalibrateCarrierCustomStepID", 0);
+PTL::SetPipettingState("TipPickupCustomStepID", 0);
+PTL::SetPipettingState("TipEjectCustomStepID", 0);
+PTL::SetPipettingState("AspirateCustomStepID", 0);
+PTL::SetPipettingState("DispenseCustomStepID", 0);
+PTL::SetPipettingState("PreDispenseCustomStepID", 0);
+PTL::SetPipettingState("PostDispenseCustomStepID", 0);
+PTL::SetPipettingState("StartNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("WaitNeedleWashCustomStepID", 0);
+PTL::SetPipettingState("InitializeChannelVariable", "");
+PTL::SetPipettingState("InitializeEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupChannelVariable", "");
+PTL::SetPipettingState("TipPickupEnabled", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReloadable", hslTrue);
+PTL::SetPipettingState("TipPickupSequenceReducible", hslTrue);
+PTL::SetPipettingState("TipEjectChannelVariable", "");
+PTL::SetPipettingState("AspirateMode", 0);
+PTL::SetPipettingState("AspirateCLLDSensitivity", 5);
+PTL::SetPipettingState("AspirateFluidHeight", 0);
+PTL::SetPipettingState("AspirateSubmergeDepth", 2);
+PTL::SetPipettingState("AspirateChannelVariable", "");
+PTL::SetPipettingState("AspirateMaxHeightDiff", 0);
+PTL::SetPipettingState("AspiratePLLDSensitivity", 0);
+PTL::SetPipettingState("AspirateLiquidFollowing", hslTrue);
+PTL::SetPipettingState("AspirateUserDefinedLiquidClass", "Tip_50ulFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("AspirateSequenceReloadable", hslFalse);
+PTL::SetPipettingState("AspirateSequenceReducible", hslFalse);
+PTL::SetPipettingState("AspirateSequenceCurrentInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("AspirateSequenceCountInitialization", -10);
+PTL::SetPipettingState("AspirateSequenceCountFinalization", -8);
+PTL::SetPipettingState("AspirateSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseSubmergeDepth", 2);
+PTL::SetPipettingState("DispenseChannelVariable", "");
+PTL::SetPipettingState("DispenseCLLDSensitivity", 5);
+PTL::SetPipettingState("DispenseFluidHeight", 0);
+PTL::SetPipettingState("DispenseMode", 3);
+PTL::SetPipettingState("DispenseLiquidFollowing", hslTrue);
+PTL::SetPipettingState("DispenseUserDefinedLiquidClass", "Tip_50ulFilter_Water_DispenseSurface_Empty");
+PTL::SetPipettingState("DispenseSequenceReloadable", hslFalse);
+PTL::SetPipettingState("DispenseSequenceReducible", hslFalse);
+PTL::SetPipettingState("DispenseSequenceCurrentInitialization", -9);
+PTL::SetPipettingState("DispenseSequenceCurrentFinalization", -7);
+PTL::SetPipettingState("DispenseSequenceCountInitialization", -10);
+PTL::SetPipettingState("DispenseSequenceCountFinalization", -8);
+PTL::SetPipettingState("DispenseSequenceCalibration", hslTrue);
+PTL::SetPipettingState("DispenseRestVolumeDestination", 0);
+PTL::SetPipettingState("DispenseRestVolumeToAspirateSequenceSurface", hslFalse);
+PTL::SetPipettingState("DispenseRestVolumeFluidHeight", 0);
+PTL::SetPipettingState("DispensePrerinsingMixCycles", 3);
+PTL::SetPipettingState("DispensePrerinsingMixPosition", 2);
+PTL::SetPipettingState("DispensePrerinsingMixVolume", mix_volume);
+if( 0 == PTL::Pipette3(ML_STAR, ML_STAR.MlStar50ulTipWithFilter, arrseqAspirate_9455D213095C4c75946FE862C043CD6E, arrseqDispense_9455D213095C4c75946FE862C043CD6E, 1, 1, pipette_volume, 0, 2, hslInfinite, hslInfinite, 1, "", ML_STAR.Master_Mix, ML_STAR.PCR_Plate) )
+{
+    PTL::RaiseRuntimeError(-1573650176, PTL::IDS::smartStepPipette, PTL::IDS::smartStepFailed, "HxGRUCompCmd");
+}
+}
+
+// }} ""
+// {{ 69 1 0 "06bdc640_66be_4ec6_9afdbfc10a68667e" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 70 1 0 "6b67588c_5f62_4718_bcb378319a3233eb" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 71 1 0 "ce44454e_bf59_477b_9a4518ed582e7fac" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveComfortLid(ML_STAR.Primer_Plate_Lid_Parking, ML_STAR.Primer_Plate_lid, 0, 1, ML_STAR);
+// }} ""
+// {{{ 72 1 0 "bd360cf3_6db6_4327_9f5fa4c8dfda3f3a" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveComfortLid(ML_STAR.PCR_Plate_Lid_Parking, ML_STAR.PCR_Plate_lid, 0, 1, ML_STAR);
+// }} ""
+// {{ 73 1 0 "6b67588c_5f62_4718_bcb378319a3233eb" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 74 1 0 "10bdfd12_5685_4c79_8980ab1f7cd76f03" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 75 1 0 "65f46dba_172b_453e_b1f55dab90849df9" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::WaitForScriptODTC(ODTC, odtc_script_time, odtc_script_id);
+// }} ""
+// {{{ 76 1 0 "0fae9b61_88b7_447d_96a918fd2512b7ec" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 1);
+// }} ""
+// {{{ 77 1 0 "0544c690_e403_44b5_99788b03f1305c5d" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MovePCRPlateWithLid(ML_STAR.PCR_Plate, ML_STAR.PCR_Plate_lid, ML_STAR.PCR_Plate_ODTC, ML_STAR.PCR_Plate_ODTC_lid, 0, 0, ML_STAR);
+// }} ""
+// {{{ 78 1 0 "64344631_8866_4494_8ed526647f37ee67" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 0);
+// }} ""
+// {{ 79 1 0 "cc46d28f_61d4_428e_8ee3647944b1a9fa" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+odtc_script_path = "C:\\Program Files (x86)\\HAMILTON\\Methods\\GSF-IMS Project\\E. coli Methods\\Post-Selection PCR Prep\\PCR_Step_1.xml";
+// }} ""
+// {{{ 80 1 0 "8052da4e_bc8c_4dc4_9974a341ed5e6465" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::StartScriptODTC(ODTC, odtc_script_path, odtc_script_time, odtc_script_id);
+// }} ""
+// {{ 81 1 0 "10bdfd12_5685_4c79_8980ab1f7cd76f03" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 82 1 0 "e5d114d4_c142_4900_b258cc658b5bd1f5" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 83 1 0 "571d0523_eeab_4b67_8379952089d0c5f1" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::WaitForScriptODTC(ODTC, odtc_script_time, odtc_script_id);
+// }} ""
+// {{{ 84 1 0 "6f5e7fee_3038_43c4_b4a10acb33a9e156" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_DEVICE_CONTROLLERS::DoorControlODTC(ODTC, 1);
+// }} ""
+// {{{ 85 1 0 "38afc0ba_caa3_49f8_8f70874facb5c0cb" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MovePCRPlateWithLid(ML_STAR.PCR_Plate_ODTC, ML_STAR.PCR_Plate_ODTC_lid, ML_STAR.PCR_Plate, ML_STAR.PCR_Plate_lid, 1, 0, ML_STAR);
+// }} ""
+// {{ 86 1 0 "e5d114d4_c142_4900_b258cc658b5bd1f5" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 87 1 0 "fac9219d_1775_4be3_8a7f7c7b62b3f69d" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+CleanUp();
 // }} ""
 // {{ 2 "AutoExitBlock" ""
 ISWAP_PLATEANDLIDMOVEMENT::_ExitLibrary();
 NIST_TRUSEQNANO_PROCESSES::_ExitLibrary();
 LMSF_UTILITIES::_ExitLibrary();
 NIST_DEVICE_CONTROLLERS::_ExitLibrary();
+NIST_TRUSEQNANO_PREP::_ExitLibrary();
 // }} ""
 // {{{ 5 "main" "End"
 } }
 // }} ""
-// $$author=Hamilton$$valid=0$$time=2019-07-12 17:28$$checksum=a1ede6d9$$length=087$$
+// $$author=Hamilton$$valid=0$$time=2019-07-13 14:22$$checksum=dac6c7dc$$length=087$$
