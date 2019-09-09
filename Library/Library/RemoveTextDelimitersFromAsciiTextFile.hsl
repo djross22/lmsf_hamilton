@@ -1,0 +1,48 @@
+
+#ifndef __RemoveTextDelimitersFromAsciiTextFile_hsl__
+#define __RemoveTextDelimitersFromAsciiTextFile_hsl__ 1
+
+#include "HSLStrLib.hsl"
+
+// Removes all text delimiters (") from the given ascii text file.
+// Returns nonzero if the given ascii text file was found, otherwise zero.
+
+function RemoveTextDelimitersFromAsciiTextFile(
+	variable& fileName) variable							// [i]: Full path and file name of the ascii text file, e.g. "C:\\Temp\\Test.csv"
+{
+	variable write(hslFalse);
+	object fso;
+	object f;
+	variable text("");
+	variable vbFalse(0);
+	variable vbTrue(-1);
+	variable forReading(1);
+	variable forWriting(2);
+
+	onerror goto Unexpected;
+	fso.CreateObject("Scripting.FileSystemObject");
+	if (fso.FileExists(fileName))
+	{
+
+		f = fso.OpenTextFile(fileName, forReading, vbFalse);
+		text = f.ReadAll();
+		f.Close();
+		fso.DeleteFile(fileName);
+		f = fso.OpenTextFile(fileName, forWriting, vbTrue);
+		StrReplace(text, "\"", "");
+		f.Write(text);
+		f.Close();
+		return(hslTrue);
+	}
+	return(hslFalse);
+
+	Unexpected:
+	{
+		if (!f.IsNull())
+			f.Close();
+		return(hslFalse);
+	}
+}
+
+#endif
+// $$author=Starlet$$valid=1$$time=2009-12-16 13:46$$checksum=8d2cc5e8$$length=086$$

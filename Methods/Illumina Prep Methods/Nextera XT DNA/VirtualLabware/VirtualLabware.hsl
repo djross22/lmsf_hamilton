@@ -1,0 +1,541 @@
+/*
+* Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz. ;
+* All rights reserved. ;
+* * Deck Labware utility functions for tilting and shifting the labware ;
+* and creating virtual copies ;
+* * ;
+* * Modification History ;
+* 2007-04-16 jjaeger : Initial file creation.
+* 2007-05-30 jjaeger : some bugs fixed
+*/
+
+#ifndef __HSLJJVirtLabware_hsl__
+#define __HSLJJVirtLabware_hsl__        1
+
+#pragma once
+
+	#include "HSLUtilLib2.hsl" 
+	#include "HSLUtilLib.hsl"
+
+/*
+#include "HSLTrcLib.hsl"
+#include "HSLDevLib.hsl"
+#include "HSLSeqLib.hsl"
+#include "HSLStrLib.hsl"
+#include "HSLMthLib.hsl"
+*/
+
+
+namespace VIRTUALLABWARE
+{
+	variable RACKROWDISTANCE;
+	variable RACKCOLUMNDISTANCE;
+	// set to 1 in order to get full traces, set to 0 for delivery
+	const variable _TRACE_(0);
+
+	function GetVirtualPlate( device & MLInstr, sequence & i_seq, sequence & o_seq, variable i_rowNr, variable i_colNr, variable i_heightDelta ) void ;
+	function MoveCloneSeq( device & MLInstr, sequence & i_seq, sequence & o_seq, variable i_xDelta, variable i_yDelta, variable i_zDelta ) void ;
+	function MoveSeq( device & MLInstr, sequence & i_seq, variable i_xDelta, variable i_yDelta, variable i_zDelta ) void ;
+	function RackSettings( variable i_rowDist, variable i_colDist ) void ;
+	function TiltPlate( device & MLInstr, sequence & i_seq, sequence & o_seq, variable i_angle, variable i_xHinge, variable i_yHinge, variable i_zHinge ) void ;
+	function TraceSeqCoords( device & MLInstr, sequence & i_seq ) void ;
+	function GetContainerOfLabware (device d, variable labwareId, variable posID) variable;
+	function GetFileNameOfLabware (device & ML_STAR, variable & labwareId) variable;
+	function TiltSeq (device & MLInstr, sequence & i_seq, sequence & o_seq,	variable i_xHinge, variable i_zHinge, variable i_angle) void;
+	function TraceLabwarePos( device & MLInstr, sequence & i_seq, string & posID) void;
+	function getLabwareTemplateAndPos(device & MLInstr, sequence i_seq, variable &o_template, variable &o_pos) void;
+	function getZRackContainerBaseDiff(device & MLInstr, string labID, posID) variable;
+
+	function _InitLibrary() {
+	}
+
+	function _ExitLibrary() {
+	}
+
+/*
+  Take the labware underlying the first position of the sequence i_seq and shift it by i_xDelta,i_yDelta, i_zDelta
+  Create a new labware with the same name and "_moved" appended and return a sequence holding this labware
+*/
+	function MoveCloneSeq( device & MLInstr, sequence & i_seq, sequence & o_seq, variable i_xDelta, variable i_yDelta, variable i_zDelta ) void
+	{
+		private variable Y_origin;
+		private variable labID;
+		private variable X_new;
+		private variable Y_new;
+		private variable Z_new;
+		private variable currentPos;
+		private variable currentConfigFile;
+		private variable Z_origin;
+		private variable A_origin;
+		private variable posID;
+		private variable X_origin;
+		private variable newLabID;
+		private variable lastLabID;
+		private variable i;
+		variable        position[](4);
+		private variable res;
+		private variable total;
+
+		
+		total = o_seq.GetTotal();
+	   o_seq.SetCount(total);
+	   o_seq.SetCurrentPosition(1);
+	   for (i= total; 0 < i; i--)
+		o_seq.RemoveAt(i);
+	   o_seq.SetCount(0);
+	   o_seq.SetCurrentPosition(0);
+	   o_seq.SetMax(0);
+
+		currentPos = i_seq.GetCurrentPosition();
+		lastLabID="";
+		//Trace("CurPos: ",currentPos);
+		i_seq.SetCurrentPosition(1);
+		
+		// Clone sequence order
+		for(i=1;i<=i_seq.GetTotal();i++) {
+		  i_seq.SetCurrentPosition(i);
+		  posID=i_seq.GetPositionId();
+		  labID = i_seq.GetLabwareId();
+		  if (labID!=lastLabID) {
+		   lastLabID=labID;
+		   newLabID = labID+"_moved";
+			if (_TRACE_==1)	Trace("Lab ID: ", labID, " cloned to: ",newLabID);
+		   // just to be sure that there is no such labware remove it. ToDo: Might be better to check if it exists
+		   MLInstr.RemoveLabware(newLabID);
+		   MLInstr.GetLabwarePosition(labID, position);
+		   X_origin=position[0];
+		   Y_origin=position[1];
+		   Z_origin=position[2];
+		   A_origin=position[3];
+		   X_new = X_origin + i_xDelta;
+		   Y_new = Y_origin + i_yDelta;
+		   Z_new = Z_origin + i_zDelta;
+		   if (Z_new <= 0) {
+   			Trace("Problem. New Z position would be < 0. Setting to 0. Z was: ", Z_new);
+			   Z_new = 0;
+		   }
+		   currentConfigFile = GetFileNameOfLabware(MLInstr, labID);
+		   position[0]=X_new;
+		   position[1]=Y_new;
+		   position[2]=Z_new;
+		   position[3]=A_origin;
+		/*Trace("NewLab ID: ", newLabID);
+		Trace("Conffile: ", currentConfigFile);
+		Trace("Pos: ", position[0]);
+		Trace("Pos: ", position[1]);
+		Trace("Pos: ", position[2]);
+		Trace("Pos: ", position[3]);
+		*/
+			res=MLInstr.AddLabware(newLabID, currentConfigFile, position);
+			if (res!=1) Trace("Error in AddLabware: ",res);
+			//Trace("OSLabID: ",o_seq.GetLabwareId()," NL:", newLabID," Res:",res);
+			//MLInstr.GetSequenceRef(newLabID, o_seq);
+		  }
+
+		  o_seq.Add(newLabID,posID,MLInstr);
+		  if (_TRACE_==1)	Trace("i: ",i," Add: Pos: ",posID," LabID:",o_seq.GetLabwareId());
+		}
+		i_seq.SetCurrentPosition(currentPos);
+		o_seq.SetCurrentPosition(1);
+	}
+
+
+/*
+  Take the labware underlying the first position of the sequence i_seq and shift it by i_xDelta,i_yDelta, i_zDelta
+*/
+	function MoveSeq( device & MLInstr, sequence & i_seq, variable i_xDelta, variable i_yDelta, variable i_zDelta ) void
+	{
+		private variable labID;
+		object                editLabware;
+		object                deckLayout;
+		object                labware;
+
+		labID = i_seq.GetLabwareId();
+      deckLayout = MLInstr.GetDeckLayoutObject(); // Get a HxLabwr3 object type decklayout
+		if(!deckLayout.IsNull()) {
+			labware = deckLayout.Labware(labID);
+			if(!labware.IsNull()) {
+				labware.GetObject2("{39A3639F-97AB-444D-86D3-253122BD2202}", editLabware); // get IEditLabware5
+				editLabware.MoveDelta(i_xDelta,i_yDelta, i_zDelta);
+			} else {
+			 Trace("Warning, labware is null");
+			}
+		} else {
+		 Trace("Warning Deck Layout is null");
+      } 
+	}
+
+/*
+  Put a grid on top of a labware defined by RACKROWDISTANCE (distance between two rows) and RACKCOLUMNDISTANCE (distance between two columns)
+  Now shift the labware by the amount of rows and columns given. Shift it also in the height by heightDelta
+  Create a new labware and return the sequence of the shifted i_seq labware
+*/
+	function GetVirtualPlate( device & MLInstr, sequence & i_seq, sequence & o_seq, variable i_rowNr, variable i_colNr, variable i_heightDelta ) void
+	{
+		private variable zDelta;
+		private variable Y_origin;
+		private variable yDelta;
+		private variable labID;
+		private variable xDelta;
+		private variable Z_origin;
+		private variable A_origin;
+		private variable alpha;
+		private variable posID;
+		private variable X_origin;
+		private variable hypothenusDelta;
+		private variable radAlpha;
+		private variable radGamma;
+		private variable radBeta;
+		private variable yDeltaPrime;
+		private variable xDeltaPrime;
+		variable        position[](4);
+
+		labID = i_seq.GetLabwareId();
+		MLInstr.GetLabwarePosition(labID, position);
+		X_origin=position[0];
+		Y_origin=position[1];
+		Z_origin=position[2];
+		A_origin=position[3];
+
+		yDelta = -i_rowNr * RACKROWDISTANCE;
+		xDelta = i_colNr * RACKCOLUMNDISTANCE;
+		hypothenusDelta=(xDelta^2+yDelta^2)^0.5;
+		if (_TRACE_==1)	Trace("hyp: ", hypothenusDelta);
+		alpha = A_origin;
+		radAlpha = 0.0174532925199 * alpha;
+		if (_TRACE_==1)		Trace("radAl: ", radAlpha);
+		radBeta=ASin(yDelta/hypothenusDelta);
+		if (_TRACE_==1)		Trace("radBe: ", radBeta);
+		radGamma = radAlpha + radBeta;
+		if (_TRACE_==1)		Trace("radGa: ", radGamma);
+		yDeltaPrime=Sin(radGamma)*hypothenusDelta;
+		xDeltaPrime=Cos(radGamma)*hypothenusDelta;
+		zDelta = i_heightDelta;
+		if (_TRACE_==1)		Trace("xD: ", xDeltaPrime, "yD: ", yDeltaPrime);
+		MoveCloneSeq(MLInstr, i_seq, o_seq, xDeltaPrime, yDeltaPrime, zDelta);
+	}
+
+/*
+  Specify the settings of the grid for shifting a labware
+*/
+	function RackSettings( variable i_rowDist, variable i_colDist ) void
+	{
+		RACKROWDISTANCE = i_rowDist;
+		RACKCOLUMNDISTANCE = i_colDist;
+	}
+
+/*
+  Take a sequence and output for every sequence position the exact labware coordinates
+*/
+	function TraceSeqCoords( device & MLInstr, sequence & i_seq ) void
+	{
+		variable i,curpos,posID,oldPos;
+		oldPos = i_seq.GetCurrentPosition();
+		i_seq.SetCurrentPosition(1);
+		curpos=1;
+		while(curpos!=0) {
+			posID=i_seq.GetPositionId( );
+			TraceLabwarePos(MLInstr,i_seq,posID);
+			curpos=i_seq.GetNext();
+		}
+		i_seq.SetCurrentPosition(oldPos);
+
+	}
+
+	function TraceLabwarePos( device & MLInstr, sequence & i_seq, string & posID) void {
+		private variable Y_origin;
+		private variable labID;
+		private variable Z_origin;
+		private variable A_origin;
+		private variable X_origin;
+		variable        position[](4);
+		labID = i_seq.GetLabwareId();
+		MLInstr.GetLabwarePosition(labID, position,posID);
+		X_origin=position[0];
+		Y_origin=position[1];
+		Z_origin=position[2];
+		A_origin=position[3];
+		Trace("LabID: ", labID, " Pos: ", posID, "  X: ", X_origin, "  Y: ", Y_origin, "  Z: ", Z_origin, "  Angle: ", A_origin);
+	}
+
+/*
+	* TODO: get container for specific position posID. Currently get only the first container.
+	* Write warning if there are several containers
+	*/
+	function GetContainerOfLabware (device d, variable labwareId, variable posID) variable
+	{
+		variable        fileName("");
+		object                editLabware;
+		object                deckLayout;
+		object                labware;
+		object                container;
+		string                containerString;
+
+		deckLayout = d.GetDeckLayoutObject(); // Get a HxLabwr3 object type decklayout
+		if(!deckLayout.IsNull()) {
+			labware = deckLayout.Labware(labwareId);
+			if(!labware.IsNull()) {
+				labware.GetObject2("{39A3639F-97AB-444D-86D3-253122BD2202}", editLabware);
+				if(!editLabware.IsNull()) {
+					object  exportPars;
+					variable  i, count;
+
+					exportPars.CreateObject("HxParamsLib.HxPars");
+					editLabware.Export(exportPars);
+/*
+					editLabware.GetDeckPosition("A1", exportPars);
+					if (_TRACE_==1) Trace("Labwr_ZCoord=", exportPars.Item1("Labwr_ZCoord"));
+//Trace("Labwr_ZCoord2=", exportPars.Item1("Labwr_ZCoord2"));
+//Trace("Labwr_ZOffset=", exportPars.Item1("Labwr_ZOffset"));
+//Trace("Labwr_ZOrg=", exportPars.Item1("Labwr_ZOrg"));
+					Trace("Labwr_ZBase=", exportPars.Item1("Labwr_ZBase"));
+					abort;
+					*/
+					if(!exportPars.IsNull()) {
+						count = exportPars.Count;
+						for(i = 0; i < count; i++) {
+							string        tmpString;
+							tmpString = exportPars.Item1(i);
+							if(tmpString.GetLength() != 0) {
+// Trace("TmpString: ", tmpString, " ", tmpString.Find("bitmaps\\"));
+// remove bitmap infos, TODO better find container strings
+								if(tmpString.Find("bitmaps\\") != 0 && tmpString.Find("Bitmaps\\") != 0) {
+									if(containerString.GetLength() == 0)
+									containerString = tmpString;
+									else if(containerString.Compare(tmpString) != 0)
+									Trace("Warning! Several different containers:", containerString, " and ", tmpString);
+								}
+							}
+						}
+
+					}
+				}
+
+			}
+		}
+		return(containerString);
+/*
+		* fileName = editLabware.FileName ;
+		*                 // Access to container data editLabware.CntrAtPosition(container, "A1");
+		* if (!container.IsNull()) {
+		Trace("Container Diameter=", container.Diameter());
+		*
+		}
+		*/
+	}
+
+
+//
+// Calculates volume of a container at a certain position of a labware, returns -1 when error, containervolume otherwise
+//
+function GetContainerVolumeOfLabware (device d, variable labwareID, variable posID) variable {
+		object                editLabware;
+		object                deckLayout;
+		object                labware;
+		object                container;
+		variable pVal;
+
+
+      deckLayout = d.GetDeckLayoutObject(); // Get a HxLabwr3 object type decklayout
+		if(!deckLayout.IsNull()) {
+			labware = deckLayout.Labware(labwareID);
+			if(!labware.IsNull()) {
+				labware.GetObject2("{39A3639F-97AB-444D-86D3-253122BD2202}", editLabware); // get IEditLabware5
+				editLabware.CntrAtPosition(container,posID);
+            //Trace(editLabware.CntrDiameter(posID));
+				//Trace(container);
+				//Trace(container.geometry());
+				container.ComputContainerVolume(pVal);
+				//Trace("ContainerVolume: "+FStr(pVal));
+				return(pVal);
+				}
+			}
+  return(-1);
+}
+
+
+
+/*
+  Returns the filename of the labware specification
+*/
+	function GetFileNameOfLabware (device & ML_STAR, variable & labwareId) variable
+	{
+		variable        fileName("");
+		object                deckLayout;
+		object                labware;
+		object                editLabware;
+
+		deckLayout = ML_STAR.GetDeckLayoutObject();
+		if(!deckLayout.IsNull()) {
+			labware = deckLayout.Labware(labwareId);
+			if(!labware.IsNull()) {
+				labware.GetObject2("{39A3639F-97AB-444D-86D3-253122BD2202}", editLabware);
+				if(!editLabware.IsNull()) {
+					fileName = editLabware.FileName;
+				}
+			}
+		}
+		return(fileName);
+	}
+
+/* Hack to get the distance between base of rack and base of container
+	* first read out the original z-height of container
+	* then set the container to the rack base
+	* read out the z-height, the difference is what we look for
+	*/
+	function getZRackContainerBaseDiff(device & MLInstr, string labID, posID) variable {
+		variable position[](4),offset[](3),oldZ,zRackContainerBaseDiff;
+		if (_TRACE_==1) Trace("LabID=",labID," PosID=",posID);
+		MLInstr.GetLabwarePosition(labID, position,posID);
+		oldZ=position[2];
+		offset[0] = 0;
+		offset[1] = 0;
+		offset[2] = 0;
+		MLInstr.AddContainerToRack(labID, posID, GetContainerOfLabware (MLInstr, labID,posID), offset);
+		MLInstr.GetLabwarePosition(labID, position,posID);
+		zRackContainerBaseDiff=oldZ-position.GetAt(2);
+		if (_TRACE_==1) Trace("ZRackContainerBaseDiff: ",zRackContainerBaseDiff);
+		offset[2]=zRackContainerBaseDiff;
+		MLInstr.AddContainerToRack(labID, posID, GetContainerOfLabware (MLInstr, labID,posID), offset);
+		return(zRackContainerBaseDiff);
+	}
+	
+	
+	/*
+	  Rotate a point around the y-axis
+	  The hinge is defined by xhinge and zhinge
+	  The point to rotate by x and z
+	  The angle is in degrees
+	*/
+	function tilt(variable xhinge, variable zhinge, variable & x, variable & z, variable angle) void {
+		// d is the distance from the hinge to the point that is to be tilted
+		// beta is the angle between the hinge and the point to be tilted
+		variable xDelta, zDelta, d, beta, gamma;
+		xDelta=x-xhinge;
+		zDelta=z-zhinge;
+		d=(xDelta^2+zDelta^2)^0.5;
+		beta=ASin( zDelta/d );
+		// convert from degrees to rad
+		gamma=0.0174532925199 * angle+beta;
+		z=(d*Sin(gamma)+zhinge)-z;
+		x=(d*Cos(gamma)+xhinge)-x;
+	}
+
+/*
+    Tilt a labware by a specified angle
+	  The hinge on which the labware is tilted is defined as the first labware container position shifted
+	  by xhinge and zhinge.
+	  ignore i_yHinge at first and do parallel tilting of each row
+*/
+	function TiltSeq (device & MLInstr, sequence & i_seq, sequence & o_seq, 	variable i_xHinge,  variable i_zHinge, variable i_angle) void
+	{
+		private variable        labID, newLabID;
+		private variable        xCoord,yCoord, zCoord, angle;
+		private variable        oldPos;
+		private variable        currentLabwareConfigFile,currentContainerConfigFile;
+		private variable        posID;
+		variable position[](4),offset[](3);
+		variable positionID,curpos,zRackContainerBaseDiff,baseZ;
+		variable xHinge, zHinge;
+		string containerLabware;
+		variable template, pos;
+
+		oldPos = i_seq.GetCurrentPosition();
+		i_seq.SetCurrentPosition(1);
+		labID = i_seq.GetLabwareId();
+		if (_TRACE_==1) Trace("Lab ID: ", labID);
+		newLabID = labID + "_moved";
+		MLInstr.RemoveLabware(newLabID);
+		MLInstr.GetLabwarePosition(labID, position);
+		//MLInstr.AddLabware(newLabID, GetFileNameOfLabware(MLInstr, labID), position);
+		getLabwareTemplateAndPos(MLInstr,i_seq,template,pos);
+		if (_TRACE_==1) Trace("Template: ", template, " Pos: ", pos);
+		MLInstr.AddLabwareToTemplate(newLabID,GetFileNameOfLabware(MLInstr, labID),template,pos);
+		baseZ=position.GetAt(2);
+
+		// calculate absolute position of hinge
+		xHinge=position.GetAt(0)-i_xHinge;
+		zHinge=position.GetAt(2)-i_zHinge;
+		curpos=1;
+		posID = i_seq.GetPositionId();
+		zRackContainerBaseDiff=getZRackContainerBaseDiff(MLInstr, labID, posID);
+		
+		containerLabware=GetContainerOfLabware (MLInstr, labID,posID);
+		// Assume that all containers have the same labware, the same zDiff 
+		// and that the sequence is only defined on one rack labware
+		while(curpos!=0) {
+			posID = i_seq.GetPositionId();
+			// labID = i_seq.GetLabwareId();
+			MLInstr.GetLabwarePosition(labID, position,posID);
+			xCoord = position[0];
+			//yCoord = position[1];
+			zCoord = position[2];
+			//angle = position[3];
+      tilt(xHinge,zHinge,xCoord,zCoord,i_angle);
+      if (_TRACE_==1) Trace("xHinge: ",xHinge, " zHinge:", zHinge," xCoord:",xCoord," zCoord:", zCoord," angle:",i_angle);
+			offset[0] = xCoord;
+			offset[1] = 0; // ignore yHinge at first
+			offset[2] = zCoord+zRackContainerBaseDiff+(position.GetAt(2)-baseZ);
+			if (_TRACE_==1) Trace("PosID:", posID, " NewX:",offset[0], " NewZ:",offset.GetAt(2), " OldZ:",position[2], "BaseZ:",baseZ);
+//			TraceLabwarePos(MLInstr,i_seq,posID);
+			//	Trace("Rack: ", labID, " Pos: ",posID, "Container: ",GetContainerOfLabware (MLInstr, labID,posID), " x: ", offset[0], " y: ", offset[1], " z: ",offset[2]);
+			MLInstr.AddContainerToRack(newLabID, posID, containerLabware, offset);
+			curpos=i_seq.GetNext();
+		}
+		MLInstr.GetSequenceRef(newLabID, o_seq);
+		o_seq.SetCurrentPosition(oldPos);
+		i_seq.SetCurrentPosition(oldPos);
+	}
+	
+	/*
+	  For a given labware find the template name and position where the labware is placed
+	*/
+	function getLabwareTemplateAndPos(device & MLInstr, sequence i_seq, variable &o_template, variable &o_pos) void {
+		variable templateSites[],labwareNames[],positionNames[], templateNames[];
+		variable labwareID,index;
+		labwareID = i_seq.GetLabwareId();
+		//ML_STAR.GetPositionsLabwareNames(ML_STAR.testrack,labwareID,templateSites,labwareNames,positionNames);
+		//Util2::Debug::TraceArray_3("LabPos",templateSites,labwareNames,positionNames);
+		MLInstr.GetTemplateLabwareNames(templateNames,labwareNames);
+		Util2::Debug::TraceArray_2("LabPos",templateNames,labwareNames);
+		if (Util::Lookup(labwareNames,labwareID,index)==hslFalse) {
+		 if (_TRACE_==1) Trace("Labware ",labwareID, " could not be found on a template");
+		 o_template="";
+		 o_pos=0;
+		} else {
+		if (_TRACE_==1) Trace("Index: ",index, " ", templateNames.GetAt(index));
+		o_template=templateNames.GetAt(index);
+		MLInstr.GetPositionsLabwareNames(i_seq,o_template,templateSites,labwareNames,positionNames);
+		Util2::Debug::TraceArray_3("LabPos",templateSites,labwareNames,positionNames);
+		o_pos=templateSites[0];
+	  }
+	}
+
+/*namespace _TESTMETHOD {
+	global device ML_STAR("TestCtr.lay", "ML_STAR", hslTrue);
+
+	method test() {
+		sequence outSeq;
+		timer t;
+		variable template, pos;
+		
+
+		//Trace("FileName=", GetContainerOfLabware(ML_STAR, "Nunc1","1"));
+		//Trace("FileName=", GetContainerOfLabware(ML_STAR, "testrack","1"));
+		//TraceSeqCoords(ML_STAR, ML_STAR.testrack);
+		
+		t.SetTimer(hslInfinite);
+		//TiltSeq (ML_STAR,ML_STAR.Nunc1,outSeq,1,2,0);
+		TiltSeq (ML_STAR,ML_STAR.testrack,outSeq,20,10,20);
+		Trace("Time=",t.GetElapsedTime());
+		TraceSeqCoords(ML_STAR, outSeq);
+		TraceSeqCoords(ML_STAR, ML_STAR.testrack);
+		
+
+	}
+}*/
+
+}
+#endif
+
+// $$author=jjaeger$$valid=0$$time=2008-01-31 16:01$$checksum=2f60d00f$$length=084$$
