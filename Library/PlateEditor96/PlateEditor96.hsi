@@ -1,0 +1,1690 @@
+// {{{ 2 "IncludeGuard" "PragmaOnce"
+#pragma once
+// }} ""
+#include "HSLStrLib.hsl"
+#include "HSLFilLib.hsl"
+#include "HSLMappingReport.hsl"
+#include "HSLSeqLib.hsl"
+#include "PlateEditor96\\HSL_XLS_Converter.hsl"
+#include "HSLTimLib.hsl"
+#include "Illumina Prep Methods\\16S rRNA\\HSLTrcLib.hsl"
+#include "HSLUtilLib2.hsl"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+#include "HSLMETEDLib.hs_"
+#include "HSLMECCLib.hs_"
+// }} ""
+// {{{ 2 "LibraryNamespace" "Begin"
+namespace PLATEEDITOR96 {
+// }} ""
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{{ 2 "SubmethodForwardDeclaration" ""
+private function A_Abstract(  ) void ;
+private function Create_A1B1C1_Barcodes96Array( variable & array_wells[], variable & array_bcs[], variable & o_array_BCs[] ) void ;
+function EdiPlate96_custom( sequence & o_SeqEdit, sequence i_OriginalPlateSeq, variable i_message, variable fixed_number, sequence i_forbiddenWellsSeq, sequence i_preSelectionSeq, variable i_Editable ) void ;
+function EditPlate96( sequence & o_SeqEdit, sequence i_OriginalPlateSeq ) void ;
+function EditPlate96_with_BarcodesFromCSV( sequence & o_SeqEdit, sequence i_OriginalPlateSeq, variable i_message, variable fixed_number, sequence i_forbiddenWellsSeq, sequence i_preSelectionSeq, variable i_Editable, variable i_CSV_FilePath, variable i_CSV_Wells_ColumnName, variable i_CSV_Barcodes_ColumnName, variable i_CSV_delimiter ) void ;
+function EditPlate96_with_BarcodesFromExcelAccess( sequence & o_SeqEdit, sequence i_OriginalPlateSeq, variable i_message, variable fixed_number, sequence i_forbiddenWellsSeq, sequence i_preSelectionSeq, variable i_Editable, variable i_ExcelAccess_FilePath, variable i_ExcelAccess_Wells_ColumnName, variable i_ExcelAccess_Barcodes_ColumnName, variable i_ExcelAccess_TableSheetName ) void ;
+private function Import_Well_Barcodes_List_CSV( variable i_Wells_ColumnName, variable i_BC_ColumnName, variable iFile, variable i_CSV_delimiter, variable & o_Array_bcs[], variable & temp_Array_wells[] ) void ;
+private function Import_Well_Barcodes_List_ExcelAccess( variable i_Wells_ColumnName, variable i_BC_ColumnName, variable iFile, variable i_SheetName, variable & o_Array_bcs[], variable & temp_Array_wells[] ) void ;
+private function LookUpValueInArray( variable & array_to_LookUp[], variable value_to_LookUp ) variable ;
+private function StrTokenize( variable strIn, variable strDelimiter, variable & arrTokens[], variable bAttendEmptyTokens ) void ;
+// }} ""
+function _InitLibrary() {
+// {{ 2 "AutoInitBlock" ""
+// }} ""
+}
+function _ExitLibrary() {
+// {{ 2 "AutoExitBlock" ""
+// }} ""
+}
+// {{{ 5 "EditPlate96" "Begin"
+function EditPlate96( sequence & o_SeqEdit, sequence i_OriginalPlateSeq ) void {
+// }} ""
+private variable str;
+private file file_selected_wells;
+private variable lib_path;
+private variable PlateEditor96_library_path;
+private variable PlateEditor96_varstxt_path;
+private variable PlateEditor96_exe_path;
+private variable PlateEditor96_selected_wells_path;
+private variable str_cmd;
+private variable array_seqPos[];
+private variable arr_size;
+private variable loopCounter_array;
+private variable labID;
+private variable tmp_SeqPosId;
+// {{ 5 "EditPlate96" "InitLocals"
+{ sequence __temp; o_SeqEdit = __temp; }
+// }} ""
+// {{ 74 1 0 "a8dc31e6_9e5d_44f0_a039d792c54e6b47" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 75 1 0 "f9f9a9b4_0b01_45f7_a72ae0f12421abe7" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+lib_path = FilGetLibraryPath();
+// }} ""
+// {{{ 76 1 0 "610af54b_e1f8_4a0e_8e05790c00d0be56" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_library_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\"));
+// }} ""
+// {{{ 77 1 0 "56908bc4_862d_41ec_80d8e055f9358823" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_exe_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\HamiltonPlateEditor96.exe"));
+// }} ""
+// {{{ 78 1 0 "aaeb60d4_4a88_47fe_bb1efcf3b2f805ca" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_selected_wells_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\selected_wells.txt"));
+// }} ""
+// {{{ 79 1 0 "8acb06e6_57ad_4ae6_af14b795d1f9b703" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_varstxt_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\vars.txt"));
+// }} ""
+// {{{ 80 1 0 "1a0d22d9_d3ed_489c_8a26cb7a6bf8488f" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str_cmd = StrConcat4(PlateEditor96_exe_path, Translate(" \""), PlateEditor96_library_path, Translate("\""));
+// }} ""
+// {{ 81 1 0 "a8dc31e6_9e5d_44f0_a039d792c54e6b47" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 82 1 0 "cebd7ac5_9abb_4780_9a2d8a62002da142" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 83 1 0 "5c6510c5_e406_4049_be71758ea81c7ffd" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLMapReport::DeleteFile(PlateEditor96_varstxt_path);
+// }} ""
+// {{{ 84 1 0 "2e32414e_2b34_4c9e_b589a9572b20ddde" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLMapReport::DeleteFile(PlateEditor96_selected_wells_path);
+// }} ""
+// {{ 85 1 0 "cebd7ac5_9abb_4780_9a2d8a62002da142" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 86 1 0 "494af54c_b3ed_452d_a9ab9faee36d62b8" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 87 1 0 "bce8a259_de6f_42aa_b474cccec3d2fe04" "{B31F3545-5D80-11d4-A5EB-0050DA737D89}"
+{
+if( 0 == Shell(str_cmd, hslShow, hslSynchronous) )
+{
+    MECC::RaiseRuntimeErrorEx(-1238499072, MECC::IDS::stepNameShell, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+}
+// }} ""
+// {{ 88 1 0 "494af54c_b3ed_452d_a9ab9faee36d62b8" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 89 1 0 "77a12349_23e3_4786_b3c663dabe4c3bc1" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 90 1 0 "e9fe8d63_6aef_4eee_b23dcf28e2601653" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+file_selected_wells.AddField(1, str, hslString);
+file_selected_wells.SetDelimiter(hslAsciiText);
+if( 0 == file_selected_wells.Open(PlateEditor96_selected_wells_path, hslRead) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, PlateEditor96_selected_wells_path, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 91 1 0 "c56b304e_028e_4f7e_b118de3419b65943" "{B31F3536-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == file_selected_wells.ReadRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1490157312, MECC::IDS::stepNameFileRead, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 92 1 0 "c7914360_dbf4_4349_946561ec274816de" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != file_selected_wells.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+file_selected_wells.RemoveFields();
+// }} ""
+// {{ 93 1 0 "77a12349_23e3_4786_b3c663dabe4c3bc1" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 94 1 0 "d52f847e_733c_41d1_92d027c33a3ab9eb" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 95 1 0 "d32eda84_131e_4db4_9ae0b300dcfb011f" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+StrTokenize(str, Translate(","), array_seqPos, 0);
+// }} ""
+// {{ 96 1 0 "a14c0f7a_075a_462b_8f1bbd627d8e17dd" "{B31F353A-5D80-11d4-A5EB-0050DA737D89}"
+i_OriginalPlateSeq.SetCurrentPosition(1);
+// }} ""
+// {{{ 97 1 0 "2d207e48_79aa_4312_ad918dada921dc4a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+labID = SeqGetLabwareId(i_OriginalPlateSeq);
+// }} ""
+// {{{ 98 1 0 "912fcd8e_6c40_4058_93c9684ea40874a4" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqRemoveAll(o_SeqEdit);
+// }} ""
+// {{ 99 1 0 "672e7dd6_021d_43fd_ad03f09aef90f29b" "{72EACF88-8D49-43e3-92C8-2F90E81E3260}"
+arr_size=array_seqPos.GetSize();
+// }} ""
+// {{ 100 1 0 "189ec1a7_659b_4d6b_8283d86c993a4aa7" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(loopCounter_array = 0; loopCounter_array < arr_size;)
+{
+loopCounter_array = loopCounter_array + 1;
+// }} ""
+// {{ 101 1 0 "999680a0_14ff_455b_bd58141aca5864e6" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+tmp_SeqPosId=array_seqPos.GetAt(loopCounter_array-1);
+// }} ""
+// {{{ 102 1 0 "78ff78b1_fd7c_42ff_a692f2c209d72a93" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqAdd(o_SeqEdit, labID, tmp_SeqPosId);
+// }} ""
+// {{ 103 1 0 "189ec1a7_659b_4d6b_8283d86c993a4aa7" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 104 1 0 "f9374ad5_8517_4e22_85481e5416744e1b" "{B31F353A-5D80-11d4-A5EB-0050DA737D89}"
+o_SeqEdit.SetCurrentPosition(1);
+// }} ""
+// {{ 105 1 0 "d52f847e_733c_41d1_92d027c33a3ab9eb" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 5 "EditPlate96" "End"
+}
+// }} ""
+// {{{ 5 "StrTokenize" "Begin"
+private function StrTokenize( variable strIn, variable strDelimiter, variable & arrTokens[], variable bAttendEmptyTokens ) void {
+// }} ""
+private variable strEdit;
+private variable posLast;
+private variable strToAdd;
+private variable posCurrent;
+// {{ 5 "StrTokenize" "InitLocals"
+// }} ""
+// {{ 363 1 0 "48f98cf0_4691_4ecb_84a1ffc1e6f53790" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+posCurrent = -1;
+// }} ""
+// {{ 364 1 0 "81e5a75f_98bc_4f00_b293a34cb7153096" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+posLast = -1;
+// }} ""
+// {{ 365 1 0 "81dc5c6d_455f_4b8e_93bb6ac80e2d09ad" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strToAdd = "";
+// }} ""
+// {{ 366 1 0 "74dd9435_9833_482e_91db8c026fbe31f9" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strEdit = strIn;
+// }} ""
+if( StrGetLength(strEdit) == 0 || StrGetLength(strDelimiter) == 0 )
+   return;
+
+posLast = StrGetLength(strEdit);
+posCurrent = StrFind(strEdit, strDelimiter);
+
+while (-1 != posCurrent && posLast > 0)
+{
+   //get tokens before next delimiter char
+   strToAdd = StrLeft(strEdit, posCurrent);
+   StrTrimRight(strToAdd, "");
+   StrTrimLeft (strToAdd, "");
+
+   //add token to our output list
+   if( StrGetLength(strToAdd) > 0 )
+   {
+      arrTokens.AddAsLast(strToAdd);
+     // Trace(GetFunctionName(), " adding string to output list: $", strToAdd, "$", "" );
+   }
+   else
+   {
+      if( bAttendEmptyTokens )// empty string should also be added
+      {
+         arrTokens.AddAsLast(strToAdd);
+         //Trace(GetFunctionName(), " adding string to output list: $", strToAdd, "$", "" );
+      }
+   }
+
+   //prepare next loop by removing obsolete characters
+   strEdit = StrRight(strEdit, posLast - posCurrent - StrGetLength(strDelimiter) );
+   //Trace(GetFunctionName(), " next string = ", strEdit );
+
+   //find next "non-delimiter"
+   posCurrent = StrFind(strEdit, strDelimiter);
+   posLast = StrGetLength(strEdit);
+   //Trace(GetFunctionName(), " next pos = ", posCurrent );
+
+}//end while
+
+//no delimiter left
+//add the last part of the string to our output list
+if (-1 == posCurrent)// && posLast > 0
+{
+   if( posLast == 0 && !bAttendEmptyTokens )
+      return;
+
+   StrTrimRight(strEdit, "");
+   StrTrimLeft (strEdit, "");
+
+   //Trace(GetFunctionName(), " no delimiter left - adding string to output list: $", strEdit, "$", "" );
+
+   arrTokens.AddAsLast(strEdit);
+}
+
+// {{{ 5 "StrTokenize" "End"
+}
+// }} ""
+// {{{ 5 "EdiPlate96_custom" "Begin"
+function EdiPlate96_custom( sequence & o_SeqEdit, sequence i_OriginalPlateSeq, variable i_message, variable fixed_number, sequence i_forbiddenWellsSeq, sequence i_preSelectionSeq, variable i_Editable ) void {
+// }} ""
+private variable labID;
+private variable lib_path;
+private variable str_cmd;
+private variable PlateEditor96_library_path;
+private variable arr_size;
+private variable PlateEditor96_varstxt_path;
+private variable tmp_SeqPosId;
+private variable str;
+private variable PlateEditor96_exe_path;
+private variable PlateEditor96_selected_wells_path;
+private variable loopCounter_array;
+private file file_selected_wells;
+private variable array_seqPos[];
+private file file_vars;
+private variable loopCounter_tmpSeq;
+private variable posID;
+// {{ 5 "EdiPlate96_custom" "InitLocals"
+{ sequence __temp; o_SeqEdit = __temp; }
+// }} ""
+// {{ 26 1 0 "f8c05928_e320_43ca_a3ab0e394b730835" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 27 1 0 "3a0d0a3b_276c_45f1_9b875a8b7d430665" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+lib_path = FilGetLibraryPath();
+// }} ""
+// {{{ 28 1 0 "865977b4_53f7_4f3f_890b375802d65a1e" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_library_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\"));
+// }} ""
+// {{{ 29 1 0 "7c30d204_dc91_4551_b01e1b43a31212e9" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_exe_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\HamiltonPlateEditor96.exe"));
+// }} ""
+// {{{ 30 1 0 "8d35bcb7_89d7_4cb3_8ee9676e92b6690d" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_selected_wells_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\selected_wells.txt"));
+// }} ""
+// {{{ 31 1 0 "5d4640af_fe98_492d_b3f9e3beea59f6f5" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_varstxt_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\vars.txt"));
+// }} ""
+// {{{ 32 1 0 "3b334cb2_fd54_4ca3_99f1030b98ac0801" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str_cmd = StrConcat4(PlateEditor96_exe_path, Translate(" \""), PlateEditor96_library_path, Translate("\""));
+// }} ""
+// {{ 33 1 0 "f8c05928_e320_43ca_a3ab0e394b730835" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 34 1 0 "a5ec1d1b_30b2_4bf5_98db7ea2a1091625" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 35 1 0 "0b9ca73c_96e9_44bb_a7470203ad8b2965" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLMapReport::DeleteFile(PlateEditor96_varstxt_path);
+// }} ""
+// {{{ 36 1 0 "1997a92c_d3a6_4368_ab206cc7450ac5c8" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLMapReport::DeleteFile(PlateEditor96_selected_wells_path);
+// }} ""
+// {{ 37 1 0 "a5ec1d1b_30b2_4bf5_98db7ea2a1091625" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 38 1 0 "686576e0_b764_4541_b9c18d6c0c6d1e4c" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 39 1 0 "2d7b81fc_4b5c_457f_9c72012aa25a5c39" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 40 1 0 "cce16a56_3fbb_41f8_85653d2a05fb7808" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 41 1 0 "559bcc73_0103_4aa6_9c074a4926ebe105" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+str = Translate("");
+// }} ""
+// {{ 42 1 0 "8dc65e0e_7532_489e_bec78f34151e04b5" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter_tmpSeq = 0;
+i_forbiddenWellsSeq.SetCurrentPosition(1);
+while (
+   (i_forbiddenWellsSeq.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, i_forbiddenWellsSeq, 1);
+loopCounter_tmpSeq = loopCounter_tmpSeq + 1;
+// }} ""
+// {{{ 43 1 0 "8585036d_031b_47bb_98dc436a75d95e40" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+posID = SeqGetPositionId(i_forbiddenWellsSeq);
+// }} ""
+// {{{ 44 1 0 "e71f8f86_4f57_46bd_abc4f0e9a42525d7" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqIncrement(i_forbiddenWellsSeq, 1);
+// }} ""
+// {{{ 45 1 0 "2bef6661_a925_4bd1_b7c346f91d5f93da" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat4(str, posID, Translate(","), Translate(""));
+// }} ""
+// {{ 46 1 0 "8dc65e0e_7532_489e_bec78f34151e04b5" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (i_forbiddenWellsSeq.GetCurrentPosition() > 0 && i_forbiddenWellsSeq.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+i_forbiddenWellsSeq.SetMax(i_forbiddenWellsSeq.GetTotal());
+i_forbiddenWellsSeq.SetCurrentPosition(1);
+}
+// }} ""
+// {{{ 47 1 0 "fbd47a36_4aed_47e8_a45dbc8f99b75f5a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat8(str, Translate("//"), i_message, Translate("//"), fixed_number, Translate("//"), Translate(""), Translate(""));
+// }} ""
+// {{ 48 1 0 "24bfaacc_b26c_47d1_80e4d127bdc8c6dd" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter_tmpSeq = 0;
+i_preSelectionSeq.SetCurrentPosition(1);
+while (
+   (i_preSelectionSeq.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, i_preSelectionSeq, 1);
+loopCounter_tmpSeq = loopCounter_tmpSeq + 1;
+// }} ""
+// {{{ 49 1 0 "e14db99b_7878_47c9_b0b95712353c1080" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+posID = SeqGetPositionId(i_preSelectionSeq);
+// }} ""
+// {{{ 50 1 0 "adb17871_634b_4003_893e47cdc3f4dc5b" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqIncrement(i_preSelectionSeq, 1);
+// }} ""
+// {{{ 51 1 0 "d1054d48_1592_411b_a9f9d6be781ca279" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat4(str, posID, Translate(","), Translate(""));
+// }} ""
+// {{ 52 1 0 "24bfaacc_b26c_47d1_80e4d127bdc8c6dd" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (i_preSelectionSeq.GetCurrentPosition() > 0 && i_preSelectionSeq.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+i_preSelectionSeq.SetMax(i_preSelectionSeq.GetTotal());
+i_preSelectionSeq.SetCurrentPosition(1);
+}
+// }} ""
+// {{{ 53 1 0 "099e0ad1_8ba6_4772_a01c2abed77de7e0" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat4(str, Translate("//"), i_Editable, Translate(""));
+// }} ""
+// {{ 54 1 0 "2d7b81fc_4b5c_457f_9c72012aa25a5c39" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 55 1 0 "090a4e9e_2bfb_4754_9133dae0ee88e11f" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+file_vars.AddField(1, str, hslString);
+file_vars.SetDelimiter(hslAsciiText);
+if( 0 == file_vars.Open(PlateEditor96_varstxt_path, hslWrite) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, PlateEditor96_varstxt_path, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 56 1 0 "6a1d76cf_ecbc_40fa_a198c3f9a2ae188b" "{B31F3537-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == file_vars.WriteRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1473380096, MECC::IDS::stepNameFileWrite, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 57 1 0 "9578d080_d54b_4b72_8ca864b22393bfb5" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != file_vars.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+file_vars.RemoveFields();
+// }} ""
+// {{ 58 1 0 "686576e0_b764_4541_b9c18d6c0c6d1e4c" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 59 1 0 "567857bb_c616_4308_b8f7a737dc0bcaf9" "{B31F3545-5D80-11d4-A5EB-0050DA737D89}"
+{
+if( 0 == Shell(str_cmd, hslShow, hslSynchronous) )
+{
+    MECC::RaiseRuntimeErrorEx(-1238499072, MECC::IDS::stepNameShell, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+}
+// }} ""
+// {{ 60 1 0 "6c8cd0d6_0e77_4aa8_90fcb7c71188ace9" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+file_selected_wells.AddField(1, str, hslString);
+file_selected_wells.SetDelimiter(hslAsciiText);
+if( 0 == file_selected_wells.Open(PlateEditor96_selected_wells_path, hslRead) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, PlateEditor96_selected_wells_path, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 61 1 0 "4150a90d_b54d_4a5b_b00fc04b3475d15c" "{B31F3536-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == file_selected_wells.ReadRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1490157312, MECC::IDS::stepNameFileRead, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 62 1 0 "a949e298_49e1_49c0_b46d7b89d7bc7a2c" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != file_selected_wells.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+file_selected_wells.RemoveFields();
+// }} ""
+// {{{ 63 1 0 "dfe525fd_3eb4_44fb_9d84d3086f97de9e" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+StrTokenize(str, Translate(","), array_seqPos, 0);
+// }} ""
+// {{ 64 1 0 "5ab59e14_b94b_4897_a4fde466bf5b4a78" "{B31F353A-5D80-11d4-A5EB-0050DA737D89}"
+i_OriginalPlateSeq.SetCurrentPosition(1);
+// }} ""
+// {{{ 65 1 0 "990da688_708d_4310_b0af67f000c930b9" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+labID = SeqGetLabwareId(i_OriginalPlateSeq);
+// }} ""
+// {{{ 66 1 0 "66f22804_7453_4039_b624823debae0e40" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqRemoveAll(o_SeqEdit);
+// }} ""
+// {{ 67 1 0 "aaf4f730_b365_45e4_a2df66273d3c2b10" "{72EACF88-8D49-43e3-92C8-2F90E81E3260}"
+arr_size=array_seqPos.GetSize();
+// }} ""
+// {{ 68 1 0 "abcb4ce1_dba3_49f6_815f2dee74c52bf4" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(loopCounter_array = 0; loopCounter_array < arr_size;)
+{
+loopCounter_array = loopCounter_array + 1;
+// }} ""
+// {{ 69 1 0 "17a6ad4e_44b3_4610_8c64e3cfe084f935" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+tmp_SeqPosId=array_seqPos.GetAt(loopCounter_array-1);
+// }} ""
+// {{{ 70 1 0 "5d53d0a1_a552_45c2_baf5572f50fcd80b" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqAdd(o_SeqEdit, labID, tmp_SeqPosId);
+// }} ""
+// {{ 71 1 0 "abcb4ce1_dba3_49f6_815f2dee74c52bf4" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 72 1 0 "d204a57f_eb3f_4bad_859accd591bdba35" "{B31F353A-5D80-11d4-A5EB-0050DA737D89}"
+o_SeqEdit.SetCurrentPosition(1);
+// }} ""
+// {{{ 5 "EdiPlate96_custom" "End"
+}
+// }} ""
+// {{{ 5 "Import_Well_Barcodes_List_CSV" "Begin"
+private function Import_Well_Barcodes_List_CSV( variable i_Wells_ColumnName, variable i_BC_ColumnName, variable iFile, variable i_CSV_delimiter, variable & o_Array_bcs[], variable & temp_Array_wells[] ) void {
+// }} ""
+private variable retVal;
+private variable bc;
+private variable well;
+private file tmpImportCSV;
+private variable loopCounter1;
+private variable HDR;
+private variable temp_Array_bcs[];
+// {{ 5 "Import_Well_Barcodes_List_CSV" "InitLocals"
+o_Array_bcs.SetSize( 0);
+temp_Array_wells.SetSize( 0);
+// }} ""
+// {{ 251 1 0 "37ff1c19_715e_4ca4_930c4ad859c56f7b" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+HDR = 1;
+// }} ""
+// {{{ 252 1 0 "981b877d_a789_4873_8bbc8f1861b5ffbd" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+retVal = StrGetType(i_BC_ColumnName);
+// }} ""
+// {{ 253 1 0 "cbfafaf5_b23d_499c_97186458212f8071" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (retVal == "i")
+{
+// }} ""
+// {{{ 254 1 0 "bb4eedef_356b_460a_95c966825d896d25" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+i_BC_ColumnName = StrIStr(i_BC_ColumnName);
+// }} ""
+// {{ 255 1 0 "8b5b5bf2_c37a_4098_b7783cbdf5829afd" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+HDR = 0;
+// }} ""
+// {{ 256 1 0 "cbfafaf5_b23d_499c_97186458212f8071" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 257 1 0 "0bb4e786_aa58_4a27_83ce6198169a689a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+retVal = StrGetType(i_Wells_ColumnName);
+// }} ""
+// {{ 258 1 0 "86628586_b962_47dc_b56550939c4305ff" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (retVal == "i")
+{
+// }} ""
+// {{{ 259 1 0 "0cf8b5f3_7251_43cc_9e10ff49589ffe2f" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+i_Wells_ColumnName = StrIStr(i_Wells_ColumnName);
+// }} ""
+// {{ 260 1 0 "86628586_b962_47dc_b56550939c4305ff" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 261 1 0 "121f463a_6b24_4493_804a987fb9f4723d" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (HDR == 1)
+{
+// }} ""
+// {{ 262 1 0 "7dedeb79_3315_45c7_b8c828b488bb6e2e" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+tmpImportCSV.AddField(i_BC_ColumnName, bc, hslString, 255);
+tmpImportCSV.AddField(i_Wells_ColumnName, well, hslString, 255);
+tmpImportCSV.SetDelimiter(i_CSV_delimiter);
+if( 0 == tmpImportCSV.Open(iFile, hslAppend) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, iFile, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 263 1 0 "121f463a_6b24_4493_804a987fb9f4723d" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 264 1 0 "9a8ab8ac_b175_4992_8e6570e2553f7ff8" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+tmpImportCSV.SetExtendedProperties( "HDR=NO");
+tmpImportCSV.AddField(i_BC_ColumnName, bc, hslString, 255);
+tmpImportCSV.AddField(i_Wells_ColumnName, well, hslString, 255);
+tmpImportCSV.SetDelimiter(i_CSV_delimiter);
+if( 0 == tmpImportCSV.Open(iFile, hslAppend) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, iFile, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 265 1 0 "121f463a_6b24_4493_804a987fb9f4723d" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 266 1 0 "47002161_5026_4674_a1469f6ff02ee41c" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+temp_Array_bcs.SetSize(0);
+// }} ""
+// {{ 267 1 0 "97ad2289_cdda_45c3_ace1ff8ba866b1ba" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+temp_Array_wells.SetSize(0);
+// }} ""
+// {{ 268 1 0 "5d9e39e6_97a4_4839_b0e32b4bfdbc3367" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter1 = 0;
+while (
+   (tmpImportCSV.Eof() == 0)
+)
+{
+loopCounter1 = loopCounter1 + 1;
+// }} ""
+// {{ 269 1 0 "bc68b626_bc68_4dc8_8e3a7d95c40afb4d" "{B31F3536-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == tmpImportCSV.ReadRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1490157312, MECC::IDS::stepNameFileRead, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 270 1 0 "fc1d2c2b_49dd_47ca_a8907eac801a3828" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+temp_Array_bcs.AddAsLast(bc);
+// }} ""
+// {{ 271 1 0 "6cedd2e3_32be_4ba2_a7c3a3cb99fcfd59" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+temp_Array_wells.AddAsLast(well);
+// }} ""
+// {{ 272 1 0 "5d9e39e6_97a4_4839_b0e32b4bfdbc3367" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 273 1 0 "acde122f_bc80_4414_baeff1e1746e8c9d" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != tmpImportCSV.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+tmpImportCSV.RemoveFields();
+// }} ""
+// {{{ 274 1 0 "bffe2cf9_7830_4355_92c2c876c9fec12e" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+Create_A1B1C1_Barcodes96Array(temp_Array_wells, temp_Array_bcs, o_Array_bcs);
+// }} ""
+// {{{ 5 "Import_Well_Barcodes_List_CSV" "End"
+}
+// }} ""
+// {{{ 5 "EditPlate96_with_BarcodesFromCSV" "Begin"
+function EditPlate96_with_BarcodesFromCSV( sequence & o_SeqEdit, sequence i_OriginalPlateSeq, variable i_message, variable fixed_number, sequence i_forbiddenWellsSeq, sequence i_preSelectionSeq, variable i_Editable, variable i_CSV_FilePath, variable i_CSV_Wells_ColumnName, variable i_CSV_Barcodes_ColumnName, variable i_CSV_delimiter ) void {
+// }} ""
+private variable lib_path;
+private variable labID;
+private variable loopCounter_tmpSeq;
+private variable str_cmd;
+private variable PlateEditor96_library_path;
+private variable arr_size;
+private variable posID;
+private variable PlateEditor96_varstxt_path;
+private variable tmp_SeqPosId;
+private variable str;
+private variable PlateEditor96_exe_path;
+private variable PlateEditor96_selected_wells_path;
+private variable loopCounter_array;
+private file file_selected_wells;
+private file file_vars;
+private variable array_seqPos[];
+private variable array_bcs[];
+private variable loopCounter1;
+private variable bc;
+private variable seqName;
+private variable array_wells_with_Barcode[];
+private variable StrBarcodes;
+private variable loopCounter2;
+// {{ 5 "EditPlate96_with_BarcodesFromCSV" "InitLocals"
+{ sequence __temp; o_SeqEdit = __temp; }
+// }} ""
+// {{ 107 1 0 "0d5e01cb_2e07_4d73_bc4dc82ee1badb97" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 108 1 0 "dce6bbb7_2ed0_4e18_82090642ba992702" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+lib_path = FilGetLibraryPath();
+// }} ""
+// {{{ 109 1 0 "810016e0_1182_42df_a40c4ed319655f25" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_library_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\"));
+// }} ""
+// {{{ 110 1 0 "013d1f9e_466b_49fa_a21314ca63074cc2" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_exe_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\HamiltonPlateEditor96.exe"));
+// }} ""
+// {{{ 111 1 0 "3a9e5165_a234_4a8d_b8b099cd4bd53c47" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_selected_wells_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\selected_wells.txt"));
+// }} ""
+// {{{ 112 1 0 "df8c05c3_63dc_4ee0_9505ca014d9ecfcf" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_varstxt_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\vars.txt"));
+// }} ""
+// {{{ 113 1 0 "8b0d11da_3a9e_4114_aaf9afa32adc5b7f" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str_cmd = StrConcat4(PlateEditor96_exe_path, Translate(" \""), PlateEditor96_library_path, Translate("\""));
+// }} ""
+// {{ 114 1 0 "0d5e01cb_2e07_4d73_bc4dc82ee1badb97" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 115 1 0 "32c3de9e_73b1_4b7f_b35a7eb00360ae23" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 116 1 0 "6d4b9dc8_bd7c_4d67_bde599dcbfa2ded9" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLMapReport::DeleteFile(PlateEditor96_varstxt_path);
+// }} ""
+// {{{ 117 1 0 "8fd77b1f_21f2_4afd_832401d03316f4f5" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLMapReport::DeleteFile(PlateEditor96_selected_wells_path);
+// }} ""
+// {{ 118 1 0 "32c3de9e_73b1_4b7f_b35a7eb00360ae23" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 119 1 0 "6c0f69b6_e1f1_4c0c_8f0177105fd43669" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 120 1 0 "a43bb5a9_2b0e_4b10_90c4366ef468c6ce" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 121 1 0 "917eda74_239a_4559_8e9a22cc7f44ba88" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+StrBarcodes = Translate("");
+// }} ""
+// {{{ 122 1 0 "c054078e_e6d6_4a10_8ce58d7ce512a8b1" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+Import_Well_Barcodes_List_CSV(i_CSV_Wells_ColumnName, i_CSV_Barcodes_ColumnName, i_CSV_FilePath, i_CSV_delimiter, array_bcs, array_wells_with_Barcode);
+// }} ""
+// {{ 123 1 0 "3266bb90_b94d_4d57_aadac0481831c300" "{72EACF88-8D49-43e3-92C8-2F90E81E3260}"
+arr_size=array_bcs.GetSize();
+// }} ""
+// {{ 124 1 0 "e87d3dbc_7e0e_4790_81175849c67e00a6" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(loopCounter1 = 0; loopCounter1 < arr_size;)
+{
+loopCounter1 = loopCounter1 + 1;
+// }} ""
+// {{ 125 1 0 "22ec4a12_8b64_4819_91f05afb018fb302" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+bc=array_bcs.GetAt(loopCounter1-1);
+// }} ""
+// {{{ 126 1 0 "1a7fe056_bd8f_4346_ad232d86e6c20b0a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+StrBarcodes = StrConcat4(StrBarcodes, Translate("\n"), bc, Translate(""));
+// }} ""
+// {{ 127 1 0 "e87d3dbc_7e0e_4790_81175849c67e00a6" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 128 1 0 "6c0f69b6_e1f1_4c0c_8f0177105fd43669" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 129 1 0 "789f7c4a_1714_4d89_99b4c2d9bcdf49bb" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 130 1 0 "296627d6_5b22_437d_8548d9d977d26ee3" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 131 1 0 "5da57b48_44e1_4af3_a8643ceb34799ace" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 132 1 0 "55979fc9_f498_4c5a_88850ddf08cb949a" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+str = Translate("");
+// }} ""
+// {{ 133 1 0 "59e74826_588e_4e4e_9305d04eab693279" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter_tmpSeq = 0;
+i_forbiddenWellsSeq.SetCurrentPosition(1);
+while (
+   (i_forbiddenWellsSeq.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, i_forbiddenWellsSeq, 1);
+loopCounter_tmpSeq = loopCounter_tmpSeq + 1;
+// }} ""
+// {{{ 134 1 0 "cb0a3bc6_0771_426e_ab2ea534446fefe3" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+posID = SeqGetPositionId(i_forbiddenWellsSeq);
+// }} ""
+// {{{ 135 1 0 "7604047b_0730_4ab1_96b79084cea239f8" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqIncrement(i_forbiddenWellsSeq, 1);
+// }} ""
+// {{{ 136 1 0 "87f146cc_34ff_4033_9a892dabc8fe5cb9" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat4(str, posID, Translate(","), Translate(""));
+// }} ""
+// {{ 137 1 0 "59e74826_588e_4e4e_9305d04eab693279" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (i_forbiddenWellsSeq.GetCurrentPosition() > 0 && i_forbiddenWellsSeq.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+i_forbiddenWellsSeq.SetMax(i_forbiddenWellsSeq.GetTotal());
+i_forbiddenWellsSeq.SetCurrentPosition(1);
+}
+// }} ""
+// {{{ 138 1 0 "06f2f951_324a_4285_920e4d5f722d7212" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat8(str, Translate("//"), i_message, Translate("//"), fixed_number, Translate("//"), Translate(""), Translate(""));
+// }} ""
+// {{ 139 1 0 "05b94f13_0071_47e5_8a0e090697eab516" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 140 1 0 "e9b5b17a_a4db_491b_a1323ce2c74ac6b2" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+seqName = SeqGetName(i_preSelectionSeq);
+// }} ""
+// {{{ 141 1 0 "b5946550_4932_4218_885f91c5deb181e5" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+seqName = StrMakeUpper(seqName);
+// }} ""
+// {{ 142 1 0 "238da6e8_aeb9_41dc_9da2d7a947b45ad9" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (seqName == "BARCODES")
+{
+// }} ""
+// {{{ 143 1 0 "bcdd4208_1986_4e2b_99a12518a284804f" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+labID = SeqGetLabwareId(i_OriginalPlateSeq);
+// }} ""
+// {{ 144 1 0 "8c0853f1_05b9_49de_96afad3c5983b0a8" "{72EACF88-8D49-43e3-92C8-2F90E81E3260}"
+arr_size=array_wells_with_Barcode.GetSize();
+// }} ""
+// {{{ 145 1 0 "69f5b41d_bd5d_4185_8c334e25204806e6" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqRemoveAll(i_preSelectionSeq);
+// }} ""
+// {{ 146 1 0 "f1ac7ecf_cc39_4529_b9629d69335f8c95" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(loopCounter2 = 0; loopCounter2 < arr_size;)
+{
+loopCounter2 = loopCounter2 + 1;
+// }} ""
+// {{{ 147 1 0 "85bc8f3a_888d_4528_948ccb4ac7018ad7" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqAdd(i_preSelectionSeq, labID, array_wells_with_Barcode.ElementAt( loopCounter2 -1));
+// }} ""
+// {{ 148 1 0 "f1ac7ecf_cc39_4529_b9629d69335f8c95" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 149 1 0 "6677da1c_fe8a_4c66_9aad17aabcca7157" "{B31F353A-5D80-11d4-A5EB-0050DA737D89}"
+i_preSelectionSeq.SetCurrentPosition(1);
+// }} ""
+// {{ 150 1 0 "238da6e8_aeb9_41dc_9da2d7a947b45ad9" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 151 1 0 "05b94f13_0071_47e5_8a0e090697eab516" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 152 1 0 "c392f024_8012_46f3_bd51788783a9ff7b" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter_tmpSeq = 0;
+i_preSelectionSeq.SetCurrentPosition(1);
+while (
+   (i_preSelectionSeq.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, i_preSelectionSeq, 1);
+loopCounter_tmpSeq = loopCounter_tmpSeq + 1;
+// }} ""
+// {{{ 153 1 0 "a4b659a9_45b1_4c67_85628ae1157bdfe2" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+posID = SeqGetPositionId(i_preSelectionSeq);
+// }} ""
+// {{{ 154 1 0 "0ce691f2_f711_46dd_ac77accd54e08af2" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqIncrement(i_preSelectionSeq, 1);
+// }} ""
+// {{{ 155 1 0 "b238130a_7a5a_4389_8c64d9f5db659eae" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat4(str, posID, Translate(","), Translate(""));
+// }} ""
+// {{ 156 1 0 "c392f024_8012_46f3_bd51788783a9ff7b" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (i_preSelectionSeq.GetCurrentPosition() > 0 && i_preSelectionSeq.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+i_preSelectionSeq.SetMax(i_preSelectionSeq.GetTotal());
+i_preSelectionSeq.SetCurrentPosition(1);
+}
+// }} ""
+// {{{ 157 1 0 "cc1bc57a_2f5f_41f2_b8aef4ea277f5b61" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat4(str, Translate("//"), i_Editable, Translate(""));
+// }} ""
+// {{ 158 1 0 "296627d6_5b22_437d_8548d9d977d26ee3" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 159 1 0 "c15fc0e1_e721_4eda_af966c103a808e89" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat4(str, StrBarcodes, Translate(""), Translate(""));
+// }} ""
+// {{ 160 1 0 "5d0f29de_e7e8_4d6d_a655b0a096a33e87" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+file_vars.AddField(1, str, hslString);
+file_vars.SetDelimiter(hslAsciiText);
+if( 0 == file_vars.Open(PlateEditor96_varstxt_path, hslWrite) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, PlateEditor96_varstxt_path, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 161 1 0 "b33264aa_68b0_4fe5_bc6511d8c97673e9" "{B31F3537-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == file_vars.WriteRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1473380096, MECC::IDS::stepNameFileWrite, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 162 1 0 "3324ad12_19df_49e2_b54ff2f578ee987f" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != file_vars.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+file_vars.RemoveFields();
+// }} ""
+// {{ 163 1 0 "789f7c4a_1714_4d89_99b4c2d9bcdf49bb" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 164 1 0 "faeed219_5e20_4835_92e4e4c4db96c00c" "{B31F3545-5D80-11d4-A5EB-0050DA737D89}"
+{
+if( 0 == Shell(str_cmd, hslShow, hslSynchronous) )
+{
+    MECC::RaiseRuntimeErrorEx(-1238499072, MECC::IDS::stepNameShell, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+}
+// }} ""
+// {{ 165 1 0 "1d26873f_79de_49ac_9bd7bfb94e23b78a" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+file_selected_wells.AddField(1, str, hslString);
+file_selected_wells.SetDelimiter(hslAsciiText);
+if( 0 == file_selected_wells.Open(PlateEditor96_selected_wells_path, hslRead) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, PlateEditor96_selected_wells_path, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 166 1 0 "588fc92a_2f18_4d28_a5ff05e0cfb0da38" "{B31F3536-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == file_selected_wells.ReadRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1490157312, MECC::IDS::stepNameFileRead, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 167 1 0 "8f1d1437_0682_4967_8a07968e715497a4" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != file_selected_wells.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+file_selected_wells.RemoveFields();
+// }} ""
+// {{{ 168 1 0 "0bbc57c0_35c4_4673_bc9bbcfe720c5973" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+StrTokenize(str, Translate(","), array_seqPos, 0);
+// }} ""
+// {{ 169 1 0 "eae37101_bff3_4951_942f49186439bbf0" "{B31F353A-5D80-11d4-A5EB-0050DA737D89}"
+i_OriginalPlateSeq.SetCurrentPosition(1);
+// }} ""
+// {{{ 170 1 0 "03c25ac8_4ea2_4196_9144d9eb194eb652" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+labID = SeqGetLabwareId(i_OriginalPlateSeq);
+// }} ""
+// {{{ 171 1 0 "3694f713_f40c_40be_8ec947fb3ad81d17" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqRemoveAll(o_SeqEdit);
+// }} ""
+// {{ 172 1 0 "29bf0388_eb39_4ed8_88df14c191155461" "{72EACF88-8D49-43e3-92C8-2F90E81E3260}"
+arr_size=array_seqPos.GetSize();
+// }} ""
+// {{ 173 1 0 "d613db4e_b6df_44fb_a92a41b3d6dd3fca" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(loopCounter_array = 0; loopCounter_array < arr_size;)
+{
+loopCounter_array = loopCounter_array + 1;
+// }} ""
+// {{ 174 1 0 "9f750b89_ce23_4bfc_a13de610fcb473c0" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+tmp_SeqPosId=array_seqPos.GetAt(loopCounter_array-1);
+// }} ""
+// {{{ 175 1 0 "2c78d04b_6091_40f2_beef80b5eb45d5ee" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqAdd(o_SeqEdit, labID, tmp_SeqPosId);
+// }} ""
+// {{ 176 1 0 "d613db4e_b6df_44fb_a92a41b3d6dd3fca" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 177 1 0 "da744739_d907_455b_8ce49a9b2e104427" "{B31F353A-5D80-11d4-A5EB-0050DA737D89}"
+o_SeqEdit.SetCurrentPosition(1);
+// }} ""
+// {{{ 5 "EditPlate96_with_BarcodesFromCSV" "End"
+}
+// }} ""
+// {{{ 5 "Create_A1B1C1_Barcodes96Array" "Begin"
+private function Create_A1B1C1_Barcodes96Array( variable & array_wells[], variable & array_bcs[], variable & o_array_BCs[] ) void {
+// }} ""
+private variable row;
+private variable wellID;
+private variable loopCounter_cols;
+private variable loopCounter1;
+private variable arrayRows[];
+private variable retVal;
+// {{ 5 "Create_A1B1C1_Barcodes96Array" "InitLocals"
+// }} ""
+// {{ 3 1 0 "e9e9e3e9_8a67_483f_ba264b6121171b1e" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+o_array_BCs.SetSize(0);
+// }} ""
+// {{ 4 1 0 "3001b63c_4ec0_4dbc_87e96ed681cf99ad" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+arrayRows.SetSize(0);
+// }} ""
+// {{ 5 1 0 "bbf1dac9_d6f4_4af2_af05b8f701d2678b" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+arrayRows.AddAsLast(Translate("A"));
+// }} ""
+// {{ 6 1 0 "0e754463_6450_49bd_bc747220fcef049c" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+arrayRows.AddAsLast(Translate("B"));
+// }} ""
+// {{ 7 1 0 "efac8538_0549_4b01_ac75fd22603e024a" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+arrayRows.AddAsLast(Translate("C"));
+// }} ""
+// {{ 8 1 0 "bc5a1ce4_7bd5_4f04_9e44a7b70caeeb87" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+arrayRows.AddAsLast(Translate("D"));
+// }} ""
+// {{ 9 1 0 "0063ed22_25fb_4669_888dcd00e5697065" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+arrayRows.AddAsLast(Translate("E"));
+// }} ""
+// {{ 10 1 0 "ee71b025_22d5_436c_820cb44b3389540e" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+arrayRows.AddAsLast(Translate("F"));
+// }} ""
+// {{ 11 1 0 "ca8c6dd7_2cfa_4939_b070b9c89867df93" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+arrayRows.AddAsLast(Translate("G"));
+// }} ""
+// {{ 12 1 0 "efe867a8_c4ff_44c3_9be3047af03b3892" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+arrayRows.AddAsLast(Translate("H"));
+// }} ""
+// {{ 13 1 0 "e2aa4bc2_837d_4cc5_9268975a42921b79" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(loopCounter_cols = 0; loopCounter_cols < 12;)
+{
+loopCounter_cols = loopCounter_cols + 1;
+// }} ""
+// {{ 14 1 0 "84339f0c_8cfd_4eab_8325edc3908e1982" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(loopCounter1 = 0; loopCounter1 < 8;)
+{
+loopCounter1 = loopCounter1 + 1;
+// }} ""
+// {{ 15 1 0 "04e26a09_a380_4617_8f0b4d0d9bb4855a" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+row=arrayRows.GetAt(loopCounter1-1);
+// }} ""
+// {{{ 16 1 0 "8f5226c4_1a85_4926_857b50ed9846905a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+wellID = StrConcat2(row, loopCounter_cols);
+// }} ""
+// {{{ 17 1 0 "f66ff702_4b25_4623_8bf11d412d856ed3" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+retVal = LookUpValueInArray(array_wells, wellID);
+// }} ""
+// {{ 18 1 0 "37f6a3ca_9563_4caa_b50d2f695138c242" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (retVal == 0)
+{
+// }} ""
+// {{ 19 1 0 "6f3bf8ed_d2c3_4a1a_b0a9b865d68a2280" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+o_array_BCs.AddAsLast(Translate(""));
+// }} ""
+// {{ 20 1 0 "37f6a3ca_9563_4caa_b50d2f695138c242" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 21 1 0 "31684216_79d7_4c32_8cdf8b52dbc76af4" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+o_array_BCs.AddAsLast(array_bcs.ElementAt( retVal -1));
+// }} ""
+// {{ 22 1 0 "37f6a3ca_9563_4caa_b50d2f695138c242" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 23 1 0 "84339f0c_8cfd_4eab_8325edc3908e1982" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 24 1 0 "e2aa4bc2_837d_4cc5_9268975a42921b79" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{{ 5 "Create_A1B1C1_Barcodes96Array" "End"
+}
+// }} ""
+// {{{ 5 "LookUpValueInArray" "Begin"
+private function LookUpValueInArray( variable & array_to_LookUp[], variable value_to_LookUp ) variable {
+// }} ""
+private variable tmp_element;
+private variable tmp_size;
+private variable loopCounter_lookUp;
+private variable LookUp_Index;
+// {{ 5 "LookUpValueInArray" "InitLocals"
+// }} ""
+// {{ 353 1 0 "541ad84d_62d4_4c77_b5061d848871ca6b" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+LookUp_Index = 0;
+// }} ""
+// {{ 354 1 0 "155a8ac0_0f58_411b_b2410fb37898b823" "{72EACF88-8D49-43e3-92C8-2F90E81E3260}"
+tmp_size=array_to_LookUp.GetSize();
+// }} ""
+// {{ 355 1 0 "1cc508b0_d523_479a_925b3e0a9421f179" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(loopCounter_lookUp = 0; loopCounter_lookUp < tmp_size;)
+{
+loopCounter_lookUp = loopCounter_lookUp + 1;
+// }} ""
+// {{ 356 1 0 "ea8efcec_5292_42bb_896b6942dfefdd11" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+tmp_element=array_to_LookUp.GetAt(loopCounter_lookUp-1);
+// }} ""
+// {{ 357 1 0 "5fb5dd7b_af1e_447c_88fdb79070ef1540" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (tmp_element == value_to_LookUp)
+{
+// }} ""
+// {{ 358 1 0 "c34189d3_c341_4c45_976079f5676ee8cd" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+LookUp_Index = loopCounter_lookUp;
+// }} ""
+// {{ 359 1 0 "5fb5dd7b_af1e_447c_88fdb79070ef1540" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 360 1 0 "1cc508b0_d523_479a_925b3e0a9421f179" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{{ 361 1 0 "36c4f4b9_7a6a_4988_ae51561e237a50f7" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (LookUp_Index);
+// }} ""
+// {{{ 5 "LookUpValueInArray" "End"
+}
+// }} ""
+// {{{ 5 "EditPlate96_with_BarcodesFromExcelAccess" "Begin"
+function EditPlate96_with_BarcodesFromExcelAccess( sequence & o_SeqEdit, sequence i_OriginalPlateSeq, variable i_message, variable fixed_number, sequence i_forbiddenWellsSeq, sequence i_preSelectionSeq, variable i_Editable, variable i_ExcelAccess_FilePath, variable i_ExcelAccess_Wells_ColumnName, variable i_ExcelAccess_Barcodes_ColumnName, variable i_ExcelAccess_TableSheetName ) void {
+// }} ""
+private variable bc;
+private variable lib_path;
+private variable labID;
+private variable loopCounter_tmpSeq;
+private variable str_cmd;
+private variable PlateEditor96_library_path;
+private variable arr_size;
+private variable posID;
+private variable PlateEditor96_varstxt_path;
+private variable loopCounter1;
+private variable tmp_SeqPosId;
+private variable str;
+private variable PlateEditor96_exe_path;
+private variable PlateEditor96_selected_wells_path;
+private variable loopCounter_array;
+private file file_selected_wells;
+private file file_vars;
+private variable array_bcs[];
+private variable array_seqPos[];
+private variable StrBarcodes;
+private variable seqName;
+private variable loopCounter2;
+private variable array_wells_with_Barcode[];
+// {{ 5 "EditPlate96_with_BarcodesFromExcelAccess" "InitLocals"
+{ sequence __temp; o_SeqEdit = __temp; }
+// }} ""
+// {{ 179 1 0 "21b8d1ba_e1f5_4be9_917aef6359748967" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 180 1 0 "7442c351_0646_4458_a65d54dad54d9457" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+lib_path = FilGetLibraryPath();
+// }} ""
+// {{{ 181 1 0 "b6f5ea23_3788_4acf_b47cbbe9d459a75f" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_library_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\"));
+// }} ""
+// {{{ 182 1 0 "a5042b17_f796_4869_ad8ad6852bd718e0" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_exe_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\HamiltonPlateEditor96.exe"));
+// }} ""
+// {{{ 183 1 0 "ed21789c_5614_42ed_bae1a3c23e69f4af" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_selected_wells_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\selected_wells.txt"));
+// }} ""
+// {{{ 184 1 0 "0e0d13f9_ef16_465b_949965264b5ede3e" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+PlateEditor96_varstxt_path = StrConcat2(lib_path, Translate("\\PlateEditor96\\vars.txt"));
+// }} ""
+// {{{ 185 1 0 "e123d030_3ffc_4967_900dace785924818" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str_cmd = StrConcat4(PlateEditor96_exe_path, Translate(" \""), PlateEditor96_library_path, Translate("\""));
+// }} ""
+// {{ 186 1 0 "21b8d1ba_e1f5_4be9_917aef6359748967" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 187 1 0 "04471421_9d20_4dec_9f81cb281d32dced" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 188 1 0 "9f3ddad1_24ef_44c3_bbe55007251da550" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLMapReport::DeleteFile(PlateEditor96_varstxt_path);
+// }} ""
+// {{{ 189 1 0 "e540a454_f915_458a_bf19822d2b78d86d" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLMapReport::DeleteFile(PlateEditor96_selected_wells_path);
+// }} ""
+// {{ 190 1 0 "04471421_9d20_4dec_9f81cb281d32dced" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 191 1 0 "f3064428_b851_4c0a_844aaec6ec2db050" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 192 1 0 "64988aa1_9dbf_4293_946f616e43636ef6" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 193 1 0 "7db7cd58_5289_41f1_9cfca9f420c08480" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+Import_Well_Barcodes_List_ExcelAccess(i_ExcelAccess_Wells_ColumnName, i_ExcelAccess_Barcodes_ColumnName, i_ExcelAccess_FilePath, i_ExcelAccess_TableSheetName, array_bcs, array_wells_with_Barcode);
+// }} ""
+// {{ 194 1 0 "8822ed4f_f56a_4f05_80d271c2a33f5bc0" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+StrBarcodes = Translate("");
+// }} ""
+// {{ 195 1 0 "e526ace4_98dd_4b17_82dd20cc5a5c9dac" "{72EACF88-8D49-43e3-92C8-2F90E81E3260}"
+arr_size=array_bcs.GetSize();
+// }} ""
+// {{ 196 1 0 "4528b767_8f1f_4d7e_a5d0f63b5bd38594" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(loopCounter1 = 0; loopCounter1 < arr_size;)
+{
+loopCounter1 = loopCounter1 + 1;
+// }} ""
+// {{ 197 1 0 "b35d6f28_4313_476d_aa9aec0ad72c75b6" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+bc=array_bcs.GetAt(loopCounter1-1);
+// }} ""
+// {{{ 198 1 0 "cf8c71d0_dde6_480d_bd14ba1452d8e72f" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+StrBarcodes = StrConcat4(StrBarcodes, Translate("\n"), bc, Translate(""));
+// }} ""
+// {{ 199 1 0 "4528b767_8f1f_4d7e_a5d0f63b5bd38594" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 200 1 0 "f3064428_b851_4c0a_844aaec6ec2db050" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 201 1 0 "f589ad03_a00e_4558_ae636a52dfd9d724" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 202 1 0 "c5d64306_fcfd_4761_b569ba44e0471458" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 203 1 0 "7edad960_a304_45ae_be005414a853ac50" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 204 1 0 "96c5fe13_5ffe_45a5_b18218f2bd60b6fd" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+str = Translate("");
+// }} ""
+// {{ 205 1 0 "1abb351e_e60d_4ed9_b4ed01dc82d43a5b" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter_tmpSeq = 0;
+i_forbiddenWellsSeq.SetCurrentPosition(1);
+while (
+   (i_forbiddenWellsSeq.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, i_forbiddenWellsSeq, 1);
+loopCounter_tmpSeq = loopCounter_tmpSeq + 1;
+// }} ""
+// {{{ 206 1 0 "1f332216_6fbe_47a9_9cb63449700c5790" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+posID = SeqGetPositionId(i_forbiddenWellsSeq);
+// }} ""
+// {{{ 207 1 0 "42e398d1_c9be_468d_a6825aa91bccd7a0" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqIncrement(i_forbiddenWellsSeq, 1);
+// }} ""
+// {{{ 208 1 0 "58163e16_96c4_40e2_b36cf04b233f747e" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat4(str, posID, Translate(","), Translate(""));
+// }} ""
+// {{ 209 1 0 "1abb351e_e60d_4ed9_b4ed01dc82d43a5b" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (i_forbiddenWellsSeq.GetCurrentPosition() > 0 && i_forbiddenWellsSeq.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+i_forbiddenWellsSeq.SetMax(i_forbiddenWellsSeq.GetTotal());
+i_forbiddenWellsSeq.SetCurrentPosition(1);
+}
+// }} ""
+// {{{ 210 1 0 "130818ed_40ea_46cd_a1f04ab6c2ddb78a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat8(str, Translate("//"), i_message, Translate("//"), fixed_number, Translate("//"), Translate(""), Translate(""));
+// }} ""
+// {{ 211 1 0 "499a715d_2556_4abc_903ff8eb77d6001d" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 212 1 0 "ebba8521_e1c2_46dd_a29774287cb80454" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+seqName = SeqGetName(i_preSelectionSeq);
+// }} ""
+// {{{ 213 1 0 "09c44b4a_d49c_48b2_b516de687f396e04" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+seqName = StrMakeUpper(seqName);
+// }} ""
+// {{ 214 1 0 "8c47fcbb_97c4_417e_b65a62d78851d78f" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (seqName == "BARCODES")
+{
+// }} ""
+// {{{ 215 1 0 "48cba772_0fa0_47d2_b31d1bebe7969110" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+labID = SeqGetLabwareId(i_OriginalPlateSeq);
+// }} ""
+// {{ 216 1 0 "17025468_f31c_4c5a_b42451d848f5cf3b" "{72EACF88-8D49-43e3-92C8-2F90E81E3260}"
+arr_size=array_wells_with_Barcode.GetSize();
+// }} ""
+// {{{ 217 1 0 "409ddd9c_c52f_4c9d_a68ebcc14f165704" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqRemoveAll(i_preSelectionSeq);
+// }} ""
+// {{ 218 1 0 "0283ed9a_1622_427b_bc9b1badde2e5321" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(loopCounter2 = 0; loopCounter2 < arr_size;)
+{
+loopCounter2 = loopCounter2 + 1;
+// }} ""
+// {{{ 219 1 0 "308e150c_5ba9_406f_b569b5ae81819320" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqAdd(i_preSelectionSeq, labID, array_wells_with_Barcode.ElementAt( loopCounter2 -1));
+// }} ""
+// {{ 220 1 0 "0283ed9a_1622_427b_bc9b1badde2e5321" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 221 1 0 "c42665c0_6711_450e_ba5b725989ace3cd" "{B31F353A-5D80-11d4-A5EB-0050DA737D89}"
+i_preSelectionSeq.SetCurrentPosition(1);
+// }} ""
+// {{ 222 1 0 "8c47fcbb_97c4_417e_b65a62d78851d78f" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 223 1 0 "499a715d_2556_4abc_903ff8eb77d6001d" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 224 1 0 "098d766d_1252_40e7_a53e0e698995c41a" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter_tmpSeq = 0;
+i_preSelectionSeq.SetCurrentPosition(1);
+while (
+   (i_preSelectionSeq.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, i_preSelectionSeq, 1);
+loopCounter_tmpSeq = loopCounter_tmpSeq + 1;
+// }} ""
+// {{{ 225 1 0 "eef5944f_c0c0_45d5_8647f253ca4b7822" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+posID = SeqGetPositionId(i_preSelectionSeq);
+// }} ""
+// {{{ 226 1 0 "89bd88f0_333a_49d9_aacae11c6f077cb6" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqIncrement(i_preSelectionSeq, 1);
+// }} ""
+// {{{ 227 1 0 "81f47d28_f0fb_4456_b734c4bfdbc493b9" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat4(str, posID, Translate(","), Translate(""));
+// }} ""
+// {{ 228 1 0 "098d766d_1252_40e7_a53e0e698995c41a" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (i_preSelectionSeq.GetCurrentPosition() > 0 && i_preSelectionSeq.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+i_preSelectionSeq.SetMax(i_preSelectionSeq.GetTotal());
+i_preSelectionSeq.SetCurrentPosition(1);
+}
+// }} ""
+// {{{ 229 1 0 "55b08c9b_077d_499c_99128c53dde98070" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat4(str, Translate("//"), i_Editable, Translate(""));
+// }} ""
+// {{ 230 1 0 "c5d64306_fcfd_4761_b569ba44e0471458" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 231 1 0 "a87d1373_89ea_4488_9cb4bbf93f1ae787" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+str = StrConcat4(str, StrBarcodes, Translate(""), Translate(""));
+// }} ""
+// {{ 232 1 0 "00b971a9_4e28_466e_9b73fcc284f41bbf" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+file_vars.AddField(1, str, hslString);
+file_vars.SetDelimiter(hslAsciiText);
+if( 0 == file_vars.Open(PlateEditor96_varstxt_path, hslWrite) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, PlateEditor96_varstxt_path, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 233 1 0 "a3299793_f288_43a5_8695fe786d1c88b3" "{B31F3537-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == file_vars.WriteRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1473380096, MECC::IDS::stepNameFileWrite, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 234 1 0 "a8e0cb0e_608b_4340_9380b11472b41b52" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != file_vars.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+file_vars.RemoveFields();
+// }} ""
+// {{ 235 1 0 "f589ad03_a00e_4558_ae636a52dfd9d724" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 236 1 0 "bce514ea_2091_4e7c_9a9eaf58cec52e82" "{B31F3545-5D80-11d4-A5EB-0050DA737D89}"
+{
+if( 0 == Shell(str_cmd, hslShow, hslSynchronous) )
+{
+    MECC::RaiseRuntimeErrorEx(-1238499072, MECC::IDS::stepNameShell, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+}
+// }} ""
+// {{ 237 1 0 "a4386c88_f6d6_4002_aa8167643703be1c" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+file_selected_wells.AddField(1, str, hslString);
+file_selected_wells.SetDelimiter(hslAsciiText);
+if( 0 == file_selected_wells.Open(PlateEditor96_selected_wells_path, hslRead) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, PlateEditor96_selected_wells_path, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 238 1 0 "d587aecf_6ef1_48b9_890b0290f5fd0657" "{B31F3536-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == file_selected_wells.ReadRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1490157312, MECC::IDS::stepNameFileRead, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 239 1 0 "7a851122_5e16_4b77_8746249b145432f5" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != file_selected_wells.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+file_selected_wells.RemoveFields();
+// }} ""
+// {{{ 240 1 0 "e88079ef_ce16_43df_b3421416657d43cb" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+StrTokenize(str, Translate(","), array_seqPos, 0);
+// }} ""
+// {{ 241 1 0 "53c46fd0_f074_48af_82dea55bfa06382c" "{B31F353A-5D80-11d4-A5EB-0050DA737D89}"
+i_OriginalPlateSeq.SetCurrentPosition(1);
+// }} ""
+// {{{ 242 1 0 "eedfca39_f281_402b_b48b5bf7eb902f23" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+labID = SeqGetLabwareId(i_OriginalPlateSeq);
+// }} ""
+// {{{ 243 1 0 "4d5162ec_cddc_4322_a9aa04693098aa1c" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqRemoveAll(o_SeqEdit);
+// }} ""
+// {{ 244 1 0 "c5624ec3_503c_468c_b4c203f89e69e19d" "{72EACF88-8D49-43e3-92C8-2F90E81E3260}"
+arr_size=array_seqPos.GetSize();
+// }} ""
+// {{ 245 1 0 "8174609c_2900_4ec8_8b26194eff4638fd" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(loopCounter_array = 0; loopCounter_array < arr_size;)
+{
+loopCounter_array = loopCounter_array + 1;
+// }} ""
+// {{ 246 1 0 "98082ad1_1083_434c_b9cd46304589a23b" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+tmp_SeqPosId=array_seqPos.GetAt(loopCounter_array-1);
+// }} ""
+// {{{ 247 1 0 "b1463fe2_a30c_4355_a213d4e6c9deba6e" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqAdd(o_SeqEdit, labID, tmp_SeqPosId);
+// }} ""
+// {{ 248 1 0 "8174609c_2900_4ec8_8b26194eff4638fd" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 249 1 0 "ce52c8de_a741_4fbc_a42585fd1fefc4aa" "{B31F353A-5D80-11d4-A5EB-0050DA737D89}"
+o_SeqEdit.SetCurrentPosition(1);
+// }} ""
+// {{{ 5 "EditPlate96_with_BarcodesFromExcelAccess" "End"
+}
+// }} ""
+// {{{ 5 "Import_Well_Barcodes_List_ExcelAccess" "Begin"
+private function Import_Well_Barcodes_List_ExcelAccess( variable i_Wells_ColumnName, variable i_BC_ColumnName, variable iFile, variable i_SheetName, variable & o_Array_bcs[], variable & temp_Array_wells[] ) void {
+// }} ""
+private variable HDR;
+private variable retVal;
+private variable bc;
+private variable loopCounter1;
+private variable well;
+private variable temp_Array_bcs[];
+private variable extension;
+private file tmpImportFile;
+private variable convertToXLS;
+private variable logsPath;
+private variable tempXLS;
+private variable now;
+private variable tempMDB;
+private variable timeNow;
+// {{ 5 "Import_Well_Barcodes_List_ExcelAccess" "InitLocals"
+o_Array_bcs.SetSize( 0);
+// }} ""
+// {{ 276 1 0 "d14abc8a_e423_4687_90b65ecb0c93fadd" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+HDR = 1;
+// }} ""
+// {{{ 277 1 0 "a8805d92_f301_4492_b9bc528432a17106" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+retVal = StrGetType(i_BC_ColumnName);
+// }} ""
+// {{ 278 1 0 "ffebb2bc_716d_45ce_a74466b09aeb055f" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (retVal == "i")
+{
+// }} ""
+// {{{ 279 1 0 "d532e4a4_1348_417e_acce5db70bf5e20b" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+i_BC_ColumnName = StrIStr(i_BC_ColumnName);
+// }} ""
+// {{ 280 1 0 "07d41ec3_99d6_46c6_aab7847de4cbc62f" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+HDR = 0;
+// }} ""
+// {{ 281 1 0 "ffebb2bc_716d_45ce_a74466b09aeb055f" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 282 1 0 "b3616264_9e70_4cc3_8081d112d7ebd729" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+retVal = StrGetType(i_Wells_ColumnName);
+// }} ""
+// {{ 283 1 0 "8a1e4a3a_13c6_4562_a2cf259585e46073" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (retVal == "i")
+{
+// }} ""
+// {{{ 284 1 0 "d25a428d_a7df_45c0_98027e3f10bc8c6d" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+i_Wells_ColumnName = StrIStr(i_Wells_ColumnName);
+// }} ""
+// {{ 285 1 0 "8a1e4a3a_13c6_4562_a2cf259585e46073" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 286 1 0 "aedf9bd0_7846_43a6_8c1130446e5133c7" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+extension = HSL_XLS_Converter::GetFileExtension(iFile);
+// }} ""
+// {{ 287 1 0 "528535b3_1345_444b_ad4a1e657358e28a" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 288 1 0 "7ceeda01_be9e_4f81_91fce43282ee4b0b" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (extension == "accdb")
+{
+// }} ""
+// {{ 289 1 0 "ff2af8f8_416e_4930_b0208565567ce3c3" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 290 1 0 "522aa0bf_d21e_4664_bfbb008b87161023" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+logsPath = FilGetLogFilesPath();
+// }} ""
+// {{{ 291 1 0 "3d4142ad_cf49_44de_aa25f0772b03f868" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+now = TimGetFormattedDate(Translate("_%d%m%y"));
+// }} ""
+// {{{ 292 1 0 "00cb51b1_38ff_438e_96bedd97eea4e7c4" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+timeNow = TimGetFormattedTime(Translate("%H%M"));
+// }} ""
+// {{{ 293 1 0 "5311134e_b8cd_4ac6_929824174a6ac6d2" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+now = StrConcat2(now, timeNow);
+// }} ""
+// {{{ 294 1 0 "01fbd0b7_244c_4538_87cf4929a5bc4ea7" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+tempMDB = StrConcat4(logsPath, Translate("\\PlateEditor96TmpMDB"), now, Translate(".mdb"));
+// }} ""
+// {{{ 295 1 0 "c9f8df15_a937_4d92_b4bc30f4103ff413" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLMapReport::DeleteFile(tempMDB);
+// }} ""
+// {{{ 296 1 0 "13fb68bf_7757_47e5_b20c01d69fbf27b2" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSL_XLS_Converter::SaveAccessFileAs_mdb(iFile, tempMDB);
+// }} ""
+Trace ("File " , iFile , " has been converted to MDB as ", tempMDB);
+// {{ 298 1 0 "bc5702d9_08c0_4923_98bc4c36cc437f8d" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+iFile = tempMDB;
+// }} ""
+// {{ 299 1 0 "6af4b427_e589_46cc_ab007b194c2586d3" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+extension = Translate("mdb");
+// }} ""
+// {{ 300 1 0 "7ceeda01_be9e_4f81_91fce43282ee4b0b" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 301 1 0 "528535b3_1345_444b_ad4a1e657358e28a" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 302 1 0 "a89b5b05_5b90_4102_ab9f5250903b512d" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (extension == "mdb")
+{
+// }} ""
+// {{ 303 1 0 "dc044422_0d16_4ba3_90ca78885fb619a8" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 304 1 0 "404fd502_db73_4d82_939c8dbe5c2e4a9c" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (HDR == 0)
+{
+// }} ""
+// {{ 305 1 0 "6f19aa74_b975_474c_a1796c3925b17d22" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+Trace (" ERROR PlateEditor96 --> Can´t read barcodes. Please specify column names for your MS Access file: ", iFile);
+// {{ 307 1 0 "404fd502_db73_4d82_939c8dbe5c2e4a9c" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 308 1 0 "a2d40e37_b330_4045_86a32b97ec34117a" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+tmpImportFile.AddField(i_BC_ColumnName, bc, hslString, 255);
+tmpImportFile.AddField(i_Wells_ColumnName, well, hslString, 255);
+if( 0 == tmpImportFile.Open(iFile + " " + i_SheetName, hslRead) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, iFile, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 309 1 0 "404fd502_db73_4d82_939c8dbe5c2e4a9c" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 310 1 0 "a89b5b05_5b90_4102_ab9f5250903b512d" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 311 1 0 "a2fec02b_7e9c_453e_8dab29fe7ef0a896" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 312 1 0 "bb80e110_3243_4c0a_a8e11303c432fb41" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+convertToXLS = 0;
+// }} ""
+// {{ 313 1 0 "2b0ee55b_08d0_462f_9ccfd6d460e94c23" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (extension == "xlsx")
+{
+// }} ""
+// {{ 314 1 0 "95e9e3f3_4e83_4115_a8d1c7058cbcf767" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+convertToXLS = 1;
+// }} ""
+// {{ 315 1 0 "2b0ee55b_08d0_462f_9ccfd6d460e94c23" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 316 1 0 "ea6f2191_4898_4f80_89224a8ac4547499" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (extension == "xlsm")
+{
+// }} ""
+// {{ 317 1 0 "76c1a203_4f39_450a_8321657aa7bd6c57" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+convertToXLS = 1;
+// }} ""
+// {{ 318 1 0 "ea6f2191_4898_4f80_89224a8ac4547499" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 319 1 0 "35b6172d_f40d_4362_92ee86693230b831" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (extension == "xlsb")
+{
+// }} ""
+// {{ 320 1 0 "0a9bb613_ed85_479f_9c6f6880461bec38" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+convertToXLS = 1;
+// }} ""
+// {{ 321 1 0 "35b6172d_f40d_4362_92ee86693230b831" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 322 1 0 "7af790ab_6fa5_4b03_a05ba864065a3004" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (convertToXLS == 1)
+{
+// }} ""
+// {{ 323 1 0 "37e7914e_b885_401d_88dc5384caecc94b" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 324 1 0 "1f7b0a89_446b_4122_8a3306c467c85d52" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+logsPath = FilGetLogFilesPath();
+// }} ""
+// {{{ 325 1 0 "6ff9f2b8_d6f0_4502_8866735f14e1c927" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+now = TimGetFormattedDate(Translate("_%d%m%y"));
+// }} ""
+// {{{ 326 1 0 "0a0516c7_12e5_4655_96d01f91f4734001" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+timeNow = TimGetFormattedTime(Translate("%H%M"));
+// }} ""
+// {{{ 327 1 0 "2e2e5d73_02fb_46d2_a5bb32503ee1fe22" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+now = StrConcat2(now, timeNow);
+// }} ""
+// {{{ 328 1 0 "e8158f05_cd00_4bf4_b8712ffd793a415d" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+tempXLS = StrConcat4(logsPath, Translate("\\PlateEditor96TmpXLS"), now, Translate(".xls"));
+// }} ""
+// {{{ 329 1 0 "0650d7e0_cb92_46ec_ad146fb8f2e35261" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLMapReport::DeleteFile(tempXLS);
+// }} ""
+// {{{ 330 1 0 "d30e1662_332b_4590_80302b0b66b056a8" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSL_XLS_Converter::SaveExcelFileAs_xls(iFile, tempXLS, i_SheetName);
+// }} ""
+Trace ("File " , iFile , " has been converted to XLS as ", tempXLS);
+// {{ 332 1 0 "d67f7f05_f282_4ad1_9c2af8677dc9f012" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+iFile = tempXLS;
+// }} ""
+// {{ 333 1 0 "7af790ab_6fa5_4b03_a05ba864065a3004" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 334 1 0 "a2fec02b_7e9c_453e_8dab29fe7ef0a896" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 335 1 0 "e3e1a0d0_2fd6_4aec_b0064e356986d191" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+i_SheetName = StrConcat2(i_SheetName, Translate("$"));
+// }} ""
+// {{ 336 1 0 "6216df97_6952_4d5c_bd2be3ed8b223f87" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (HDR == 0)
+{
+// }} ""
+// {{ 337 1 0 "4afd93d6_d680_487e_9bf66ca938019012" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 338 1 0 "fa042012_a562_4b25_a6ff17e56c23d4c5" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+tmpImportFile.SetExtendedProperties( "HDR=NO;IMEX=1");
+tmpImportFile.AddField(i_BC_ColumnName, bc, hslString, 255);
+tmpImportFile.AddField(i_Wells_ColumnName, well, hslString, 255);
+if( 0 == tmpImportFile.Open(iFile + " " + i_SheetName, hslRead) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, iFile, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 339 1 0 "6216df97_6952_4d5c_bd2be3ed8b223f87" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 340 1 0 "49b10608_9fe4_450f_b2248d9c5359a64d" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+tmpImportFile.SetExtendedProperties( "IMEX=1");
+tmpImportFile.AddField(i_BC_ColumnName, bc, hslString, 255);
+tmpImportFile.AddField(i_Wells_ColumnName, well, hslString, 255);
+if( 0 == tmpImportFile.Open(iFile + " " + i_SheetName, hslRead) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, iFile, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 341 1 0 "6216df97_6952_4d5c_bd2be3ed8b223f87" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 342 1 0 "a89b5b05_5b90_4102_ab9f5250903b512d" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 343 1 0 "9190a332_426d_405e_b9cceca0dc8d0d14" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+temp_Array_bcs.SetSize(0);
+// }} ""
+// {{ 344 1 0 "a4f71a81_5d72_4840_a5a46a01921e3073" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+temp_Array_wells.SetSize(0);
+// }} ""
+// {{ 345 1 0 "832ffa0f_596f_4625_b5be9c94af16bc52" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter1 = 0;
+while (
+   (tmpImportFile.Eof() == 0)
+)
+{
+loopCounter1 = loopCounter1 + 1;
+// }} ""
+// {{ 346 1 0 "a6a15f47_e8c4_4612_b159e0ce0e5f8256" "{B31F3536-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == tmpImportFile.ReadRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1490157312, MECC::IDS::stepNameFileRead, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 347 1 0 "ee3e9ba0_5366_4009_a770e3b2ec3604a8" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+temp_Array_bcs.AddAsLast(bc);
+// }} ""
+// {{ 348 1 0 "8fcf2d12_6de3_4bab_991ebb6c4a4faeda" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+temp_Array_wells.AddAsLast(well);
+// }} ""
+// {{ 349 1 0 "832ffa0f_596f_4625_b5be9c94af16bc52" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 350 1 0 "35218865_2ccc_4fc6_85f07a2dadc8d0b5" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != tmpImportFile.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+tmpImportFile.RemoveFields();
+// }} ""
+// {{{ 351 1 0 "909d0b62_254d_43b4_8f39378234fec2a5" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+Create_A1B1C1_Barcodes96Array(temp_Array_wells, temp_Array_bcs, o_Array_bcs);
+// }} ""
+// {{{ 5 "Import_Well_Barcodes_List_ExcelAccess" "End"
+}
+// }} ""
+// {{{ 5 "A_Abstract" "Begin"
+private function A_Abstract(  ) void {
+// }} ""
+// {{ 5 "A_Abstract" "InitLocals"
+// }} ""
+// {{ 1 1 0 "b650b19e_7328_4c93_b88fcfd95c853f0b" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 5 "A_Abstract" "End"
+}
+// }} ""
+/* {{ 2 "SubmethodInsertLine" "" */ // }} ""
+// {{{ 2 "LibraryNamespace" "End"
+} // library namespace
+// }} ""
+// $$author=Hamilton$$valid=0$$time=2019-09-09 08:40$$checksum=686cc9d5$$length=087$$

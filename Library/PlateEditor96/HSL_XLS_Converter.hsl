@@ -1,0 +1,158 @@
+
+   //
+// ******* HSL_ReadBarcodesFromFile library *******
+// Autor:  Alvaro Cuevas 
+// Date: 8 August 2012
+// Decription:  This library can get the extension of a given filename, also can convert any given excel file into xls
+//                
+
+
+
+
+#ifndef __HSL_XLS_Converter_hsl__
+#define __HSL_XLS_Converter_hsl__ 1
+
+
+namespace HSL_XLS_Converter
+{
+
+   function GetFileExtension (
+         variable& i_barcodesFile) variable //full path of the file with the barcodes 
+            // 
+	{
+		
+        //variable dataSource;
+        object fso,myFile;
+        
+
+
+        fso.CreateObject("Scripting.FileSystemObject");
+
+         if(!fso.FileExists(i_barcodesFile)){ // check if the file exists
+            Trace ("Reading Barcodes From File ---> ERROR : The file ", i_barcodesFile, " couldn´t be found in the system");
+             return (1);   
+          }
+          
+          
+            
+           return(fso.GetExtensionName(i_barcodesFile));
+     }
+     
+     
+    function SaveExcelFileAs_xls(
+      variable& fileToConvertToXLS,
+      variable& targetXLS_filename,
+      variable& sourceSheetName){
+      
+      //This functions copies the values of sheet of a xlsx file  into a new xls file. The same sheet name is kept between source and target files.
+      //It copies the values rather that directly saving the xlsx workbook as xls, to prevent formula incompatibility between xlsx and xls.
+      
+         object xlApp;
+      	object xlWorkbooks;
+      	object xlWorkbook_source;
+      	object xlWorkbook_target;
+      	object xlSheet_source;
+      	object xlSheet_target;
+      	object xltemp;
+         object fso;
+
+
+         variable a,fileformat;
+
+      
+      	onerror goto Unexpected;
+
+         fso.CreateObject("Scripting.FileSystemObject");
+        
+      	// Check if file exists to prevent error
+      	if(fso.FileExists(targetXLS_filename)){
+      		fso.DeleteFile(targetXLS_filename);
+      	}
+
+
+         // Create excel and open the passed file
+      	xlApp.CreateObject("Excel.Application");
+      	xlWorkbooks = xlApp.Workbooks();
+      	xlWorkbook_source = xlWorkbooks.Open(fileToConvertToXLS);
+
+
+	
+      	//Disable Excel alerts
+      	xlApp.DisplayAlerts = hslFalse;
+	
+      	//Hide the application from user
+      	xlApp.Visible = hslFalse;
+
+        
+
+         //Copy Source data 
+      	xlSheet_source = xlWorkbook_source.Worksheets(sourceSheetName);
+      	xltemp = xlSheet_source.Cells;
+      	xltemp.Select;
+      	xltemp = xlApp.Selection;
+      	xltemp.Copy; 
+
+
+          //Create a new workbook
+         xlWorkbook_target = xlWorkbooks.Add;
+         xlSheet_target = xlWorkbook_target.Worksheets(1);
+      	xlSheet_target.Activate;
+      	xltemp = xlSheet_target.Cells;
+      	xltemp.Select;
+         xltemp.PasteSpecial(-4163);
+         xlSheet_target.Name = sourceSheetName;
+
+
+
+         fileformat = 56; // = xlExcel8 (Excel version 97 through 2003 format file .xls)
+         xlWorkbook_target.SaveAs(targetXLS_filename, fileformat);
+      
+         xlApp.DisplayAlerts = hslTrue;
+
+         //Close the Workbooks
+      	xlWorkbook_source.Close;
+         xlWorkbook_target.Close;
+	
+         xlApp.Quit;
+         return;
+         
+         Unexpected:
+      	{
+      		xlApp.ReleaseObject();
+      		xlWorkbooks.ReleaseObject();
+      	 	xlWorkbook_source.ReleaseObject();
+            xlWorkbook_target.ReleaseObject();
+      		err.Raise();
+      	}
+
+      }     
+
+
+
+       function SaveAccessFileAs_mdb(
+      variable& fileToConvertToMDB,
+      variable& targetMDB_filename){
+      
+      
+         object accessApp;
+         object fso;
+
+         fso.CreateObject("Scripting.FileSystemObject");
+        
+      	// Check if file exists to prevent error
+      	if(fso.FileExists(targetMDB_filename)){
+      		fso.DeleteFile(targetMDB_filename);
+      	}
+         // Create excel and open the passed file
+      	accessApp.CreateObject("Access.Application");
+         accessApp.Visible = hslFalse;
+         
+         accessApp.ConvertAccessProject(fileToConvertToMDB, targetMDB_filename, 10);
+         accessApp.Quit();
+
+      }     
+
+
+}
+#endif
+// $$author=Cuevas_A$$valid=0$$time=2012-08-21 15:39$$checksum=30aa84f7$$length=087$$
