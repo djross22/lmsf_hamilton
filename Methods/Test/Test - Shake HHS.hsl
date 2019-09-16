@@ -1,0 +1,107 @@
+ namespace _Method { #include "Common\\iSWAP-PlateAndLidMovement.hs_" } 
+ namespace _Method { #include "HSLML_STARLib.hsl" } 
+ namespace _Method { #include "NIST\\Libraries\\NIST_Device_Controllers.hs_" } 
+ namespace _Method { #include "HslHamHeaterShakerLib.hsl" } 
+ namespace _Method { #include "NIST\\Libraries\\NIST_TruSeqNano_Prep.hs_" } 
+ namespace _Method { #include "HSLSeqLib.hsl" } 
+ namespace _Method { #include "HSLExtensions\\Dictionary.hsl" } 
+ namespace _Method { #include "HSLExtensions\\String.hsl" } 
+ namespace _Method { #include "HSLStrLib.hsl" } 
+ namespace _Method { #include "NIST\\Libraries\\NIST_TruSeqNano_Processes.hs_" } 
+ namespace _Method { #include "Common\\LMSF_Utilities.hs_" } 
+ namespace _Method { #include "HSLTrcLib.hsl" } 
+ namespace _Method { #include "HSLFilLib.hsl" } 
+ namespace _Method { #include "HSLExtensions\\File.hsl" } 
+#include "Test - Midi plates and HHS.res"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+dialog dialogHandle1;
+variable var_Global_HHSNode;
+variable SetTempHHS;
+variable HHS_num;
+global device ML_STAR ("Test - Midi plates and HHS.lay", "ML_STAR", hslTrue);
+global device HxFan ("Test - Midi plates and HHS.lay", "HxFan", hslTrue);
+dialog dialogHandle2;
+variable HHS3;
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+ namespace _Method { #include "HSLMETEDLib.hs_" } 
+ namespace _Method { #include "HSLMECCLib.hs_" } 
+ namespace _Method { #include "HSLPTLLib.hsl" } 
+// }} ""
+// {{{ 2 "LocalSubmethodInclude" ""
+ namespace _Method {  #include __filename__ ".sub"  } 
+// }} ""
+/* {{ 2 "ProcessInsertLine" "" */ // }} ""
+// {{{ 5 "main" "Begin"
+namespace _Method { method main(  ) void {
+// }} ""
+// {{ 5 "main" "InitLocals"
+// }} ""
+// {{ 2 "AutoInitBlock" ""
+PTL::SetWashingStateDefault("RinseTime1", 5);
+PTL::SetWashingStateDefault("SoakTime1", 5);
+PTL::SetWashingStateDefault("FlowRate1", 11);
+PTL::SetWashingStateDefault("RinseTime2", 0);
+PTL::SetWashingStateDefault("SoakTime2", 0);
+PTL::SetWashingStateDefault("FlowRate2", 11);
+PTL::SetWashingStateDefault("DrainingTime", 10);
+PTL::SetWashingStateDefault("StartWashLiquid", 0);
+PTL::SetLoadingStateDefault("RecoveryOptionContinue", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionExclude", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionDefault", 0);
+PTL::SetLoadingStateDefault("KitLotCheckEnabled", hslFalse);
+ISWAP_PLATEANDLIDMOVEMENT::_InitLibrary();
+NIST_DEVICE_CONTROLLERS::_InitLibrary();
+NIST_TRUSEQNANO_PREP::_InitLibrary();
+NIST_TRUSEQNANO_PROCESSES::_InitLibrary();
+LMSF_UTILITIES::_InitLibrary();
+::RegisterAbortHandler( "OnAbort");
+// }} ""
+// {{ 1 1 0 "04f9855e_53f1_41be_bf9817145e2e0924" "ML_STAR:{1C0C0CB0-7C87-11D3-AD83-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = ML_STAR._1C0C0CB0_7C87_11D3_AD83_0004ACB1DCB2("04f9855e_53f1_41be_bf9817145e2e0924"); // Initialize
+}
+// }} ""
+// {{ 2 1 0 "df64dcfe_d2fe_4847_a3c6ee5cc618f5e7" "{B31F3539-5D80-11d4-A5EB-0050DA737D89}"
+dialogHandle1.SetInputSize(1);
+dialogHandle1.SetInputField(0, Translate("HHS number?"), hslInteger, 5, 1, 5);
+dialogHandle1.ShowInput(Translate("Which HHS?"), hslInfinite, hslOKOnly | hslDefButton1);
+var_Global_HHSNode = dialogHandle1.GetInputField(0);
+// }} ""
+// {{ 3 1 0 "764fa793_97e3_4a02_9c94acfc2cd08066" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+SetTempHHS = 20;
+// }} ""
+// {{{ 4 1 0 "4d4ba4b0_967b_4506_bbc2561fc393f283" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+Initialize_HHS(HHS_num, var_Global_HHSNode);
+// }} ""
+// {{{ 5 1 0 "2eb8a327_45ec_4648_85c66f73845c927c" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+NIST_TRUSEQNANO_PREP::SetHHSTemperature(HHS_num, SetTempHHS);
+// }} ""
+// {{{ 6 1 0 "2506948f_dfd8_43d4_9d7babe43e0ed88a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS_num, 1);
+// }} ""
+// {{{ 7 1 0 "b03d0d16_46ef_4be7_b8c13c1e498c737c" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::StartShaker(HHS_num, 1800);
+// }} ""
+// {{ 8 1 0 "014862f4_cccc_4995_ae8d59179d0b4434" "{21E07B31-8D2E-11d4-A3B8-002035848439}"
+dialogHandle2.SetOutput(Translate("pause"));
+dialogHandle2.ShowOutput("", hslOKOnly | hslInformation | hslDefButton1, hslInfinite);
+// }} ""
+// {{{ 9 1 0 "7ebc2064_4101_4f0b_a2f9c909be54fcd3" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::StopShaker(HHS_num);
+// }} ""
+// {{{ 10 1 0 "ec703e01_726e_40b8_91abec8059b4da97" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS_num, 0);
+// }} ""
+// {{ 2 "AutoExitBlock" ""
+ISWAP_PLATEANDLIDMOVEMENT::_ExitLibrary();
+NIST_DEVICE_CONTROLLERS::_ExitLibrary();
+NIST_TRUSEQNANO_PREP::_ExitLibrary();
+NIST_TRUSEQNANO_PROCESSES::_ExitLibrary();
+LMSF_UTILITIES::_ExitLibrary();
+// }} ""
+// {{{ 5 "main" "End"
+} }
+// }} ""
+// $$author=Hamilton$$valid=0$$time=2019-09-16 11:57$$checksum=f7057a77$$length=087$$
