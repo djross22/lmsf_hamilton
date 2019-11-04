@@ -45,6 +45,8 @@
 //  2014-07-14  v2.7  Bernd Huf
 //              - removed all "direct" initializations of variables (i.e. variable intLength(i_strInput.GetLength()) due to possible problems with scheduler
 //              - initialize all variables with default values
+//  2015-07-22  v2.8  Bernd Huf
+//              - bugfix in function TraceSequencePositions in case the sequence is empty or current position is 0
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -518,6 +520,7 @@
                                     sequence i_seqToTrace,
                                     variable i_blnCurrentPositionOnly) void
     {
+      string strTemp("");
       variable strLabwareID(""), strPositionID(""), strTrace("");
       variable intSequenceSize(0), intLoopCounterTraceSequence(0);
       variable arrfltPositions[];
@@ -525,14 +528,25 @@
       if(gTRACELEVEL_intTraceLevel < _ToInteger(i_intTraceLevel)) return;
 
       if(i_blnCurrentPositionOnly)
-        intSequenceSize = 1;
+        if(i_seqToTrace.GetCurrentPosition() == 0)
+          intSequenceSize = 0;
+        else
+          intSequenceSize = 1;
       else
       {
         i_seqToTrace.SetCurrentPosition(1);
         intSequenceSize = i_seqToTrace.GetCount();
       }
 
-      FormatTrace("TRACELEVEL", "TraceSequencePositions", ACTION::START, _FillRight("   ", "-", 100));
+      strTrace = _FillRight("   ", "-", 43) + " " + i_seqToTrace.GetName() + _FillRight(" ", "-", 41);
+      strTemp = strTrace;
+
+      FormatTrace("TRACELEVEL", "TraceSequencePositions", ACTION::START, strTrace);
+      if(intSequenceSize == 0)
+        if(i_seqToTrace.GetCount() == 0)
+          FormatTrace("TRACELEVEL", "TraceSequencePositions", ACTION::PROGRESS, "Empty sequence");
+        else
+          FormatTrace("TRACELEVEL", "TraceSequencePositions", ACTION::PROGRESS, "Current position = 0");
       for(intLoopCounterTraceSequence = 1; intLoopCounterTraceSequence <= intSequenceSize; intLoopCounterTraceSequence++)
       {
         strLabwareID = i_seqToTrace.GetLabwareId();
@@ -546,7 +560,7 @@
         i_seqToTrace.GetNext();
         FormatTrace("TRACELEVEL", "TraceSequencePositions",  ACTION::PROGRESS, strTrace);
       }
-      FormatTrace("TRACELEVEL", "TraceSequencePositions", ACTION::COMPLETE, _FillRight("", "-", 97));
+      FormatTrace("TRACELEVEL", "TraceSequencePositions", ACTION::COMPLETE, _FillRight("", "-", strTemp.GetLength() - 3));
     } // TraceSequencePositions
 
    // --------------------------------------------------------------------------------------
@@ -1083,4 +1097,4 @@
     } // Release_TraceSequence
 } // namespace
 #endif
-// $$author=bhuf$$valid=1$$time=2014-07-14 11:38$$checksum=b497a74c$$length=081$$
+// $$author=bhuf$$valid=1$$time=2015-07-22 15:22$$checksum=5f62a673$$length=081$$
