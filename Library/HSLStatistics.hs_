@@ -1,0 +1,198 @@
+// This is a part of the HSL Statistics Library
+//
+// Modification History
+// 2007-01-25  Rybka : Initial file creation
+//
+
+#ifndef __HSLStatistics_hs__
+#define __HSLStatisitics_hs__ 1
+
+#ifndef __HSLMthLib_hsl__
+#include "HSLMthLib.hsl"
+#endif
+
+// Implementation of Statistics functions
+
+namespace HSLStatisitics
+{
+	// Calculates the average of a data set
+	function Stat_Average(variable DataArray[]) variable
+	{
+		variable tempValue;
+		variable total(0);
+		variable myAverage;
+		variable arrayLength;
+		variable i;
+
+		arrayLength = DataArray.GetSize();
+
+		for (i=0; i < arrayLength; i++)
+		{
+			tempValue = DataArray.GetAt(i);
+			total = total + tempValue;
+		}
+
+		myAverage = total/arrayLength;
+
+		return (myAverage);
+	}
+
+	// Calculates the standard deviation of a data set
+	function Stat_StdDeviation(variable DataArray[]) variable
+	{
+		variable myArrayAverage;
+		variable myArraySize;
+		variable myTotal(0);
+		variable myArrayValue;
+		variable myTempValue;
+		variable myStandardDeviation;
+		variable i;
+
+		myArrayAverage = Stat_Average(DataArray);
+		myArraySize = DataArray.GetSize();
+
+		for (i=0; i < myArraySize; i++)
+		{
+			myArrayValue = DataArray.GetAt(i);
+			myTempValue = myArrayValue - myArrayAverage;
+			myTempValue = MthPow(myTempValue,2);
+			myTotal = myTotal + myTempValue;
+		}
+
+		myTempValue = myTotal/(myArraySize - 1);
+		myStandardDeviation = MthPow(myTempValue,0.5);
+
+		return (myStandardDeviation);
+	}
+
+	// Calculates the correlation coeffiecient (r-value) of a data set (2 arrays of equal size)
+	function Stat_CorrelationCoefficient(variable X_Array[], variable Y_Array[]) variable
+	{
+		variable XArrayAverage;
+		variable YArrayAverage;
+		variable XArrayStdDev;
+		variable YArrayStdDev;
+		variable myTempValue;
+		variable myTotal(0);
+		variable myXArrayValue;
+		variable myYArrayValue;
+		variable myArraySize;
+		variable i;
+		variable myCorrCoeff;
+
+		XArrayAverage = Stat_Average(X_Array);
+		YArrayAverage = Stat_Average(Y_Array);
+		XArrayStdDev = Stat_StdDeviation(X_Array);
+		YArrayStdDev = Stat_StdDeviation(Y_Array);
+
+		myArraySize = X_Array.GetSize();
+
+		for (i=0; i<myArraySize; i++)
+		{
+			myXArrayValue = X_Array.GetAt(i);
+			myYArrayValue = Y_Array.GetAt(i);
+
+			myTempValue = (myXArrayValue - XArrayAverage) * (myYArrayValue - YArrayAverage);
+			myTotal = myTotal + myTempValue;
+		}
+
+		myCorrCoeff = myTotal / (XArrayStdDev * YArrayStdDev);
+		myCorrCoeff = myCorrCoeff / (myArraySize - 1);
+
+		return (myCorrCoeff);
+	}
+
+	// Calculates the Pearson Coefficient (r^2) value of a data set (2 arrays of equal size)
+	function Stat_RSQ(variable X_Array[], variable Y_Array[]) variable
+	{
+		variable myCorrCoeff;
+		variable myRSQ;
+
+		myCorrCoeff = Stat_CorrelationCoefficient(X_Array, Y_Array);
+		myRSQ = MthPow(myCorrCoeff,2);
+
+		return (myRSQ);
+	}
+
+	// Calculates the slope of a data set (2 arrays of equal size)
+	function Stat_Slope(variable X_Array[], variable Y_Array[]) variable
+	{
+		variable XArrayStdDev;
+		variable YArrayStdDev;
+		variable myCorrCoeff;
+		variable mySlope;
+
+		XArrayStdDev = Stat_StdDeviation(X_Array);
+		YArrayStdDev = Stat_StdDeviation(Y_Array);
+		myCorrCoeff = Stat_CorrelationCoefficient(X_Array, Y_Array);
+
+		mySlope = myCorrCoeff * (YArrayStdDev / XArrayStdDev);
+
+		return (mySlope);
+	}
+
+	// Calculates the intercept of a data set (2 arrays of same size)
+	function Stat_Intercept(variable X_Array[], variable Y_Array[]) variable
+	{
+		variable XArrayAverage;
+		variable YArrayAverage;
+		variable mySlope;
+		variable myIntercept;
+
+		XArrayAverage = Stat_Average(X_Array);
+		YArrayAverage = Stat_Average(Y_Array);
+		mySlope = Stat_Slope(X_Array, Y_Array);
+
+		myIntercept = YArrayAverage - (mySlope * XArrayAverage);
+
+		return(myIntercept);
+	}
+
+	// Calculates the minimum value of a data set
+	function Stat_Min(variable DataArray[]) variable
+	{
+		variable myMin(1000);
+		variable myArrayValue;
+		variable myArraySize;
+		variable i;
+
+		myArraySize = DataArray.GetSize();
+
+		for (i=0; i<myArraySize; i++)
+		{
+			myArrayValue = DataArray.GetAt(i);
+			if (myArrayValue < myMin)
+			{
+				myMin = myArrayValue;
+			}
+		}
+
+		return(myMin);
+	}
+	
+	// Calculates the maximum value of a data set
+	function Stat_Max(variable DataArray[]) variable
+	{
+		variable myMax(0);
+		variable myArraySize;
+		variable myArrayValue;
+		variable i;
+
+		myArraySize = DataArray.GetSize();
+
+		for (i=0; i<myArraySize; i++)
+		{
+			myArrayValue = DataArray.GetAt(i);
+			if (myArrayValue > myMax)
+			{
+				myMax = myArrayValue;
+			}
+		}
+
+		return(myMax);
+	}	
+}
+
+#endif
+
+// $$author=Administrator$$valid=0$$time=2007-03-09 14:14$$checksum=24f0e72b$$length=090$$
