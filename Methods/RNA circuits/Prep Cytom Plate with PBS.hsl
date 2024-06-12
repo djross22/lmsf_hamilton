@@ -1,0 +1,247 @@
+ namespace _Method { #include "HSLML_STARLib.hsl" } 
+ namespace _Method { #include "HSLSeqLib.hsl" } 
+ namespace _Method { #include "HSLExtensions\\Dictionary.hsl" } 
+ namespace _Method { #include "HSLExtensions\\String.hsl" } 
+ namespace _Method { #include "HSLStrLib.hsl" } 
+ namespace _Method { #include "HSLExtensions\\File.hsl" } 
+ namespace _Method { #include "HSLTipCountingLib.hsl" } 
+ namespace _Method { #include "HSLTrcLib.hsl" } 
+ namespace _Method { #include "STAR Tools\\STAR Tip Tools.hs_" } 
+ namespace _Method { #include "Common\\iSWAP-PlateAndLidMovement.hs_" } 
+ namespace _Method { #include "NIST\\Libraries\\NIST_Device_Controllers.hs_" } 
+ namespace _Method { #include "HslHamHeaterShakerLib.hsl" } 
+ namespace _Method { #include "NIST\\Libraries\\NIST_TruSeqNano_Prep.hs_" } 
+ namespace _Method { #include "HSLMthLib.hsl" } 
+ namespace _Method { #include "HSLFilLib.hsl" } 
+ namespace _Method { #include "Common\\LMSF_Utilities.hs_" } 
+ namespace _Method { #include "Common\\GSF-IMS.shared_submethods.hs_" } 
+#include "RNA circuit plate growth and cytometry.res"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+variable bln_Global_SimulatorMode;
+variable source_col;
+variable dilution_factor;
+variable cell_volume;
+global device ML_STAR ("RNA circuit plate growth and cytometry.lay", "ML_STAR", hslTrue);
+global device HxFan ("RNA circuit plate growth and cytometry.lay", "HxFan", hslTrue);
+sequence cytom_column_arr[];
+variable column_num;
+variable cytom_labware_id;
+variable row_num;
+variable well_id;
+sequence PBS_source_arr[];
+variable pbs_source_num;
+sequence pbs_source_seq;
+variable cytom_col_number;
+variable cytom_volume;
+variable pbs_source_for_col_arr[];
+variable pbs_volume;
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+ namespace _Method { #include "HSLMETEDLib.hs_" } 
+ namespace _Method { #include "HSLMECCLib.hs_" } 
+ namespace _Method { #include "HSLPTLLib.hsl" } 
+ namespace _Method { #include "HSLSTCCLib.hs_" } 
+// }} ""
+// {{{ 2 "LocalSubmethodInclude" ""
+ namespace _Method {  #include __filename__ ".sub"  } 
+// }} ""
+/* {{ 2 "ProcessInsertLine" "" */ // }} ""
+// {{{ 5 "main" "Begin"
+namespace _Method { method main(  ) void {
+// }} ""
+// {{ 5 "main" "InitLocals"
+// }} ""
+// {{ 2 "AutoInitBlock" ""
+PTL::SetWashingStateDefault("RinseTime1", 5);
+PTL::SetWashingStateDefault("SoakTime1", 5);
+PTL::SetWashingStateDefault("FlowRate1", 11);
+PTL::SetWashingStateDefault("RinseTime2", 0);
+PTL::SetWashingStateDefault("SoakTime2", 0);
+PTL::SetWashingStateDefault("FlowRate2", 11);
+PTL::SetWashingStateDefault("DrainingTime", 10);
+PTL::SetWashingStateDefault("StartWashLiquid", 0);
+PTL::SetLoadingStateDefault("RecoveryOptionContinue", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionExclude", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionDefault", 0);
+PTL::SetLoadingStateDefault("KitLotCheckEnabled", hslFalse);
+STAR_TIP_TOOLS::_InitLibrary();
+ISWAP_PLATEANDLIDMOVEMENT::_InitLibrary();
+NIST_DEVICE_CONTROLLERS::_InitLibrary();
+NIST_TRUSEQNANO_PREP::_InitLibrary();
+LMSF_UTILITIES::_InitLibrary();
+GSF_IMS_SHARED_SUBMETHODS::_InitLibrary();
+::RegisterAbortHandler( "OnAbort");
+// }} ""
+// {{{ 1 1 0 "d3470de1_a95d_4c82_8a708cbee5fa520d" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+bln_Global_SimulatorMode = HSLML_STAR::IsSimulatorMode(ML_STAR);
+// }} ""
+// {{{ 2 1 0 "5d8b454f_6e7c_486b_9f2fe67e1ce98ba4" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+StartUp();
+// }} ""
+// {{{ 3 1 0 "06fb8438_9292_443e_8d6e56a39c7ed99b" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+GetParams();
+// }} ""
+// {{ 4 1 0 "2199f493_69fc_4266_be48153b1d636791" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 5 1 0 "d8455cf9_ae70_4729_81f9048d6b3e83b9" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+cell_volume = cytom_volume / (dilution_factor * 1.0);
+// }} ""
+// {{ 6 1 0 "f8bd3985_4e3b_4e3a_a783d6579b52fce7" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+pbs_volume = cytom_volume - cell_volume;
+// }} ""
+// {{ 7 1 0 "2199f493_69fc_4266_be48153b1d636791" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 8 1 0 "12f293c1_171d_427e_aac58575f4d4a0ed" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 9 1 0 "8c5685a6_3bed_4b3b_8412a80e3b47eba8" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+cytom_column_arr.SetSize(12);
+// }} ""
+// {{{ 10 1 0 "4f56a6ee_df19_443a_9f5cab99d3043616" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+cytom_labware_id = SeqGetLabwareId(ML_STAR.Cytometry_plate);
+// }} ""
+// {{ 11 1 0 "595687c4_9f30_4ab8_ad4891dcf453e7eb" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(column_num = 0; column_num < 12;)
+{
+column_num = column_num + 1;
+// }} ""
+// {{ 12 1 0 "368699ec_53dc_4e53_974e561dd1dc4472" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(row_num = 0; row_num < 8;)
+{
+row_num = row_num + 1;
+// }} ""
+// {{{ 13 1 0 "b5ef3d2c_4d27_42e0_8609a79c3ba2d652" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+well_id = SeqGetPositionId(ML_STAR.Cytometry_plate);
+// }} ""
+// {{{ 14 1 0 "072150f1_be6a_48bc_822c0959b6b99c4a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqAdd(cytom_column_arr.ElementAt( column_num -1), cytom_labware_id, well_id);
+// }} ""
+// {{{ 15 1 0 "72f17a82_8c3a_4a53_91fba9da421b8b46" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqIncrement(ML_STAR.Cytometry_plate, 1);
+// }} ""
+// {{ 16 1 0 "368699ec_53dc_4e53_974e561dd1dc4472" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 17 1 0 "595687c4_9f30_4ab8_ad4891dcf453e7eb" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{{ 18 1 0 "39f9a90e_cc0c_4da2_a3959d88bd811256" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+SeqResetSequenceIndexes(cytom_column_arr.ElementAt( column_num -1));
+// }} ""
+// {{ 19 1 0 "12f293c1_171d_427e_aac58575f4d4a0ed" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 20 1 0 "2f18b2be_d20a_4ebd_823943aabd87c087" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 21 1 0 "6ac3dcdc_ed32_475d_b538892c7200bc13" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+PBS_source_arr.SetSize(0);
+// }} ""
+// {{ 22 1 0 "5420d116_e6fc_473e_8b59e2604df5c3d3" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+PBS_source_arr.AddAsLast(ML_STAR.PBS_1);
+// }} ""
+// {{ 23 1 0 "e8f855a4_1489_4fda_84a779c93aee2847" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+PBS_source_arr.AddAsLast(ML_STAR.PBS_2);
+// }} ""
+// {{ 24 1 0 "2f18b2be_d20a_4ebd_823943aabd87c087" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 25 1 0 "8fc163c8_9077_43d2_8730a99e6d1c0a35" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 26 1 0 "e4308c35_070e_417b_a5d1df30c4f14dcc" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Cytometry_plate_lid, ML_STAR.Cytometry_plate_lid_parking, 0, 1, ML_STAR);
+// }} ""
+// {{{ 27 1 0 "6f4db75d_22da_44a6_897d9d1285330a17" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Media_plate_lid, ML_STAR.Media_plate_lid_parking, 1, 0, ML_STAR);
+// }} ""
+// {{ 28 1 0 "8fc163c8_9077_43d2_8730a99e6d1c0a35" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 29 1 0 "359fb706_358a_449a_862003066c754819" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 30 1 0 "af2ccb54_00e1_421f_918c897d08d42ce6" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(pbs_source_num = 0; pbs_source_num < 2;)
+{
+pbs_source_num = pbs_source_num + 1;
+// }} ""
+// {{ 31 1 0 "98e63645_cecc_4806_baf104a94802790a" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+pbs_source_seq=PBS_source_arr.GetAt(pbs_source_num-1);
+// }} ""
+// {{{ 32 1 0 "6be35ac5_c8a5_43a8_9b7037cde85b4b08" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+TipPickupWithErrorHandling(ML_STAR.MlStar300ulStandardVolumeTipWithFilter);
+// }} ""
+// {{ 33 1 0 "fd7b52ba_e546_44fa_b1b8e5f368af147a" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(cytom_col_number = 0; cytom_col_number < 12;)
+{
+cytom_col_number = cytom_col_number + 1;
+// }} ""
+// {{ 34 1 0 "eac37b9e_6e2c_4b9a_9464509b0c49c9ef" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+source_col=pbs_source_for_col_arr.GetAt(cytom_col_number-1);
+// }} ""
+// {{ 35 1 0 "7af6dbc2_1642_44c3_869b2f95e9a14497" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (pbs_source_num == source_col)
+{
+// }} ""
+// {{{ 36 1 0 "e9ae2465_b94e_4cf0_b3a81a9916f3909d" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace4(Translate("Pipette from source col "), pbs_source_num, Translate(" to Cytom col "), cytom_col_number);
+// }} ""
+// {{{ 37 1 0 "d9f6f26c_a5a4_41f8_a25598e151685d77" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+GSF_IMS_SHARED_SUBMETHODS::pipette_selector(pbs_source_seq, cytom_column_arr.ElementAt( cytom_col_number -1), pbs_volume, 2, pbs_source_seq, pbs_source_seq, ML_STAR, ML_STAR.MlStar300ulStandardVolumeTipWithFilter);
+// }} ""
+// {{ 38 1 0 "7af6dbc2_1642_44c3_869b2f95e9a14497" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 39 1 0 "fd7b52ba_e546_44fa_b1b8e5f368af147a" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 40 1 0 "7f6d40f6_7fbd_4a13_ad5e2564da97e19a" "ML_STAR:{541143FC-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = ML_STAR._541143FC_7FA2_11D3_AD85_0004ACB1DCB2("7f6d40f6_7fbd_4a13_ad5e2564da97e19a"); // TipEject
+}
+// }} ""
+// {{ 41 1 0 "af2ccb54_00e1_421f_918c897d08d42ce6" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 42 1 0 "359fb706_358a_449a_862003066c754819" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 43 1 0 "91dd41b3_b6bf_4241_abd20fe8c7e79c18" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 44 1 0 "b622cfa2_01d9_4358_a457a417c51003a0" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Cytometry_plate_lid_parking, ML_STAR.Cytometry_plate_lid, 0, 1, ML_STAR);
+// }} ""
+// {{{ 45 1 0 "0281aaa0_65ac_43e7_b7032f1df0e89359" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Media_plate_lid_parking, ML_STAR.Media_plate_lid, 1, 0, ML_STAR);
+// }} ""
+// {{ 46 1 0 "91dd41b3_b6bf_4241_abd20fe8c7e79c18" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 47 1 0 "fac9219d_1775_4be3_8a7f7c7b62b3f69d" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+CleanUp();
+// }} ""
+// {{ 2 "AutoExitBlock" ""
+STAR_TIP_TOOLS::_ExitLibrary();
+ISWAP_PLATEANDLIDMOVEMENT::_ExitLibrary();
+NIST_DEVICE_CONTROLLERS::_ExitLibrary();
+NIST_TRUSEQNANO_PREP::_ExitLibrary();
+LMSF_UTILITIES::_ExitLibrary();
+GSF_IMS_SHARED_SUBMETHODS::_ExitLibrary();
+// }} ""
+// {{{ 5 "main" "End"
+} }
+// }} ""
+// $$author=djross$$valid=0$$time=2024-06-11 17:59$$checksum=53461374$$length=085$$
