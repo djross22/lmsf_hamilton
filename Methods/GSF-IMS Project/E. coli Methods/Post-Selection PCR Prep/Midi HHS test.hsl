@@ -1,0 +1,740 @@
+ namespace _Method { #include "Common\\iSWAP-PlateAndLidMovement.hs_" } 
+ namespace _Method { #include "HSLML_STARLib.hsl" } 
+ namespace _Method { #include "NIST\\Libraries\\NIST_Device_Controllers.hs_" } 
+ namespace _Method { #include "HslHamHeaterShakerLib.hsl" } 
+ namespace _Method { #include "NIST\\Libraries\\NIST_TruSeqNano_Prep.hs_" } 
+ namespace _Method { #include "HSLSeqLib.hsl" } 
+ namespace _Method { #include "HSLExtensions\\Dictionary.hsl" } 
+ namespace _Method { #include "HSLExtensions\\String.hsl" } 
+ namespace _Method { #include "HSLStrLib.hsl" } 
+ namespace _Method { #include "HSLExtensions\\File.hsl" } 
+ namespace _Method { #include "HSLMthLib.hsl" } 
+ namespace _Method { #include "HSLTipCountingLib.hsl" } 
+ namespace _Method { #include "HSLTrcLib.hsl" } 
+ namespace _Method { #include "HSLFilLib.hsl" } 
+ namespace _Method { #include "Common\\LMSF_Utilities.hs_" } 
+ namespace _Method { #include "STAR Tools\\STAR Tip Tools.hs_" } 
+#include "BarSeq prep.96 samples.res"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+variable bln_Global_SimulatorMode;
+variable ODTC;
+variable odtc_script_path;
+variable odtc_script_time;
+variable odtc_script_id;
+variable var_Global_HHSNode3;
+variable HHS3;
+variable SetTempHHS3;
+variable is_debugging;
+variable pcr_time;
+variable pipetting_time;
+variable wait_time;
+timer timer1;
+timer magnet_timer;
+timer timer2;
+timer timer3;
+variable bln_Global_SkipAllTimers;
+variable timer_2_min;
+variable timer_5_min;
+variable timer_3_min;
+variable user_choice;
+variable Bead_stock_volume;
+variable Beads_used;
+variable timer_10_sec;
+variable timer_4_min;
+variable time_lid_move;
+timer lid_move_timer;
+variable is_pipetting;
+variable lacI_ratio_1_1;
+variable lacI_ratio_1_2;
+variable lacI_ratio_2;
+variable is_running_ODTC;
+variable use_ODTC;
+dialog customDialogDC8EAFEFE64D4d3aB169335316048D3B;
+dialog customDialogC1EFE797D9D0403bADBE54835E191C41;
+dialog customDialog01C78A40DE7D483aBAE08D140F2EBA3D;
+dialog customDialogCE9F247FAF3C42b885484A2BF9B5DCCF;
+variable timer_7_min;
+variable timer_1_min;
+variable flt_PCR1_ElutionVol;
+variable flt_PCR1_CleanupVol;
+variable flt_PCR2_RxVol;
+variable flt_PCR2_ElutionVol;
+variable is_pipetting_only;
+variable flt_plasmid_volume;
+variable flt_di_water_volume;
+variable flt_test_plasmid_vol;
+variable flt_primer_volume;
+variable flt_primer_mix_vol;
+variable flt_primer_test_vol;
+variable flt_bead_ratio_1_1;
+variable flt_post_PCR1_1_mix_vol;
+variable flt_post_PCR1_1_sample_vol;
+variable flt_post_PCR1_1_bead_vol;
+variable flt_post_PCR1_1_samp_bead_vol;
+variable flt_bead_ratio_1_2;
+variable flt_post_PCR1_2_bead_vol;
+variable flt_post_PCR1_2_mix_vol;
+variable flt_post_PCR1_2_waste_vol;
+variable flt_PCR2_MM_volume;
+variable flt_PCR2_mix_vol;
+variable flt_post_PCR2_sample_vol;
+variable flt_bead_ratio_2;
+variable flt_post_PCR2_bead_vol;
+variable flt_post_PCR2_mix_vol;
+variable flt_post_PCR2_waste_vol;
+variable flt_final_sample_volume;
+global device ML_STAR ("BarSeq prep.96 samples.lay", "ML_STAR", hslTrue);
+global device HxFan ("BarSeq prep.96 samples.lay", "HxFan", hslTrue);
+timer timer_for_elution;
+sequence plasmid_input_arr[];
+sequence pcr_plate_1_arr[];
+variable int_time_point;
+dialog customDialogB08C5253B381479e8D2B0DB9C8DDC060;
+variable str_load_plas;
+variable str_time_point;
+variable timer_30_sec;
+dialog customDialog44D8142C11004a8eA37DBF89B6790037;
+dialog customDialog10E4537A17B34b9aB2DA289D6A35B936;
+dialog customDialogBD6775DB66C94531B8AD4FF05E82219A;
+dialog customDialogBE69CCC1567941aeB30D80C4BE1910EC;
+dialog customDialog2CEF3ED547B64586A7B58EE13BD3E6A3;
+dialog customDialogFAE20C7722344906BD0B3345B1F6475D;
+dialog customDialog178BDAD43D6C4b939768A0B713793628;
+dialog customDialog04CF548AF30049de8DEADE46BC990267;
+dialog customDialog37458332D0CF4ed58CCC801D3F37FBFD;
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+ namespace _Method { #include "HSLMETEDLib.hs_" } 
+ namespace _Method { #include "HSLMECCLib.hs_" } 
+ namespace _Method { #include "HSLPTLLib.hsl" } 
+ namespace _Method { #include "HSLSTCCLib.hs_" } 
+// }} ""
+// {{{ 2 "LocalSubmethodInclude" ""
+ namespace _Method {  #include __filename__ ".sub"  } 
+// }} ""
+/* {{ 2 "ProcessInsertLine" "" */ // }} ""
+// {{{ 5 "main" "Begin"
+namespace _Method { method main(  ) void {
+// }} ""
+// {{ 5 "main" "InitLocals"
+// }} ""
+// {{ 2 "AutoInitBlock" ""
+PTL::SetWashingStateDefault("RinseTime1", 5);
+PTL::SetWashingStateDefault("SoakTime1", 5);
+PTL::SetWashingStateDefault("FlowRate1", 11);
+PTL::SetWashingStateDefault("RinseTime2", 0);
+PTL::SetWashingStateDefault("SoakTime2", 0);
+PTL::SetWashingStateDefault("FlowRate2", 11);
+PTL::SetWashingStateDefault("DrainingTime", 10);
+PTL::SetWashingStateDefault("StartWashLiquid", 0);
+PTL::SetLoadingStateDefault("RecoveryOptionContinue", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionExclude", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionDefault", 0);
+PTL::SetLoadingStateDefault("KitLotCheckEnabled", hslFalse);
+ISWAP_PLATEANDLIDMOVEMENT::_InitLibrary();
+NIST_DEVICE_CONTROLLERS::_InitLibrary();
+NIST_TRUSEQNANO_PREP::_InitLibrary();
+LMSF_UTILITIES::_InitLibrary();
+STAR_TIP_TOOLS::_InitLibrary();
+::RegisterAbortHandler( "OnAbort");
+// }} ""
+// {{ 1 1 0 "6abcde05_dbab_4775_a33c97568c632a66" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 2 1 0 "b6a09785_db91_4db4_a396ce211b819b53" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+bln_Global_SimulatorMode = HSLML_STAR::IsSimulatorMode(ML_STAR);
+// }} ""
+// {{ 3 1 0 "18d3520f_9fe4_4bfe_9d3b21359077a088" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+is_debugging = "true";
+// }} ""
+// {{ 4 1 0 "6abcde05_dbab_4775_a33c97568c632a66" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 5 1 0 "5d8b454f_6e7c_486b_9f2fe67e1ce98ba4" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+StartUp();
+// }} ""
+// {{ 6 1 0 "fc192dab_a25f_446d_95ef50161f52fed8" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 7 1 0 "d8717dc3_1a0c_4e19_ba4844cc920ca0bf" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***************************************************************************\nFirst PCR clean-up;\nAdd beads to Midi plate\nFinish PCR; Remove lid from PCR_Plate_1;\nbind plasmid DNA to the beads and keep the supernatant\n***************************************************************************"));
+// }} ""
+// {{ 8 1 0 "b2414d97_ea58_4a19_815eb827b8da0d53" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 9 1 0 "f3444193_af64_4419_a2d6e33dc4cb05ad" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 10 1 0 "a90581cb_8520_4636_b6f0ad95845cc98b" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 1);
+// }} ""
+// {{{ 11 1 0 "a5c9884a_7ee5_4e6b_8d214734ec2cbc21" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::StartShaker(HHS3, 300);
+// }} ""
+// {{ 12 1 0 "f3444193_af64_4419_a2d6e33dc4cb05ad" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 13 1 0 "883317b8_126f_4397_ac58d3f8ce3bf280" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***** Now shaking at RT for 10s ......."));
+// }} ""
+// {{ 14 1 0 "ccb4296a_4879_4a98_8cfe31f5fad24d79" "{B31F353E-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == timer3.SetTimer(5) )
+{
+    MECC::RaiseRuntimeErrorEx(-1355939584, MECC::IDS::stepNameTimerStart, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 15 1 0 "465d0ae4_0cd3_4e8b_acc1972a70f998d6" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** 5 sec shaking timer ****"));
+// }} ""
+// {{ 16 1 0 "470ee885_c92b_4681_86be8893a369725c" "{B31F353F-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == timer3.WaitTimer(hslTrue, hslTrue) )
+{
+    MECC::RaiseRuntimeErrorEx(-1339162368, MECC::IDS::stepNameTimerWait, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 17 1 0 "1b030d5a_b98f_41c4_8eeaf5e952dc1159" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 18 1 0 "1aee907c_bbfe_48f0_acaaf5f1d55d41ab" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::StopShaker(HHS3);
+// }} ""
+// {{{ 19 1 0 "bcbf5700_08d4_4b74_9c4e1a669b195c5c" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 1);
+// }} ""
+// {{ 20 1 0 "1b030d5a_b98f_41c4_8eeaf5e952dc1159" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 21 1 0 "b2414d97_ea58_4a19_815eb827b8da0d53" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 22 1 0 "ec4e77de_d2c6_4d77_95a3af68b6b53640" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{{ 23 1 0 "3218abd1_7c91_41a2_8f2dd93dff69fbb4" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+DebuggingPause();
+// }} ""
+// {{ 24 1 0 "ec4e77de_d2c6_4d77_95a3af68b6b53640" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 25 1 0 "d0bc64ab_5c31_4a40_a01f269977ba75fb" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 26 1 0 "7314634d_5072_4902_8bbd3e1634ff34c8" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("=================================================\nShake Midi plate for ten seconds to resuspend beads;\nTransfer samples from PCR plate to Midi plate; \nMix by pipetting 10x;\nand incubate seven additional minutes without shaking\n================================================="));
+// }} ""
+// {{ 27 1 0 "067ab9c3_570d_4600_96e2321e034bc779" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 28 1 0 "fd3b9b12_9b68_4491_805432fac851a63b" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 29 1 0 "92399433_ba63_4b58_98f1fb9e064232fa" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 1);
+// }} ""
+// {{{ 30 1 0 "ab5b2f3d_e75c_4fed_8fe4bfe8fe52ed43" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::StartShaker(HHS3, 1800);
+// }} ""
+// {{ 31 1 0 "fd3b9b12_9b68_4491_805432fac851a63b" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 32 1 0 "2cbf8274_daaa_4e9e_be38414418350e53" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***** Now shaking at RT for 10s ......."));
+// }} ""
+// {{ 33 1 0 "f1014460_3a23_469c_af6615a0c7023666" "{B31F353E-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == timer3.SetTimer(timer_10_sec) )
+{
+    MECC::RaiseRuntimeErrorEx(-1355939584, MECC::IDS::stepNameTimerStart, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 34 1 0 "d55b57f6_01c5_4a83_a2bfb66491739d2d" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** 10 sec shaking timer ****"));
+// }} ""
+// {{ 35 1 0 "a52f93bc_f3de_4aee_95ea8a421220a410" "{B31F353F-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == timer3.WaitTimer(hslTrue, hslTrue) )
+{
+    MECC::RaiseRuntimeErrorEx(-1339162368, MECC::IDS::stepNameTimerWait, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 36 1 0 "92ce4c21_e376_4e9d_b79fc20749003f8a" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 37 1 0 "5997b43b_ff8e_4600_a4a9c6c5ff25b4a5" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::StopShaker(HHS3);
+// }} ""
+// {{{ 38 1 0 "29da1c03_d575_40c9_aada7f49b47ffd6a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 1);
+// }} ""
+// {{ 39 1 0 "92ce4c21_e376_4e9d_b79fc20749003f8a" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 40 1 0 "067ab9c3_570d_4600_96e2321e034bc779" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 41 1 0 "570a39e5_9d67_429b_bb2233802cb1f8f5" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 42 1 0 "f008a255_6526_4d0f_96aacffe84a7cabc" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 43 1 0 "f47f4dd4_49e8_4ae9_9a5a8d8669814f91" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 0);
+// }} ""
+// {{ 44 1 0 "f008a255_6526_4d0f_96aacffe84a7cabc" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 45 1 0 "eab2e59d_cdce_4e1c_bb693c1fe3c09113" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***** Incubation finished..."));
+// }} ""
+// {{ 46 1 0 "570a39e5_9d67_429b_bb2233802cb1f8f5" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 47 1 0 "d0bc64ab_5c31_4a40_a01f269977ba75fb" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 48 1 0 "ab0cf18a_faa3_4aa7_95b179cc5af4119a" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 49 1 0 "9b9a8f94_7008_4cea_bb86126d6c0ef5f3" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("=======================================================\nMove Midi plate to magnet, incubate 4 minutes, get new Midi plate from stack\nthen transfer supernatant to new Midi plate on HHS\n======================================================="));
+// }} ""
+// {{ 50 1 0 "e6c01cb2_21c1_43b3_aecfb8f4cab51f2c" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{{ 51 1 0 "754a26a2_c649_46b4_a6720d4a9e30b8e7" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+DebuggingPause();
+// }} ""
+// {{ 52 1 0 "e6c01cb2_21c1_43b3_aecfb8f4cab51f2c" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 53 1 0 "6a2e37d8_7b6d_4f19_89e0bee94f8dc48c" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 54 1 0 "374e70ce_b0a2_4e77_8165f7144c96b38e" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 0);
+// }} ""
+// {{ 55 1 0 "6a2e37d8_7b6d_4f19_89e0bee94f8dc48c" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 56 1 0 "7f1a0d8d_0e38_4708_926aa465c74b5b8d" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveMidiPlate(ML_STAR.Midi_on_HHS, ML_STAR.Midi_on_magnet, 0, 1, ML_STAR);
+// }} ""
+// {{ 57 1 0 "f9b27fa4_a704_446d_8c81155758e7b718" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** on magnet..."));
+// }} ""
+// {{{ 58 1 0 "0e0f91eb_cb83_45e9_9d9338dcf735f705" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveMidiPlate(ML_STAR.ABGENE_MIDI_stack_0002, ML_STAR.Midi_on_HHS, 1, 1, ML_STAR);
+// }} ""
+// {{ 59 1 0 "c9975a22_bd02_4742_909157140c454a14" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 60 1 0 "f656f7f0_5f4f_4239_b53c53edf8ab7b48" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 1);
+// }} ""
+// {{ 61 1 0 "c9975a22_bd02_4742_909157140c454a14" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 62 1 0 "7adc0178_a5df_4985_ab2e8109f5f18908" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** done."));
+// }} ""
+// {{ 63 1 0 "f9b005dc_f21d_4359_82880493c30bd8b8" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{{ 64 1 0 "0e1d5227_3064_489a_90e4cc8474e44cd3" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+DebuggingPause();
+// }} ""
+// {{ 65 1 0 "f9b005dc_f21d_4359_82880493c30bd8b8" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 66 1 0 "ab0cf18a_faa3_4aa7_95b179cc5af4119a" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 67 1 0 "fc192dab_a25f_446d_95ef50161f52fed8" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 68 1 0 "0440879d_1a43_4a1d_8e058ef3a15dc5bd" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 69 1 0 "de56d30d_65da_462a_b9b4bfc57dca73a8" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("=====================================================================\nNext step: bind PCR product to beads and discard the supernatant\n====================================================================="));
+// }} ""
+// {{{ 70 1 0 "4ca26675_d3bb_4b8f_b520724e38ffacc2" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveMidiPlate(ML_STAR.Midi_on_magnet, ML_STAR.MIDI_Waste, 0, 1, ML_STAR);
+// }} ""
+// {{ 71 1 0 "096c01da_6b47_4d97_82ab7168b4c5b50f" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 72 1 0 "16ca3632_ad6a_4a56_be16fc327d6d9866" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("=======================================================\nMove Midi plate to magnet, incubate 5 minutes,\nthen discard the supernatant\n======================================================="));
+// }} ""
+// {{ 73 1 0 "c9021ffc_e96d_4776_9f72fe2763664e69" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 74 1 0 "993360c1_3876_4f76_9ac680068fa4159a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 0);
+// }} ""
+// {{ 75 1 0 "c9021ffc_e96d_4776_9f72fe2763664e69" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 76 1 0 "52303360_57f3_4e91_82568007475b1110" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{{ 77 1 0 "c78b5e80_c113_4146_8f04276d0cf5345b" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+DebuggingPause();
+// }} ""
+// {{ 78 1 0 "52303360_57f3_4e91_82568007475b1110" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 79 1 0 "41ac8a57_2e4f_4b9a_94b7f94dbe552055" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveMidiPlate(ML_STAR.Midi_on_HHS, ML_STAR.Midi_on_magnet, 1, 1, ML_STAR);
+// }} ""
+// {{ 80 1 0 "57a23e4f_9ee3_4040_a925049546eedad2" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** on magnet..."));
+// }} ""
+// {{ 81 1 0 "60e02fd0_86f7_4545_9429405f066c302d" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** done."));
+// }} ""
+// {{ 82 1 0 "5d5def2b_b4fc_4340_9a9e7b2c4eb6d3fe" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{{ 83 1 0 "12eef6da_0387_41e7_9ce4ea343e6ef345" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+DebuggingPause();
+// }} ""
+// {{ 84 1 0 "5d5def2b_b4fc_4340_9a9e7b2c4eb6d3fe" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 85 1 0 "096c01da_6b47_4d97_82ab7168b4c5b50f" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 86 1 0 "0440879d_1a43_4a1d_8e058ef3a15dc5bd" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 87 1 0 "7ea29d50_72d3_4a50_933d569fc899b88c" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 88 1 0 "21495884_e2aa_4667_8e10c55121ab2cf5" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("===============================================================================\nEthanol rinse (1x), then resuspend sample in elution buffer, put plate on magnet, and wait 5 minutes\n==============================================================================="));
+// }} ""
+// {{{ 89 1 0 "22bab340_7e00_4cd3_999d90535a6350dc" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveMidiPlate(ML_STAR.Midi_on_magnet, ML_STAR.Midi_on_HHS, 0, 1, ML_STAR);
+// }} ""
+// {{ 90 1 0 "8ff39127_0014_4d4f_9a3d45c7d84afb56" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 91 1 0 "aec047b0_7a4c_4a31_9ee20766239fcd33" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 1);
+// }} ""
+// {{ 92 1 0 "8ff39127_0014_4d4f_9a3d45c7d84afb56" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 93 1 0 "cfaddadf_6447_4cba_a5643e029e3005de" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 94 1 0 "ebb369ff_4798_46ca_87c00d4bf99b5efe" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("==================================================================================================================================\nRemove lid from Reagent_Plate and Move midi to Magnet\n=================================================================================================================================="));
+// }} ""
+// {{ 95 1 0 "9d8cf0dc_aadf_4e9f_89146971a1523fe0" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{{ 96 1 0 "7a6aeba7_1f95_4b98_8f954f34e9942f60" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+DebuggingPause();
+// }} ""
+// {{ 97 1 0 "9d8cf0dc_aadf_4e9f_89146971a1523fe0" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 98 1 0 "0554a681_977e_4a48_96111a41d3fc7994" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 99 1 0 "934b5be1_a288_4243_86a14f25e0d04f6b" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 0);
+// }} ""
+// {{ 100 1 0 "0554a681_977e_4a48_96111a41d3fc7994" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 101 1 0 "5f2297ed_18d2_40bf_9037df497a2d014c" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveMidiPlate(ML_STAR.Midi_on_HHS, ML_STAR.Midi_on_magnet, 1, 1, ML_STAR);
+// }} ""
+// {{ 102 1 0 "cfaddadf_6447_4cba_a5643e029e3005de" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 103 1 0 "7ea29d50_72d3_4a50_933d569fc899b88c" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 104 1 0 "5330610d_74da_47e8_83a1c5453dedf1a9" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 105 1 0 "884bc7d2_2eed_4ff9_832989935f1275c5" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***************************************************************************\nWhile 2nd PCR is running:\nthrow Midi plate to waste; \nput lid back on reagent plate; \nmove new midi plate to HHS (from stack);\nand move BarSeq_Output_Plate to pipetting position.\n***************************************************************************"));
+// }} ""
+// {{{ 106 1 0 "a0d12680_0a03_4562_97ce1f4ef76b3437" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveMidiPlate(ML_STAR.Midi_on_magnet, ML_STAR.MIDI_Waste, 0, 1, ML_STAR);
+// }} ""
+// {{ 107 1 0 "f1e14b36_620a_4883_b9cb4c8186a34225" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 108 1 0 "af97156c_a904_4a54_86ddef23f7a19c8c" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveMidiPlate(ML_STAR.ABGENE_MIDI_stack_0001, ML_STAR.Midi_on_HHS, 1, 1, ML_STAR);
+// }} ""
+// {{ 109 1 0 "1c6ff257_d243_42d9_a0e5c460092bcc2f" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 110 1 0 "ac52b2fa_c107_4913_ab3cf406e187608b" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 1);
+// }} ""
+// {{ 111 1 0 "1c6ff257_d243_42d9_a0e5c460092bcc2f" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 112 1 0 "5330610d_74da_47e8_83a1c5453dedf1a9" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 113 1 0 "374909c3_95e1_4599_a33c3b3e14b618d9" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 114 1 0 "fd3751f1_b57d_4d41_9495bfea9abc3cdc" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***************************************************************************\nSecond PCR clean-up;\nAdd beads to Midi plate on HHS\nFinish PCR; Remove lid from PCR_Plate;\nbind PCR product to the beads and discard the supernatant\n***************************************************************************"));
+// }} ""
+// {{ 115 1 0 "73c2c797_e8c9_462c_85acd8c68635e13e" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{{ 116 1 0 "b96fd68d_d8f7_47ff_8283361d46350719" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+DebuggingPause();
+// }} ""
+// {{ 117 1 0 "73c2c797_e8c9_462c_85acd8c68635e13e" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 118 1 0 "4f7b0130_49cb_43f4_b32b8b915bc09598" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 119 1 0 "f971ca18_43fd_4c37_93b2f51256bfbf78" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("=================================================\nShake midi plate for 10 seconds to resuspend beads;\nTransfer samples from PCR plate to Midi plate;\nMix by pipetting 10x;\nand incubate 5 additional minutes without shaking\n================================================="));
+// }} ""
+// {{ 120 1 0 "4499a6da_e79f_4919_a51b48b89685405d" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 121 1 0 "07f5952c_ee64_4062_a552c2ec6524ee05" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 122 1 0 "76bb1de7_5a71_4791_961c12fefac18307" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 1);
+// }} ""
+// {{{ 123 1 0 "c2784391_62ce_4e09_91ce8b374b550845" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::StartShaker(HHS3, 1800);
+// }} ""
+// {{ 124 1 0 "07f5952c_ee64_4062_a552c2ec6524ee05" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 125 1 0 "c5c172ba_d6ed_4181_8583fda0276461e5" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***** Now shaking at RT for 10s ......."));
+// }} ""
+// {{ 126 1 0 "8e7d3447_a9c2_40d0_9530e528279deb89" "{B31F353E-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == timer3.SetTimer(timer_10_sec) )
+{
+    MECC::RaiseRuntimeErrorEx(-1355939584, MECC::IDS::stepNameTimerStart, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 127 1 0 "ce4bb412_254e_432d_a77596921d1f2991" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** 10 sec shaking timer ****"));
+// }} ""
+// {{ 128 1 0 "3ce8fa83_11d1_4656_a53bb284029f1355" "{B31F353F-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == timer3.WaitTimer(hslTrue, hslTrue) )
+{
+    MECC::RaiseRuntimeErrorEx(-1339162368, MECC::IDS::stepNameTimerWait, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 129 1 0 "3d5c800a_7df2_408f_933191e8634d9c58" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 130 1 0 "709b7774_28bc_47bd_819b522ed52e6fea" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::StopShaker(HHS3);
+// }} ""
+// {{{ 131 1 0 "6ed3a13d_ab28_4f52_9c288832522e8a43" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 1);
+// }} ""
+// {{ 132 1 0 "3d5c800a_7df2_408f_933191e8634d9c58" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 133 1 0 "4499a6da_e79f_4919_a51b48b89685405d" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 134 1 0 "dc254f3f_57a2_4dd2_97c47e03a67ed9a4" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{{ 135 1 0 "158db983_4adc_45df_804b382c1c1f145c" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+DebuggingPause();
+// }} ""
+// {{ 136 1 0 "dc254f3f_57a2_4dd2_97c47e03a67ed9a4" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 137 1 0 "4f7b0130_49cb_43f4_b32b8b915bc09598" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 138 1 0 "4b71ecc1_940c_43fc_93f5dc70c8b95c4a" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 139 1 0 "27eccd0a_f21e_415c_843884d11a3a6277" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("=======================================================\nMove Midi plate to magnet, incubate 5 minutes,\nthen discard supernatant;\n======================================================="));
+// }} ""
+// {{ 140 1 0 "52eedd8d_9b93_4650_92eb32203a8925de" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{{ 141 1 0 "f834a729_ef8f_4577_a622c45d0f6b1a57" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+DebuggingPause();
+// }} ""
+// {{ 142 1 0 "52eedd8d_9b93_4650_92eb32203a8925de" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 143 1 0 "2a4c2747_3070_473c_83954a7d7274fee8" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 144 1 0 "bb8617d2_0e73_4f01_b640c2980c09a203" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 0);
+// }} ""
+// {{ 145 1 0 "2a4c2747_3070_473c_83954a7d7274fee8" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 146 1 0 "21030b8b_2f12_4508_81daf55239d014b7" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveMidiPlate(ML_STAR.Midi_on_HHS, ML_STAR.Midi_on_magnet, 1, 1, ML_STAR);
+// }} ""
+// {{ 147 1 0 "b70d4bd8_6325_4a86_afa46aba9d468f75" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** on magnet..."));
+// }} ""
+// {{ 148 1 0 "791966cb_9c06_4f27_ac24613727488fdc" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** done."));
+// }} ""
+// {{ 149 1 0 "3375851f_2685_423e_9064a0e995fb9ea3" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{{ 150 1 0 "6c8b77e7_6672_4bfe_b4214a553cef6573" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+DebuggingPause();
+// }} ""
+// {{ 151 1 0 "3375851f_2685_423e_9064a0e995fb9ea3" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 152 1 0 "4b71ecc1_940c_43fc_93f5dc70c8b95c4a" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 153 1 0 "374909c3_95e1_4599_a33c3b3e14b618d9" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 154 1 0 "69b52dd2_0606_48ed_97681a2682392006" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 155 1 0 "11e89bc5_f895_4239_a720672cb6f79ce0" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("===============================================================================\nEthanol rinse (1x), then resuspend sample in elution buffer, put plate on magnet, and wait 5 minutes\n==============================================================================="));
+// }} ""
+// {{ 156 1 0 "d25ac9c1_9736_44b7_8f495fa9b6003ad3" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 157 1 0 "06d08173_0bd1_4b41_843a89ef29e9c656" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("==================================================================================================================================\nMove to Magnet\n=================================================================================================================================="));
+// }} ""
+// {{ 158 1 0 "6e020f81_3b31_4e20_964b1f09d70ff5ee" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{{ 159 1 0 "df03caa5_20c1_457f_a0734e689756debf" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+DebuggingPause();
+// }} ""
+// {{ 160 1 0 "6e020f81_3b31_4e20_964b1f09d70ff5ee" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 161 1 0 "09f85574_813c_4210_af20b22ff0fa610c" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveMidiPlate(ML_STAR.Midi_on_magnet, ML_STAR.Midi_on_HHS, 0, 1, ML_STAR);
+// }} ""
+// {{ 162 1 0 "9a761237_bfe4_48f0_8f300d6216484c66" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 163 1 0 "818e319a_b15e_47f9_ada0caddac613cbd" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 1);
+// }} ""
+// {{ 164 1 0 "9a761237_bfe4_48f0_8f300d6216484c66" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 165 1 0 "fdc142db_3a26_4a93_b50d84d34db43267" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (bln_Global_SimulatorMode == 0)
+{
+// }} ""
+// {{{ 166 1 0 "a2afdf6f_cfc4_4c4b_af27ac192dd0ce93" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+HSLHamHeaterShaker::SetPlateLock(HHS3, 0);
+// }} ""
+// {{ 167 1 0 "fdc142db_3a26_4a93_b50d84d34db43267" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 168 1 0 "7eac5ffe_dac7_49ae_b66b610498a5e274" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ISWAP_PLATEANDLIDMOVEMENT::MoveMidiPlate(ML_STAR.Midi_on_HHS, ML_STAR.Midi_on_magnet, 1, 1, ML_STAR);
+// }} ""
+// {{ 169 1 0 "d25ac9c1_9736_44b7_8f495fa9b6003ad3" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 170 1 0 "69b52dd2_0606_48ed_97681a2682392006" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 171 1 0 "4f1c2e41_61c6_4d82_910574880f1329d5" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 172 1 0 "7b56269a_1469_46eb_b88136b09ad760a5" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("==============================================================================\nWait for 5 minute magnet timer to finish, then pipette supernatant from Midi plate to new Pooling plate\n=============================================================================="));
+// }} ""
+// {{ 173 1 0 "c7c5f692_991b_42c8_855b8a8819bf4ee3" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** 5 minute timer for magnet ****"));
+// }} ""
+// {{ 174 1 0 "6ef403c3_db03_4887_a5905bbcb7122a7a" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_pipetting == "true")
+{
+// }} ""
+// {{ 175 1 0 "6ef403c3_db03_4887_a5905bbcb7122a7a" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 176 1 0 "9e258eec_462e_4faa_af104265ac0e1732" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 177 1 0 "00416892_61ab_4c18_ba28ce52a4925691" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***************************************************************************\nReplace lid on Output_Plate\n***************************************************************************"));
+// }} ""
+// {{ 178 1 0 "9e258eec_462e_4faa_af104265ac0e1732" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 179 1 0 "4f1c2e41_61c6_4d82_910574880f1329d5" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 180 1 0 "51068cd8_5d0e_4f8e_94b0fd1aeeddc278" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 181 1 0 "fac9219d_1775_4be3_8a7f7c7b62b3f69d" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+CleanUp();
+// }} ""
+// {{ 2 "AutoExitBlock" ""
+ISWAP_PLATEANDLIDMOVEMENT::_ExitLibrary();
+NIST_DEVICE_CONTROLLERS::_ExitLibrary();
+NIST_TRUSEQNANO_PREP::_ExitLibrary();
+LMSF_UTILITIES::_ExitLibrary();
+STAR_TIP_TOOLS::_ExitLibrary();
+// }} ""
+// {{{ 5 "main" "End"
+} }
+// }} ""
+// $$author=Hamilton$$valid=0$$time=2024-10-24 16:14$$checksum=6ceba7fd$$length=087$$
