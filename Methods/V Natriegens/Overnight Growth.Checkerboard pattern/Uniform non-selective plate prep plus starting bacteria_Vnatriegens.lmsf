@@ -1,0 +1,81 @@
+Set(waitTime, 0)
+Set(isUser, false)
+
+#InsertVariables
+
+NewXML(growth plate prep)
+
+Get(user, user)
+
+Get(media, media)
+
+//Get(additive, inducer1, Select the inducer for rows A-C (inducer 1):)
+//Get(concentration, inducer1Stock, Enter the concentration of the {inducer1} starting stock (inducer 1):)
+
+//Get(additive, inducer2, Select the inducer for rows F-H (inducer 2):)
+//Get(concentration, inducer2Stock, Enter the concentration of the {inducer2} starting stock (inducer 2):)
+
+Get(strain, strain1, Select the strain for checkerboard pattern (bacteria 1):)
+Get(plasmid, plasmid1, Select the plasmid for bacteria 1:)
+
+//Get(strain, strain2, Select the strain for rows F-H (bacteria 2):)
+//Get(plasmid, plasmid2, Select the plasmid for bacteria 2:)
+
+Get(note, note)
+
+GetExpID({startDateTime}_{strain1}_{plasmid1}_checkerboard)
+
+Set(worklistFile, {dataDirectory}\{experimentId}_growth plate.csv)
+
+//review experiment ok/abort dialog
+Set(msg1, Review the following, then click 'OK' to accept or 'Abort' to abort and start over:\n\n)
+Set(msg2,  \tMedia: \t\t{media}\n\n \tBacteria 1: \t{strain1}, with {plasmid1}\n\n)
+//Set(msg3, \tInducer 1: \t{inducer1}, stock concentration: {inducer1Stock}\n \tInducer 2: \t{inducer2}, stock concentration: {inducer2Stock}\n\n\n\n)
+Set(msg4,  \tExperiment ID: \n\t\t{experimentId}\n \tData directory: \n\t\t{dataDirectory}\n\n \tNotes:\n\t\t{note})
+UserPrompt(Review Protocol Details: {experimentId}, {msg1}{msg2}{msg3}{msg4})
+
+//Tip counters check
+ReadScript(C:\Users\PAA\Documents\LMSF Scheduler\Common protocol scripts\Need Tips.lmsf, tips1000Need = 30, tips300Need = 0, userEditCounters={isUser})
+
+Overlord({getNewGrowthPlate}, [Carousel.Stack.7.Labware.Count] {growthPlatesInStack})
+Math(growthPlatesInStack, {growthPlatesInStack} - 1)
+WaitFor(Overlord)
+
+
+//Set(msg1, Make sure there are at least 5 mL of {inducer1} starting stock (inducer 1) in column 1 of the reagent plate, )
+//Set(msg2, and at least 5 mL of {inducer2} starting stock (inducer 2) in column 2 of the reagent plate.)
+Set(msg3, Insert bacteria stock into position 24 of the right tube rack (in 14 mL cuture tubes).)
+UserPrompt(Inducer and Bacteria Stocks, {msg1}\n{msg2}\n{msg3}, {protocolDir}\Inducer and bacteria on Deck.PNG, 700)
+
+UserPrompt(Media Trough, Media trough requires at least 50 mL of {media} media per plate., {lmsfImageDirectory}\Media trough.loc.PNG)
+
+Set(msg1, Close the front cover on the STAR, then click 'OK' to start the method.)
+UserPrompt(Close Cover and Start, {msg1}, C:\Users\PAA\Documents\LMSF Scheduler\Image files\dialog-warning.png)
+
+//Wait for timer to space out plate preps by one hour
+Math(startNextPlate, {startLastPlate} + {waitTime})
+Timer({startNextPlate})
+WaitFor(Timer)
+
+GetTimeNow(startLastPlate)
+RemoteHam(S-Cell-STAR, RunMethod, {hamiltonMethodDir}\Uniform non-selective plate prep plus starting bacteria_Vnatriegens.hsl)
+Timer(1320)
+WaitFor(Timer)
+WaitFor(S-Cell-STAR)
+
+//Wait for readers to finish initialization read
+WaitFor({thisReader}, false)
+
+Gen5({thisReader}, CarrierOut)
+WaitFor({thisReader}, false)
+
+Overlord({ovpCommDirectory}\Move Growth Plate from STAR to Reader.ovp, [Gen5.Reader.Name] "{thisReader}" [Sealer.ManualSeal] "{manualSeal}")
+WaitFor(Overlord)
+
+Gen5({thisReader}, RunExp, {growthProtocol}, {experimentId}_growth-plate, {dataDirectory})
+GetTimeNow(startThisReader)
+
+
+AddXML(hamiltonMethod, outputWorklistFile, {worklistFile})
+
+SaveXML()

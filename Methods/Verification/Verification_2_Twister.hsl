@@ -1,0 +1,566 @@
+/***************************************************************************************************
+*  Method     : Verification_2_Twister.hsl
+*  Copyright by HAMILTON Bonaduz AG, CH-7402 Bonaduz
+****************************************************************************************************
+*
+*  Description : Barcode Verification of Twister Device
+*
+* ==================================================================================================
+*  ATTENTION: Change this HSL only with HSL Editor of SW Version 4.4!
+*              (Note: This library must run from SW-version 4.4 on)
+* ==================================================================================================
+*  Modification History:
+* ----------------------
+* Rev 1.0 2013-09-18 Erich Caflisch  /  Module Version : 00, Part of Build 1020, ECO 13197
+*                First released version for software version >=4.4.0
+*                Optimized barcode border position measurements (5 times)
+* --------------------------------------------------------------------------------------------------
+* Rev 0.1 2013-01-08	Erich Caflisch
+*
+*****************************************************************************************************/ 
+
+
+//device ML_STAR("TestDeck_1.lay");
+//device ML_STAR("Verification_Starlet.lay");
+
+	// -----------------------------------------------------------------------------
+	// Debug switch for this file
+	// -----------------------------------------------------------------------------
+	//		#define _DEBUG_VolVer 1
+
+	// -----------------------------------------------------------------------------
+	// Included libraries
+	// -----------------------------------------------------------------------------
+
+	#ifndef __HslVerToolsLib_hsl__
+   	#include "HslVerToolsLib.hs_"
+	#endif
+
+	#ifndef __HSLStrLib_hsl__
+	   #include "HSLStrLib.hsl"
+	#endif
+
+   #ifndef __HSLTrcLib_hs__
+      #include "HSLTrcLib.hsl"
+   #endif
+
+	//==============================================================================
+	// local functions
+	//==============================================================================
+namespace TwBC_1	
+{	
+	// General variable definitions
+	//------------------------------------------------------------------------------
+	variable moduleVersion("01");				// verification subversion of this library	
+	static sequence seqTwisterTool; 
+
+	// specifications / expected barcodes
+	static const variable bcCheck_1("Check11");
+	static const variable bcCheck_2("Check12");
+
+	static const variable nominalBarcodeReadPosition(280.615); // 270° + 10.6° at scan distance 3.5mm and label distance 19mm from twister Z-axis 
+//	static const variable labelSemiWidth(18.093/2.0); // 18.1° : label width of 6mm and label distance 19mm from twister Z-axis 
+	static const variable bcAlignmentDevLimit(5.0);  // barcode alignment devitiation limit : <= +/- 5°
+   
+   // measured values   
+	static variable arrScannedBarcode_1[];
+	static variable arrScannedBarcode_2[];
+	static variable arrBarcodePositions[];
+
+	//------------------------------------------------------------------------------
+	private function OnRun_Abort() //variable
+	//------------------------------------------------------------------------------
+	{
+		device ML_STAR(VerDef::layoutFileName);	
+		// no additional step executed					
+
+	}  // -- end of function "OnRun_Abort"
+
+	//------------------------------------------------------------------------------
+	private function Load_VerificationToolDialog(device& ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information			
+		variable prop2, prop3, sn, date(""),lcd(""),lcb(""); // dummy place holder 
+		variable returnValue;
+		variable inputDescription(""), remarks(""), warning("");
+		variable rackConfigFile("");
+      variable arrLabwarPos[];
+      const variable rackID("Twister_Tool"), teachingNeedleID("TeachingNeedle5ml");
+		sequence seq_DummyDef;  			// place holder sequence definition
+
+		dialogTitle 		= LdT("Start of the Twister Verification:");
+		pictureFile 		= "StartTwisterVer.jpg";
+
+		// init process variables 
+		VerTool::InitializeDataVariables();		
+	   arrScannedBarcode_1.SetSize(0);
+	   arrScannedBarcode_2.SetSize(0);
+	   arrBarcodePositions.SetSize(0);
+		loop(VerDef::Twisters) 
+      {
+         arrScannedBarcode_1.AddAsLast(VerDef::notDefined);
+    	   arrScannedBarcode_2.AddAsLast(VerDef::notDefined);
+     	   arrBarcodePositions.AddAsLast(-9999);
+      }
+
+		// unlock front cover 
+		VerTool::MoveToEndPositions(ML_STAR);
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");
+		Trace(" ");
+		Trace("           ",dialogTitle);
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");	
+		Trace(" ");
+
+		VerTool::NewTextLine(1, LdT("Twister Verification"));
+		VerTool::NewTextLine(0," -------------------------------------------");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, LdT("Load the Twister Verification Tool:"));
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, LdT("Part Number: 813'340"));
+		VerTool::NewTextLine(0,StrConcat4(LdT("Serial Number :"), " ","", RPD::twisterToolSerial) );
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, LdT("Note:"));
+		VerTool::NewTextLine(0, "    - " + LdT("If present, remove the '5ml Teaching Needle'."));
+		VerTool::NewTextLine(0, "    - " + LdT("Position Barcode-Label towards right side."));
+		VerTool::NewTextLine(0, "    - " + LdT("Push down 'Verification Tool' into the wasteblock."));
+		
+		warning 	= LdT("ATTENTION:") + " " + LdT("Alignment of the tool must be correct!");
+
+      // show load dialog	
+	   returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,warning, hslOKOnly, 1,"","","");
+
+      // add labware of Twister verification Tool on Wasteblock site "7"
+		rackConfigFile = VerDef::labwareSubDirName + "VER_TwisterTool.rck" ;
+		VerTool::RemovePresentLabware(ML_STAR, rackID);			
+      
+      ML_STAR.GetLabwarePosition(teachingNeedleID,arrLabwarPos);
+// VerTool::TraceArray("Test: Load_VerificationToolDialog: ---arrLabwarPos ----", arrLabwarPos);
+      arrLabwarPos.SetAt(2,arrLabwarPos.GetAt(2) + 52.9);              // +52.9mm Z-Offset between 5ml Teaching Needle and Verification Tool
+// VerTool::TraceArray("Test 2: Load_VerificationToolDialog: ---arrLabwarPos ----", arrLabwarPos);
+       ML_STAR.AddLabware(rackID,rackConfigFile,arrLabwarPos);
+
+      ML_STAR.GetLabwarePosition(rackID,arrLabwarPos);
+//VerTool::TraceArray("Test 3: Load_VerificationToolDialog: ---arrLabwarPos ----", arrLabwarPos);
+
+//		ML_STAR.AddLabwareToTemplate( rackID, rackConfigFile, templateID, siteID);
+      seqTwisterTool.Add( rackID, "1");
+      seqTwisterTool.SetCurrentPosition( 1 );
+//		TrcTraceSequence(seqTwisterTool);
+		
+      // lock front cover
+		VerTool::CoverLock(ML_STAR , VerDef::coverLock);
+	}  // -- end of function "Load_VerificationToolDialog"
+
+		//------------------------------------------------------------------------------
+	private function endTwisterVerification(device ML_STAR, variable verificationStatus ) 
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information
+		variable warning("");
+
+		// unlock front cover
+		VerTool::MoveToEndPositions(ML_STAR);
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+		dialogTitle 		= LdT("End of Twister Verification:");
+		pictureFile 		= "EndOfTwisterVerification.jpg"; 
+
+		VerTool::NewTextLine(1," ");
+		VerTool::NewTextLine(0, LdT("End of Twister Verification:"));
+		VerTool::NewTextLine(0," -------------------------------------------");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0, LdT("Remove the Twister Verification Tool from the Wasteblock!"));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0, LdT("Note:"));
+		VerTool::NewTextLine(0, "    - " + LdT("If present, put back the '5ml Teaching Needle'"));
+		if(verificationStatus == PS::failed) 	
+      {
+         pictureFile = "EndOfFailedTwisterVerification.jpg";		
+   		warning     = LdT("ATTENTION:") + " " + LdT("Twister Verification failed!");
+	   }	
+		VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText, warning, hslOKOnly, 1, "", "", "");
+
+		return;
+		
+	}  // -- end of function "endTwisterVerification"		
+
+	//------------------------------------------------------------------------------
+   function twisterFwCommand(device& ML_STAR, variable channelNo, variable  command,variable prm, variable errorCheck,variable& response) variable
+	//------------------------------------------------------------------------------
+   {
+     variable cmd("");
+
+//Trace("Test: twisterFwCommand for channelNo =>",channelNo,"<  command=>",command,"<  prm =>",prm,"<==");
+     cmd = StrConcat4("O", channelNo , command,"");
+
+     response = cmd + "id1234er00"+ response;
+
+//Trace("Test 3 : twisterFwCommand : response =>",response ,"<==");
+     	if(VerDef::SimulationMode) 
+	  	{
+			Trace("Test : twisterFwCommand or channelNo =>",channelNo,"<  command=>",command,"<  prm =>",prm,"<  simulated response =>",response ,"<==");
+	  		return(hslTrue);
+		}
+     response = VerTool::FwCommand( cmd, prm , hslFalse , ML_STAR ); 
+//Trace("Test 4 : twisterFwCommand  : response =>",response ,"<==");
+     if(errorCheck)
+     {
+         if(StrFind(response,"er00") < 0) return(hslFalse);
+     }
+     return(hslTrue);
+   }
+
+   //------------------------------------------------------------------------------
+   function calculateMeanValue(variable arrValues[]) variable
+   // calculate avarage value out of all array values except both extreme values
+	//------------------------------------------------------------------------------
+   { 
+      variable meanValue(0.0);
+      variable minValue(9999.9);
+      variable maxValue(-9999.9);
+      variable tempValue(0.0);
+      variable index(0);
+      variable sizeOfArray(0);
+
+      sizeOfArray = arrValues.GetSize();
+      if(sizeOfArray < 3) return(-9999);
+      
+      for ( index = 0; index < sizeOfArray ; index++)
+      {
+         tempValue = arrValues.GetAt(index);
+         meanValue = meanValue + tempValue;
+         if(maxValue < tempValue) maxValue = tempValue;
+         if(minValue > tempValue) minValue = tempValue;
+      }
+      sizeOfArray = 1.0*(sizeOfArray-2);
+      meanValue   = 1.0*(meanValue -maxValue -minValue)/sizeOfArray;
+
+Trace("Test: calculateMeanValue:  out of =>",arrValues.GetSize(),"< values:   meanValue =>",meanValue,"<    maxValue =>",maxValue,"<   minValue =>",minValue,"<===");
+
+      return(meanValue);
+   }
+	
+   //------------------------------------------------------------------------------
+   function Execute_TwisterVerification(device& ML_STAR)
+	//------------------------------------------------------------------------------
+   {
+      const variable gripHeight(2);  
+      variable channelPattern("");
+ //     variable arrStepReturn[];
+      variable channelNo;
+      variable prm(""), response;
+      variable rotResolution(76.0/39.0);  // rotation resolution [Inc/°]
+      variable channelOrientation(0);           // 0 = right channel orientation;  1 = left channel orientation (scanning in +X direction)
+      variable scannedBarcodePosition(0);       // [Inc]
+      variable scannedBarcode("");              //  scanned barcode
+      variable measurementNo(0);
+	   variable arrUpperBarcodePositions[];
+	   variable arrLowerBarcodePositions[];
+
+      for(channelNo = 1; channelNo <= VerDef::Twisters;channelNo++)
+//      for(channelNo = VerDef::Twisters; channelNo > 1; channelNo--)
+      {
+         // Request  channel orientation:  O1VY ==> VYyc1234 1
+         response = "yc1234 1";
+         twisterFwCommand(ML_STAR, channelNo, "VY","", hslFalse ,response); 
+			channelOrientation = IVal(StrMid(response, StrReverseFind(response,"yc") +7, 1)); 
+Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   channelOrientation=>",channelOrientation,"< ==");
+
+         // Request  S-Drive parameters  ==> VDad50000 00337as001403 00720
+         response = "ad50000 00337as000076 00039";
+         twisterFwCommand(ML_STAR, channelNo, "VD","", hslFalse ,response); 
+			rotResolution = 1.0 * FVal(StrMid(response, StrReverseFind(response,"as") +2, 6))/FVal(StrMid(response, StrReverseFind(response,"as") +8, 6)); 
+Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   rotResolution =>",rotResolution,"< ==");
+
+         // Open gripper drive (D-drive) : O4DAda66767
+         VerTool::FwCommand( "OXDA", "da35000" , hslFalse , ML_STAR );
+
+         channelPattern = VerTool::ChannelPattern(channelNo, 1, VerDef::Twisters );
+         //---------- Tube Twister Get Tool , gripped at 90°(Property "MlStarTubeTwisterTubeGetAngle" set at 90° )
+         ML_STAR._F23CA38D_2853_4787_88FB_EC6FA62F643C( "0fc36b8e_f5e9_4370_957e5ab3c6b4b645" ); // TubeTwisterGet
+
+         // --------  read and get position of barcode label 1   --------------------------
+  			// 
+         // Z-Position for read barcode => read range +264.5mm ... +344.5mm => gripped at top border of barcode label
+         // Z-resolution 0.01072765mm/Inc ==> 344.5mm = 32113 Inc
+         twisterFwCommand(ML_STAR, channelNo, "ZA","za32113", hslFalse ,response); 
+
+         measurementNo = 0;
+         arrUpperBarcodePositions.SetSize(0);
+	      arrLowerBarcodePositions.SetSize(0);
+
+         for(measurementNo=0 ;measurementNo < 5 ;measurementNo++)
+         {         
+               
+            // Preposition Rotation for Barcode 1, Position 1: O4SAsa00100  angle at +320° (left channel) resp. +140°
+            if(channelOrientation > 0) twisterFwCommand(ML_STAR, channelNo, "SA","sa00624", hslFalse ,response); 
+            else                       twisterFwCommand(ML_STAR, channelNo, "SA","sa00273", hslFalse ,response); 
+
+            // Read barode: O4SRsg00300st1su00100 : ==> O4SRid0229er00bb/07Check11
+            response = "bb/07Check11";
+            twisterFwCommand(ML_STAR, channelNo, "SR","sg00300st1su00050", hslFalse ,response); // negative direction
+            scannedBarcode = StrMid(response, StrReverseFind(response,"bb") +5, 8); 
+      	   arrScannedBarcode_1.SetAt(channelNo-1,scannedBarcode);
+      Trace("Test: Execute_TwisterVerification: channel =>",channelNo,"<    Barcode 1 at Position 1 =>",response,"<  scannedBarcode ==>", scannedBarcode,"<==");
+
+            // Get position: O4RS  ==> O4RSid0229rs+00023 +00022
+            response = "rs+00023 +00022";
+            twisterFwCommand(ML_STAR, channelNo, "RS","", hslFalse ,response); 
+   			scannedBarcodePosition = IVal(StrMid(response, StrReverseFind(response,"rs") +2, 6)); 
+      Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   Barcode 1 , Position #1 =>",response,"<  scannedBarcodePosition ==>", scannedBarcodePosition,"<==");
+            arrUpperBarcodePositions.AddAsLast(scannedBarcodePosition );
+            // Preposition Rotation for Barcode 1, Position 2 : O4SSss00100st1
+            twisterFwCommand(ML_STAR, channelNo, "SS","ss00100st1", hslFalse ,response); 
+         
+            // Read barode: O4SRsg00300st0su00100 : ==> O4SRid0229er00bb/07Check11
+            response = "bb/07Check11";
+            twisterFwCommand(ML_STAR, channelNo, "SR","sg00300st0su00050", hslFalse ,response); 
+            scannedBarcode = StrMid(response, StrReverseFind(response,"bb") +5, 8); 
+      Trace("Test: Execute_TwisterVerification: channel =>",channelNo,"<    Barcode 1 at Position 2: =>",response,"<  scannedBarcode ==>", scannedBarcode,"<==");
+            if(scannedBarcode != arrScannedBarcode_1.GetAt(channelNo-1)) arrScannedBarcode_1.SetAt(channelNo-1,VerDef::notDefined);
+
+             // Get position: O4RS  ==> O4RSid0229rs+00005 +00007
+            response = "rs+00005 +00007";        twisterFwCommand(ML_STAR, channelNo, "RS","", hslFalse ,response); 
+            twisterFwCommand(ML_STAR, channelNo, "RS","", hslFalse ,response); 
+   			scannedBarcodePosition = IVal(StrMid(response, StrReverseFind(response,"rs") +2, 6)); 
+      Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   Barcode 1 , Position #2 =>",response,"<  scannedBarcodePosition ==>", scannedBarcodePosition,"<==");
+            scannedBarcodePosition = 0.5* (scannedBarcodePosition + arrUpperBarcodePositions.GetAt(measurementNo)); // mean value of both label border [Inc]
+            arrUpperBarcodePositions.SetAt(measurementNo, scannedBarcodePosition ); // position of centerline of barcode label [Inc]
+   
+      Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   measurement loop =>",measurementNo+1,"<    Barcode Centerline Value=>",scannedBarcodePosition ,"< ==");
+         
+            // --------  read and get position of barcode label 2   --------------------------
+
+            // Preposition Rotation for Barcode 2, Position 1: O4SAsa00175 = 40° (left channel) resp. +220°
+            if(channelOrientation > 0) twisterFwCommand(ML_STAR, channelNo, "SA","sa00078", hslFalse ,response); 
+            else                       twisterFwCommand(ML_STAR, channelNo, "SA","sa00429", hslFalse ,response); 
+
+            // Read barode: O4SRsg00300st0su01000  ==> O4SRid0229er00bb/07Check12
+            response = "bb/07Check12";
+            twisterFwCommand(ML_STAR, channelNo, "SR","sg00300st0su01000", hslFalse ,response); 
+            scannedBarcode = StrMid(response, StrReverseFind(response,"bb") +5, 8); 
+        	   arrScannedBarcode_2.SetAt(channelNo-1,scannedBarcode);
+      Trace("Test: Execute_TwisterVerification: channel =>",channelNo,"<    Barcode 2 at Position 1 =>",response,"<  scannedBarcode ==>", scannedBarcode,"<==");
+
+            // Get position: O4RS  ==> O4RSid0229rs+00016 +00016
+            response = "rs+00016 +00016";
+            twisterFwCommand(ML_STAR, channelNo, "RS","", hslFalse ,response); 
+   			scannedBarcodePosition = IVal(StrMid(response, StrReverseFind(response,"rs") +2, 6)); 
+      Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   Barcode 2 , Position #1 =>",response,"<  scannedBarcodePosition ==>", scannedBarcodePosition,"<==");
+            arrLowerBarcodePositions.AddAsLast(scannedBarcodePosition );
+
+            //move to other side of label
+            twisterFwCommand(ML_STAR, channelNo, "SS","ss00100st0", hslFalse ,response); 
+            // Preposition Rotation for Barcode 2, Position 2 : O4SAsa00526  = 270° (left channel) resp. +90°
+   //         if(channelOrientation > 0) twisterFwCommand(ML_STAR, channelNo, "SA","sa00175", hslFalse ,response); 
+   //         else                       twisterFwCommand(ML_STAR, channelNo, "SA","sa00526", hslFalse ,response); 
+
+            // Read barode: O4SRsg00300st1su01000  : ==> O4SRid0229er00bb/07Check12
+            response = "bb/07Check12";
+            twisterFwCommand(ML_STAR, channelNo, "SR","sg00300st1su01000", hslFalse ,response); 
+            scannedBarcode = StrMid(response, StrReverseFind(response,"bb") +5, 8); 
+            if(scannedBarcode != arrScannedBarcode_2.GetAt(channelNo-1)) arrScannedBarcode_2.SetAt(channelNo-1,VerDef::notDefined);
+
+      Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   Barcode 2 , Position #2 =>",response,"<  scannedBarcode ==>", scannedBarcode,"<==");
+
+            // Get position: O4RS  ==> O4RSid0229rs+00016 +00016
+            response = "rs+00016 +00016";
+            twisterFwCommand(ML_STAR, channelNo, "RS","", hslFalse ,response); 
+   			scannedBarcodePosition = IVal(StrMid(response, StrReverseFind(response,"rs") +2, 6)); 
+      Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   Barcode 2 , Position #2 =>",response,"<  scannedBarcodePosition ==>", scannedBarcodePosition,"<==");
+            scannedBarcodePosition = 0.5* (scannedBarcodePosition + arrLowerBarcodePositions.GetAt(measurementNo)); // mean value of both label border [Inc]
+            arrLowerBarcodePositions.SetAt(measurementNo, scannedBarcodePosition ); // position of centerline of barcode label [Inc]
+         Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   measurement loop =>",measurementNo+1,"<    Barcode Centerline Value=>",scannedBarcodePosition ,"< ==");
+
+         }
+         // --------- Tube Twister: Place Tool     
+         ML_STAR._AE2217ED_4680_400b_AF51_22612D147191( "c4193176_02a9_4c18_908031b4b9d82a4d" ); // TubeTwisterPlace
+
+         // Close Gripper (Init Position) : O4DAda35000su01000
+         twisterFwCommand(ML_STAR, channelNo, "DA","da35000su01000", hslFalse ,response); 
+
+         // Initialize Z drive
+         twisterFwCommand(ML_STAR, channelNo, "ZI","", hslFalse ,response); 
+
+         // Calculate mean  measurement data [in °]
+         scannedBarcodePosition = calculateMeanValue(arrUpperBarcodePositions)/ rotResolution;
+         Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   Mean value of upper Barcode Label centerline position =>",scannedBarcodePosition ,"°< ==");
+         arrBarcodePositions.SetAt(channelNo-1, scannedBarcodePosition);
+
+         scannedBarcodePosition = calculateMeanValue(arrLowerBarcodePositions)/ rotResolution;
+         Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   Mean value of lower Barcode Label centerline position =>",scannedBarcodePosition ,"°< ==");
+
+      }
+   }   // -- end of function "Execute_TwisterVerification"
+
+	//------------------------------------------------------------------------------
+	// Evaluate data and generate report file
+	private function Evaluate()
+	//------------------------------------------------------------------------------
+	{
+		variable xsizeOfData, index, row;
+  		variable deviation, devValue, devString;
+		variable processSummaryState, channelProcessState;
+		variable SW_version("");
+		
+  		if(VerDef::SimulationMode ) 
+      {
+   		for(index = 0; index < VerDef::Twisters; index++) 
+         {
+            arrScannedBarcode_1.SetAt(index, bcCheck_1);
+      	   arrScannedBarcode_2.SetAt(index, bcCheck_2);
+      	   arrBarcodePositions.SetAt(index, nominalBarcodeReadPosition);
+         }
+      }
+		VerTool::displayArrayData(" Scanned Barcode Label 1:", arrScannedBarcode_1 );
+		VerTool::displayArrayData(" Scanned Barcode Label 2:", arrScannedBarcode_2 );
+		VerTool::displayArrayData(" Measured Barcode Positions:", arrBarcodePositions );
+
+		// Generate report file
+		//------------------------------------------------------------------------------
+			VerTool::CreateReportFile(RPD::reportTemplateFileName);
+
+			// ---  add general data
+			VerTool::WriteCell(4, 4,	VerDef::InstrumentName); 	 			// cell D4: instrument name 
+			VerTool::WriteCell(4, 5,	VerDef::InstrumentSerialNo); 			// cell D5: instrument serial no	
+			SW_version = VerDef::SWReleaseVersion + VerDef::FVK2_ReleaseVersion;
+			StrReplace(SW_version ,"%s1",moduleVersion);
+			VerTool::WriteCell(4, 6, 	SW_version );								// cell D6: user software version
+			VerTool::WriteCell(4, 7,	RPD::laboratoryName); 					// cell D7: laboratory name / location
+			VerTool::WriteCell(4, 8,	RPD::operatorName); 						// cell D8: operator name
+			VerTool::WriteCell(4, 9,	RPD::verifcationReason); 				// cell D9: reason for verification
+			VerTool::WriteCell(8, 4, 	GetDate("%Y-%m-%d"));					// cell H4: processed date
+			VerTool::WriteCell(8, 5, 	GetTime("%H:%M"));						// cell H5: processed time
+
+			VerTool::WriteCell(4, 12, 	RPD::twisterToolSerial);		      // cell D12: twister verification tool serial number
+//			VerTool::WriteCell(8, 12, 	RPD::twisterToolExpiryDate);		   // cell H12: twister verification tool expiry date
+			VerTool::WriteCell(7, 12, 	"");	                        	   // cell G12: no twister verification tool expiry date
+			VerTool::WriteCell(8, 12, 	"");	                        	   // cell H12: no twister verification tool expiry date
+
+
+//			VerTool::TraceArray(" --- barcode spec ---------", BC1::reportBarcode);
+//			VerTool::TraceArray(" --- readed barcode ---------", scannedBarcodeArray);			 
+
+			VerTool::WriteCell(2, 21, bcCheck_1);        // cell B21..: expected barcode 1
+			VerTool::WriteCell(4, 21, bcCheck_2);	      // cell D21..: expected barcode 2
+			VerTool::WriteCell(6, 21, StrConcat4("<= +/- ", VerTool::FormatNumber_PointAsDecimal(bcAlignmentDevLimit, 1)," °",""));	// cell F21..: barcode position limit
+
+		// evaluate barcode
+			row = 25;
+			processSummaryState = VerDef::passed;
+			for(index = 0; index < VerDef::Twisters ; index ++)
+			{ 
+				channelProcessState =  VerDef::passed;
+            // evaluate barcode 1
+				VerTool::WriteCell(2, row, arrScannedBarcode_1.GetAt(index));     // cell C21..: scanned barcode 1
+  				if(arrScannedBarcode_1.GetAt(index) != bcCheck_1) channelProcessState 	= VerDef::failed;
+            // evaluate barcode 2
+            VerTool::WriteCell(4, row, arrScannedBarcode_2.GetAt(index));	   // cell E21..: scanned barcode 2
+  				if(arrScannedBarcode_2.GetAt(index) != bcCheck_2) channelProcessState 	= VerDef::failed;
+            // evaluate barcode position: deviation of barcode label middle line (= measured value minus nominal value )
+            deviation = arrBarcodePositions.GetAt(index) - nominalBarcodeReadPosition;		
+		      if((deviation > -0.1) && (deviation < 0.1)) deviation = 0.0;
+      		if(deviation < -9000) 
+      		{ // no measured position values
+      			devString 	= VerDef::notDefined;
+      			devValue		= 2 * bcAlignmentDevLimit;
+      		}
+      		else
+      		{
+      			devString 	= VerTool::FormatNumber_PointAsDecimal(deviation, 1);
+      			devValue		= FVal(devString);
+      		}
+
+      		if(devValue < 0) devValue = -1.0 * devValue; 
+		      if(devValue > bcAlignmentDevLimit) channelProcessState 	= VerDef::failed;
+				VerTool::WriteCell(6, row, devString + " °");						   // cell G21..: barcode position
+
+  				VerTool::WriteCell(8, row, channelProcessState);						// cell H21..: status
+				if(channelProcessState 	== VerDef::failed) processSummaryState 	= VerDef::failed;
+
+				row = row + 2;
+			}
+         // empty cells of not installed twisters
+			for(index = VerDef::Twisters; index < 4 ; index ++)
+			{ 
+				VerTool::WriteCell(1, row, "");     // cell C21..: channel no
+				VerTool::WriteCell(2, row, "");     // cell C21..: scanned barcode 1
+				VerTool::WriteCell(4, row, "");	   // cell E21..: scanned barcode 2
+				VerTool::WriteCell(6, row, "");	   // cell E21..: barcode position
+				VerTool::WriteCell(8, row, "");		// cell G21..: status
+				row = row + 2;
+         }
+	
+		// ---  report  summary state
+			VerTool::WriteCell( 4, 16, processSummaryState); 	// cell D16: overall process status 
+
+		// ---  add pdf file information close to "header"
+			VerTool::WriteCell(4, 10, 	RPD::pdfReportFileName);	// cell D10: on first page 
+
+		if (processSummaryState == VerDef::passed) return(PS::successful);
+      else                                       return(PS::failed);
+
+	} // -- end of function "Evaluate"
+
+} // end of namespace
+
+//==============================================================================
+// main functions
+//==============================================================================
+
+	//------------------------------------------------------------------------------
+	function BarcodeVerification_Twisters(device ML_STAR)
+	//------------------------------------------------------------------------------
+	{
+		variable returnCode(0);
+		//variable arrRetValues[];
+		variable processState;
+
+		
+		if(VerDef::isIVD )	RPD::reportTemplateFileName ="Report_Twister_IVD_Ver";// Report_Twister_IVD_VerEnu.xls
+		else						RPD::reportTemplateFileName ="Report_Twister_Ver";		// Report_Twister_VerEnu.xls
+
+
+		// activate abort handler
+			RegisterAbortHandler("TwBC_1::OnRun_Abort");
+
+		// Initialize BC verification and display start dialog  "load barcode carrier" 
+		//------------------------------------------------------------------------------
+			TwBC_1::Load_VerificationToolDialog(ML_STAR);
+
+		// --------------------------------------------------------------------------
+		// Execute Twister verification
+			 TwBC_1::Execute_TwisterVerification(ML_STAR);
+
+		// Evaluate data and generate report file
+		//------------------------------------------------------------------------------
+			processState = TwBC_1::Evaluate();
+
+		// store status on instrument
+		//------------------------------------------------------------------------------
+			VerTool::StoreProcessDataOnInstrument(PID::Twister, processState, ML_STAR );
+
+		// Generate pdf file
+		//------------------------------------------------------------------------------
+			VerTool::GeneratePDF_File();
+
+		// End dialog
+		//------------------------------------------------------------------------------
+         TwBC_1::endTwisterVerification(ML_STAR, processState );
+	
+	}  // -- end of function "Barcode_Verification"
+
+//==============================================================================
+// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=acf52842$$length=088$$

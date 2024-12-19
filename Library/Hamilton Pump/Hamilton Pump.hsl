@@ -1,0 +1,1567 @@
+//***********************************************************************************************************************
+//*    _    _                 _ _ _                _____       _           _   _                                         
+//*   | |  | |               (_) | |              |  __ \     | |         | | (_)                                        
+//*   | |__| | __ _ _ __ ___  _| | |_ ___  _ __   | |__) |___ | |__   ___ | |_ _  ___ ___                                
+//*   |  __  |/ _` | '_ ` _ \| | | __/ _ \| '_ \  |  _  // _ \| '_ \ / _ \| __| |/ __/ __|                               
+//*   | |  | | (_| | | | | | | | | || (_) | | | | | | \ \ (_) | |_) | (_) | |_| | (__\__ \                               
+//*   |_|  |_|\__,_|_| |_| |_|_|_|\__\___/|_| |_| |_|  \_\___/|_.__/ \___/ \__|_|\___|___/                               
+//*                                                                                                                      
+//*
+//*   HSL driver to control the Hamilton Pump
+//*
+//*   Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+//*   All rights reserved.
+//*
+//***********************************************************************************************************************
+//*
+//*   Revision History:
+//*
+//*   2015-03-09    v1.0    BHuf            created
+//*   2015-03-25    v1.1    BHuf
+//*                         - changed Start function to store the approriate Stop command (CW and CCW differ in parameters)
+//*                         - changed Stop function to use the previously store command
+//*   2015-03-31    v1.2    BHuf
+//*                         - reference ML_STAR device in each function
+//*   2015-07-28    v1.3    BHuf
+//*                         - changed PWM parameter in function Start to use 24V instead of 41V
+//*                         - new function RequestSensor
+//*                         - new function SwitchValve
+//*   2015-07-29    v1.4    BHuf
+//*                         - changed function name RequestSensor to RequestWasteSensor and changed module command from RS to RH
+//*   2015-10-08    v1.5    BHuf
+//*                         - fixed bug in function Initialize
+//*   2015-11-11    v1.6    DKaufmann
+//*                         - extended liquidvalve enum --> allow no valve to start pump
+//*   2015-11-20    v1.7    DKaufmann
+//*                         - bugfix: enable stop pump without previous start
+//*   2016-06-06    v1.8    DKaufmann
+//*                         -BugFix StopCommand   
+//* 
+//***********************************************************************************************************************
+
+// device ML_STAR;
+
+#ifndef __Hamilton_Pump_hsl__
+  #define __Hamilton_Pump_hsl__  1
+
+  #ifndef __TraceLevel_hsl__
+    #include "ASWStandard\\TraceLevel\\TraceLevel.hsl"
+  #endif
+
+  #ifndef __ASWGLOBAL_hsl__
+    #include "ASWStandard\\ASWGlobal\\ASWGlobal.hsl"
+  #endif
+
+  #ifndef __Hamilton_SerialInterface_hsl__
+    #include "Hamilton SerialInterface\\Hamilton SerialInterface.hsl"
+  #endif
+
+  #ifndef __Hamilton_DriverTools_hsl__
+    #include "Hamilton DriverTools\\Hamilton DriverTools.hsl"
+  #endif
+
+  namespace Hamilton_Pump
+  {
+    //***********************************************************************************************************************
+    //* public declarations
+    //***********************************************************************************************************************
+    namespace Direction
+    {
+      const variable ClockWise                                              (1);
+      const variable CounterClockWise                                       (2);
+    }
+
+    namespace Valve
+    {
+      const variable Liquid_none                                            (0);
+      const variable Liquid_1                                               (1);
+      const variable Liquid_2                                               (2);
+      const variable Liquid_3                                               (3);
+    }
+
+    //***********************************************************************************************************************
+    //* private declarations
+    //***********************************************************************************************************************
+    const static variable PORT_MIN                                              (0); //Port 0 for CAN interface
+    const static variable PORT_MAX                                              (256);
+    const static variable SPEED_MIN                                             (10);
+    const static variable SPEED_MAX                                             (100);
+    const static variable SERIAL_MODULE_ID_MIN                                  (0);
+    const static variable SERIAL_MODULE_ID_MAX                                  (Hamilton_SerialInterface::MAXIMUM_MODULEID);
+    const static variable CAN_MODULE_ID_MIN                                     (100);
+    const static variable CAN_MODULE_ID_MAX                                     (131);
+    const static variable TIME_MIN                                              (1);
+    const static variable TIME_MAX                                              (999);
+    const static variable TEMPERATURE_MIN                                       (20);
+    const static variable TEMPERATURE_MAX                                       (200);
+
+    const static variable PORT_SETTINGS                                         ("9600,N,8,1,N,CR/LF");
+    const static variable LIBRARY_VERSION                                       ("v1.7");
+
+    const static variable ERROR_NO_ERROR                                        ("00");
+    const static variable ERROR_UNDEFINED_COMMAND                               ("30");
+    const static variable ERROR_UNDEFINED_PARAMETER                             ("31");
+    const static variable ERROR_PARAMETER_OUT_OF_RANGE                          ("32");
+    const static variable ERROR_COMMAND_NOT_RELEASED                            ("33");
+    const static variable ERROR_TEMP_SENSOR_NOT_ALIGNED                         ("40");
+    const static variable ERROR_X_INIT_POSITION_NOT_FOUND                       ("50");
+    const static variable ERROR_X_STEP_LOST                                     ("52");
+    const static variable ERROR_X_NOT_INITIALIZED                               ("53");
+    const static variable ERROR_Y_NOT_INITIALIZED                               ("54");
+    const static variable ERROR_Y_POSITIONING                                   ("55");
+    const static variable ERROR_Y_MOTOR_OVERLOAD                                ("56");
+
+    const static variable ERROR_MSG_NO_ERROR                                    ("No error");
+    const static variable ERROR_MSG_UNDEFINED_COMMAND                           ("Undefined command !");
+    const static variable ERROR_MSG_UNDEFINED_PARAMETER                         ("Undefined parameter !");
+    const static variable ERROR_MSG_PARAMETER_OUT_OF_RANGE                      ("Parameter out of range !");
+    const static variable ERROR_MSG_COMMAND_NOT_RELEASED                        ("Command not released");
+    const static variable ERROR_MSG_TEMP_SENSOR_NOT_ALIGNED                     ("Temperature Sensors are not adjusted");
+    const static variable ERROR_MSG_X_INIT_POSITION_NOT_FOUND                   ("Motor X: Init position not found !");
+    const static variable ERROR_MSG_X_STEP_LOST                                 ("Motor X: Step loss !");
+    const static variable ERROR_MSG_X_NOT_INITIALIZED                           ("Motor X: Not initialized !");
+    const static variable ERROR_MSG_Y_NOT_INITIALIZED                           ("Motor Y: Not initialized !");
+    const static variable ERROR_MSG_Y_POSITIONING                               ("Motor Y: Position error !");
+    const static variable ERROR_MSG_Y_MOTOR_OVERLOAD                            ("Motor Y: Overload");
+
+    //***********************************************************************************************************************
+    //* global declarations
+    //***********************************************************************************************************************
+    static global variable gHamilton_Pump_intTraceLevel                         (-1);
+    static global variable gHamilton_Pump_blnInitialized                        (hslFalse);
+    static global variable gHamilton_Pump_blnSimulationMode                     (hslTrue);
+    static global variable gHamilton_Pump_strLibraryName                        ("Hamilton Pump Module");
+    static global variable gHamilton_Pump_arrstrCANModuleNames[];
+    static global variable gHamilton_Pump_arrblnCANModuleSimulated[];
+    static global variable gHamilton_Pump_arrintCANModuleTraceLevel[];
+    static global variable gHamilton_Pump_arrstrCANStopCommands[];
+    static global variable gHamilton_Pump_arrstrSerialStopCommands[]            (Hamilton_SerialInterface::MAXIMUM_MODULEID);
+
+    //***********************************************************************************************************************
+    //* function declarations
+    //***********************************************************************************************************************
+    function Initialize(device ML_STAR,
+                        variable i_intComPort,
+                        variable i_strModuleName,
+                        variable i_blnSimulationMode,
+                        variable& o_intModuleID) variable;
+
+    function Terminate(device ML_STAR,
+                       variable i_intModuleID) variable;
+
+    function SetTraceLevel(variable i_intModuleID,
+                           variable i_intTraceLevel) variable;
+
+    function Start(device ML_STAR,
+                   variable i_intModuleID,
+                   variable i_intValve,
+                   variable i_intSpeed,
+                   variable i_intDirection,
+                   variable i_intTimeOut) variable;
+
+    function SwitchValve(device ML_STAR,
+                         variable i_intModuleID,
+                         variable i_intValve,
+                         variable i_blnActivate) variable;
+
+    function RequestWasteSensor(device ML_STAR,
+                                variable i_intModuleID,
+                                variable& o_blnActivated) variable;
+
+    function Stop(device ML_STAR,
+                  variable i_intModuleID) variable;
+
+    function Maintenance(device ML_STAR,
+                         variable i_intModuleID) variable;
+
+    //***********************************************************************************************************************
+    //* private function declarations
+    //***********************************************************************************************************************
+    private function _EvaluateErrorMessage(variable i_strErrorCode) variable;
+
+    private function _AddErrorDescriptions(variable& io_arrstrErrorCodes[]) void;
+
+    private function _CommandSequence(device ML_STAR,
+                                      variable i_intModuleID,
+                                      variable i_strCallingFunctionName,
+                                      variable i_arrstrCommands[],
+                                      variable& io_arrstrResponse[],
+                                      variable& o_arrstrErrorCodes[]) variable;
+
+    private function _SendFirmwareCommand(device ML_STAR,
+                                          variable strCommand,
+                                          variable strParameter,
+                                          variable i_blnSimulationMode,
+                                          variable i_intTraceLevel,
+                                          variable i_strCallingFunctionName,
+                                          variable& strResponse,
+                                          variable& strErrorCode) variable;
+
+    //***********************************************************************************************************************
+    //* function Initialize
+    //***********************************************************************************************************************
+    function Initialize(device ML_STAR,
+                        variable i_intComPort,
+                        variable i_strModuleName,
+                        variable i_blnSimulationMode,
+                        variable& o_intModuleID) variable
+    {
+      variable arrstrCommands[], arrstrResponses[], arrfltTimeouts[], arrstrErrorCodes[];
+      variable strFunctionName(""), strCommandID("");
+      variable intIndex(0);
+
+      if(Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intComPort,
+                                                 "i_intComPort",
+                                                 PORT_MIN,
+                                                 PORT_MAX,
+                                                 strFunctionName,
+                                                 gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckString(i_strModuleName,
+                                           "i_strModuleName",
+                                           strFunctionName,
+                                           gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckBool(i_blnSimulationMode,
+                                         "i_blnSimulationMode",
+                                         strFunctionName,
+                                         gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(gHamilton_Pump_intTraceLevel < 0) gHamilton_Pump_intTraceLevel = TRACELEVEL::GetTraceLevel();
+      
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        LIBRARY_VERSION +
+                                        ", i_intComPort = " + IStr(i_intComPort) +
+                                        ", i_strModuleName = '" + i_strModuleName + "'" +
+                                        ", i_blnSimulationMode = " + IStr(i_blnSimulationMode),
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      gHamilton_Pump_blnSimulationMode = i_blnSimulationMode;
+
+      //InitializeStopcommand Array with string.Empty (required for stop cmd)
+      for(intIndex = 0; intIndex < gHamilton_Pump_arrstrSerialStopCommands.GetSize(); intIndex++)
+      {
+         gHamilton_Pump_arrstrSerialStopCommands.SetAt(intIndex, "");
+      }
+
+      // Initialize module
+      arrstrCommands.AddAsLast("RF");
+      arrstrCommands.AddAsLast("ITitXHS YNO");
+      arrstrCommands.AddAsLast("YIys000200yv00200yr005000");
+    
+      arrfltTimeouts.AddAsLast(2.0);
+      arrfltTimeouts.AddAsLast(2.0);
+      arrfltTimeouts.AddAsLast(2.0);
+
+      arrstrResponses.AddAsLast("RFer00 - simulated -");
+      arrstrResponses.AddAsLast("ITer00 - simulated -");
+      arrstrResponses.AddAsLast("YIer00 - simulated -");
+
+      if(i_intComPort == 0)
+      {
+        // check, if module has been used before
+        o_intModuleID = Hamilton_DriverTools::FindInArray(gHamilton_Pump_arrstrCANModuleNames,
+                                                          i_strModuleName,
+                                                          strFunctionName,
+                                                          gHamilton_Pump_strLibraryName);
+        if (o_intModuleID == -1)
+        {
+          gHamilton_Pump_arrstrCANModuleNames.AddAsLast(i_strModuleName);
+          gHamilton_Pump_arrblnCANModuleSimulated.AddAsLast(i_blnSimulationMode);
+          gHamilton_Pump_arrintCANModuleTraceLevel.AddAsLast(gHamilton_Pump_intTraceLevel);
+          gHamilton_Pump_arrstrCANStopCommands.AddAsLast("");
+          o_intModuleID = gHamilton_Pump_arrstrCANModuleNames.GetSize() + 99;
+        }
+        else
+        {
+          gHamilton_Pump_arrblnCANModuleSimulated.SetAt(o_intModuleID, i_blnSimulationMode);
+          o_intModuleID = o_intModuleID + 100;
+        }
+
+        if(!_CommandSequence(ML_STAR,
+                             o_intModuleID,
+                             strFunctionName,
+                             arrstrCommands,
+                             arrstrResponses,
+                             arrstrErrorCodes))
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+
+      }
+      else
+      {
+        if(Hamilton_SerialInterface::InitializeModule(i_intComPort,
+                                                      PORT_SETTINGS,
+                                                      i_strModuleName,
+                                                      i_blnSimulationMode,
+                                                      ASWGLOBAL::BOOL::TRUE,
+                                                      arrstrCommands,
+                                                      arrfltTimeouts,
+                                                      o_intModuleID,
+                                                      arrstrResponses,
+                                                      arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+        if(gHamilton_Pump_intTraceLevel == TRACE_LEVEL_DEBUG) Hamilton_SerialInterface::ShowUsage();
+      }
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START, TRACE_LEVEL_DEBUG,
+                                        "FirmWare Version = " + arrstrResponses.ElementAt(0),
+                                        strFunctionName, gHamilton_Pump_intTraceLevel, gHamilton_Pump_strLibraryName);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_intModuleID = " + IStr(o_intModuleID),
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // Initialize
+
+    //**********************************************************************************************************************
+    //* function Terminate
+    //***********************************************************************************************************************
+    function Terminate(device ML_STAR,
+                       variable i_intModuleID) variable
+    {
+      variable arrstrCommands[], arrstrResponses[], arrfltTimeouts[], arrstrErrorCodes[];
+      variable strFunctionName("");
+
+      if(Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+     if(Hamilton_DriverTools::CheckInteger(i_intModuleID,
+                                           "i_intModuleID",
+                                           strFunctionName,
+                                           gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(i_intModuleID > SERIAL_MODULE_ID_MAX)
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   CAN_MODULE_ID_MIN,
+                                                   CAN_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+      else
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   SERIAL_MODULE_ID_MIN,
+                                                   SERIAL_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_intModuleID = " + IStr(i_intModuleID),
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      // terminate module
+      arrstrCommands.AddAsLast("PCpc1");
+      arrstrCommands.AddAsLast("PCpc2");
+      arrstrCommands.AddAsLast("PCpc3");
+
+      arrfltTimeouts.AddAsLast(2.0);
+      arrfltTimeouts.AddAsLast(2.0);
+      arrfltTimeouts.AddAsLast(2.0);
+
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+
+      if(i_intModuleID > 99)
+      {
+        if(_CommandSequence(ML_STAR,
+                            i_intModuleID,
+                            strFunctionName,
+                            arrstrCommands,
+                            arrstrResponses,
+                            arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        } 
+      }
+      else
+      {
+        if(Hamilton_SerialInterface::TransmitCommandList(i_intModuleID,
+                                                         arrstrCommands,
+                                                         arrfltTimeouts,
+                                                         arrstrResponses,
+                                                         arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                    "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+        if(Hamilton_SerialInterface::TerminateModule(i_intModuleID,
+                                                     ASWGLOBAL::BOOL::TRUE,
+                                                     ASWGLOBAL::BOOL::TRUE,
+                                                     arrstrCommands,
+                                                     arrfltTimeouts,
+                                                     arrstrResponses,
+                                                     arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      if(i_intModuleID < 99 && gHamilton_Pump_intTraceLevel == TRACE_LEVEL_DEBUG) Hamilton_SerialInterface::ShowUsage();
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // Terminate
+
+    //***********************************************************************************************************************
+    //* function SetTraceLevel
+    //***********************************************************************************************************************
+    function SetTraceLevel(variable i_intModuleID,
+                           variable i_intTraceLevel) variable
+    {
+      variable strFunctionName("");
+
+      if(Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+     if(Hamilton_DriverTools::CheckInteger(i_intModuleID,
+                                           "i_intModuleID",
+                                           strFunctionName,
+                                           gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(i_intModuleID > SERIAL_MODULE_ID_MAX)
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   CAN_MODULE_ID_MIN,
+                                                   CAN_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+      else
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   SERIAL_MODULE_ID_MIN,
+                                                   SERIAL_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intTraceLevel,
+                                                 "i_intTraceLevel",
+                                                 TRACE_LEVEL_RELEASE,
+                                                 TRACE_LEVEL_DEBUG,
+                                                 strFunctionName,
+                                                 gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_intModuleID = " + IStr(i_intModuleID) +
+                                        ", i_intTraceLevel = " + IStr(i_intTraceLevel),
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      // set library tracelevel
+      gHamilton_Pump_intTraceLevel = i_intTraceLevel;
+
+      // set tracelevel for communication module
+      if(i_intModuleID > 99)
+        gHamilton_Pump_arrintCANModuleTraceLevel.SetAt(i_intModuleID - 100, i_intTraceLevel);
+      else
+        Hamilton_SerialInterface::SetTraceLevel(i_intModuleID, i_intTraceLevel);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                        TRACE_LEVEL_NONE,
+                                        "",
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // SetTraceLevel
+
+    //***********************************************************************************************************************
+    //* function Start
+    //***********************************************************************************************************************
+    function Start(device ML_STAR,
+                   variable i_intModuleID,
+                   variable i_intValve,
+                   variable i_intSpeed,
+                   variable i_intDirection,
+                   variable i_intTimeOut) variable
+    {
+      variable intSpeed(0);
+      variable arrstrCommands[], arrstrResponses[], arrfltTimeouts[], arrstrErrorCodes[];
+      variable strFunctionName(""), strCommand (""), strStopCommand("");
+
+      if(Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+     if(Hamilton_DriverTools::CheckInteger(i_intModuleID,
+                                           "i_intModuleID",
+                                           strFunctionName,
+                                           gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(i_intModuleID > SERIAL_MODULE_ID_MAX)
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   CAN_MODULE_ID_MIN,
+                                                   CAN_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+      else
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   SERIAL_MODULE_ID_MIN,
+                                                   SERIAL_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intValve,
+                                                 "i_intValve",
+                                                 Valve::Liquid_none,
+                                                 Valve::Liquid_3,
+                                                 strFunctionName,
+                                                 gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intSpeed,
+                                                 "i_intSpeed",
+                                                 SPEED_MIN,
+                                                 SPEED_MAX,
+                                                 strFunctionName,
+                                                 gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intDirection,
+                                                 "i_intDirection",
+                                                 Direction::ClockWise,
+                                                 Direction::CounterClockWise,
+                                                 strFunctionName,
+                                                 gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intTimeOut,
+                                                 "i_intTimeOut",
+                                                 TIME_MIN,
+                                                 TIME_MAX,
+                                                 strFunctionName,
+                                                 gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_intModuleID = " + IStr(i_intModuleID) +
+                                        ", i_intValve = " + IStr(i_intValve) +
+                                        ", i_intSpeed = " + IStr(i_intSpeed) +
+                                        ", i_intDirection = " + IStr(i_intDirection) +
+                                        ", i_intTimeOut = " + IStr(i_intTimeOut),
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      strCommand ="";
+
+      if(i_intDirection == Direction::ClockWise)
+      {
+        strCommand = "YRys-00100yv";
+        strStopCommand = "YRys-00100yv00100yr000200ye0";
+      }
+      else
+      {
+        strCommand = "YRys+00100yv";
+        strStopCommand = "YRys+00100yv00100yr000200ye0";
+      }
+
+//      strCommand = strCommand + Hamilton_DriverTools::FillLeft(IStr((690 * i_intSpeed + 10000) / 100),
+//                                                               "0",
+//                                                                5,
+//                                                                strFunctionName,
+//                                                                gHamilton_Pump_strLibraryName);
+
+      strCommand = strCommand + Hamilton_DriverTools::FillLeft(IStr((380 * i_intSpeed + 10000)/100),
+                                                               "0",
+                                                                5,
+                                                                strFunctionName,
+                                                                gHamilton_Pump_strLibraryName);
+
+      strCommand = strCommand + "yr002000";
+
+      strCommand = strCommand + "pt" + Hamilton_DriverTools::FillLeft(IStr(i_intTimeOut),
+                                                                      "0",
+                                                                      3,
+                                                                      strFunctionName,
+                                                                      gHamilton_Pump_strLibraryName);
+
+      strCommand = strCommand + "ye1";
+
+      //Array of Commands
+      if(i_intValve != Valve::Liquid_none)
+      {
+        if(i_intValve != 1) arrstrCommands.AddAsLast("PCpc1");
+        if(i_intValve != 2) arrstrCommands.AddAsLast("PCpc2");
+        if(i_intValve != 3) arrstrCommands.AddAsLast("PCpc3");
+        arrstrCommands.AddAsLast("PSps" + IStr(i_intValve));
+
+        arrfltTimeouts.AddAsLast(2.0);
+        arrfltTimeouts.AddAsLast(2.0);
+        arrfltTimeouts.AddAsLast(2.0);
+
+        arrstrResponses.AddAsLast("PCer00 - simulated -");
+        arrstrResponses.AddAsLast("PCer00 - simulated -");
+        arrstrResponses.AddAsLast("PSer00 - simulated -");
+      }
+
+      arrstrCommands.AddAsLast(strCommand);
+      arrfltTimeouts.AddAsLast(2.0);
+      arrstrResponses.AddAsLast("YRer00 - simulated -");
+
+      if(i_intModuleID > 99)
+      {
+        gHamilton_Pump_arrstrCANStopCommands.SetAt(i_intModuleID - 100, strStopCommand);
+        if(_CommandSequence(ML_STAR,
+                            i_intModuleID,
+                            strFunctionName,
+                            arrstrCommands,
+                            arrstrResponses,
+                            arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        } 
+      }
+      else
+      {
+        gHamilton_Pump_arrstrSerialStopCommands.SetAt(i_intModuleID, strStopCommand);
+        if(Hamilton_SerialInterface::TransmitCommandList(i_intModuleID,
+                                                         arrstrCommands,
+                                                         arrfltTimeouts,
+                                                         arrstrResponses,
+                                                         arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                    "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // Start
+
+    //***********************************************************************************************************************
+    //* function SwitchValve
+    //***********************************************************************************************************************
+    function SwitchValve(device ML_STAR,
+                         variable i_intModuleID,
+                         variable i_intValve,
+                         variable i_blnActivate) variable
+    {
+      variable arrstrCommands[], arrstrResponses[], arrfltTimeouts[], arrstrErrorCodes[];
+      variable strFunctionName("");
+
+      if(Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+     if(Hamilton_DriverTools::CheckInteger(i_intModuleID,
+                                           "i_intModuleID",
+                                           strFunctionName,
+                                           gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(i_intModuleID > SERIAL_MODULE_ID_MAX)
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   CAN_MODULE_ID_MIN,
+                                                   CAN_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+      else
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   SERIAL_MODULE_ID_MIN,
+                                                   SERIAL_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intValve,
+                                                 "i_intValve",
+                                                 Valve::Liquid_none,
+                                                 Valve::Liquid_3,
+                                                 strFunctionName,
+                                                 gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckBool(i_blnActivate,
+                                        "i_blnActivate",
+                                        strFunctionName,
+                                        gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_intModuleID = " + IStr(i_intModuleID) +
+                                        ", i_intValve = " + IStr(i_intValve) +
+                                        ", i_blnActivate = " + IStr(i_blnActivate),
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      //Array of Commands
+      if(i_blnActivate == ASWGLOBAL::BOOL::TRUE)
+      {
+        arrstrCommands.AddAsLast("PSps" + IStr(i_intValve));
+      arrstrResponses.AddAsLast("PSer00 - simulated -");
+      }
+      else
+      {
+        arrstrCommands.AddAsLast("PCpc" + IStr(i_intValve));
+        arrstrResponses.AddAsLast("PCer00 - simulated -");
+      }
+
+      arrfltTimeouts.AddAsLast(2.0);
+
+      if(i_intModuleID > 99)
+      {
+        if(_CommandSequence(ML_STAR,
+                            i_intModuleID,
+                            strFunctionName,
+                            arrstrCommands,
+                            arrstrResponses,
+                            arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        } 
+      }
+      else
+      {
+        if(Hamilton_SerialInterface::TransmitCommandList(i_intModuleID,
+                                                         arrstrCommands,
+                                                         arrfltTimeouts,
+                                                         arrstrResponses,
+                                                         arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                    "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // SwitchValve
+
+    //***********************************************************************************************************************
+    //* function RequestWasteSensor
+    //***********************************************************************************************************************
+    function RequestWasteSensor(device ML_STAR,
+                                variable i_intModuleID,
+                                variable& o_blnActivated) variable
+    {
+      variable intSpeed(0);
+      variable arrstrCommands[], arrstrResponses[], arrfltTimeouts[], arrstrErrorCodes[];
+      variable strFunctionName("");
+      string strTemp("");
+
+      if(Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+     if(Hamilton_DriverTools::CheckInteger(i_intModuleID,
+                                           "i_intModuleID",
+                                           strFunctionName,
+                                           gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(i_intModuleID > SERIAL_MODULE_ID_MAX)
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   CAN_MODULE_ID_MIN,
+                                                   CAN_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+      else
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   SERIAL_MODULE_ID_MIN,
+                                                   SERIAL_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_intModuleID = " + IStr(i_intModuleID),
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      //Array of Commands
+      arrstrCommands.AddAsLast("RH");
+
+      arrfltTimeouts.AddAsLast(2.0);
+
+      arrstrResponses.AddAsLast("RHer00 - simulated - 0");
+
+      if(i_intModuleID > 99)
+      {
+        if(_CommandSequence(ML_STAR,
+                            i_intModuleID,
+                            strFunctionName,
+                            arrstrCommands,
+                            arrstrResponses,
+                            arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        } 
+      }
+      else
+      {
+        if(Hamilton_SerialInterface::TransmitCommandList(i_intModuleID,
+                                                         arrstrCommands,
+                                                         arrfltTimeouts,
+                                                         arrstrResponses,
+                                                         arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                    "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      strTemp = arrstrResponses.GetAt(0);
+
+      if(strTemp.Right(1) == "1")
+        o_blnActivated = ASWGLOBAL::BOOL::TRUE;
+      else
+        o_blnActivated = ASWGLOBAL::BOOL::FALSE;
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_blnActivated = " + IStr(o_blnActivated),
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // RequestWasteSensor
+
+    //***********************************************************************************************************************
+    //* function Stop
+    //***********************************************************************************************************************
+    function Stop(device ML_STAR,
+                  variable i_intModuleID) variable
+    {
+      variable intSpeed(0);
+      variable arrstrCommands[], arrstrResponses[], arrfltTimeouts[], arrstrErrorCodes[];
+      variable strFunctionName("");
+
+      if(Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+     if(Hamilton_DriverTools::CheckInteger(i_intModuleID,
+                                           "i_intModuleID",
+                                           strFunctionName,
+                                           gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(i_intModuleID > SERIAL_MODULE_ID_MAX)
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   CAN_MODULE_ID_MIN,
+                                                   CAN_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+      else
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   SERIAL_MODULE_ID_MIN,
+                                                   SERIAL_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_intModuleID = " + IStr(i_intModuleID),
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      //Array of Commands
+      if(i_intModuleID > 99)
+      {
+        if(gHamilton_Pump_arrstrCANStopCommands.GetAt(i_intModuleID - 100) != "")
+        {
+          arrstrCommands.AddAsLast(gHamilton_Pump_arrstrCANStopCommands.GetAt(i_intModuleID - 100));
+          arrfltTimeouts.AddAsLast(5.0);
+          arrstrResponses.AddAsLast("YRer00 - simulated -");
+          gHamilton_Pump_arrstrCANStopCommands.SetAt(i_intModuleID - 100, "");
+        }
+      }
+      else 
+      {
+        if(gHamilton_Pump_arrstrSerialStopCommands.GetAt(i_intModuleID) != "")
+        {
+          arrstrCommands.AddAsLast(gHamilton_Pump_arrstrSerialStopCommands.GetAt(i_intModuleID));
+          arrfltTimeouts.AddAsLast(5.0);
+          arrstrResponses.AddAsLast("YRer00 - simulated -");
+          gHamilton_Pump_arrstrSerialStopCommands.SetAt(i_intModuleID, "");
+        }
+      }
+
+      arrstrCommands.AddAsLast("PCpc1");
+      arrstrCommands.AddAsLast("PCpc2");
+      arrstrCommands.AddAsLast("PCpc3");
+
+      arrfltTimeouts.AddAsLast(2.0);
+      arrfltTimeouts.AddAsLast(2.0);
+      arrfltTimeouts.AddAsLast(5.0);
+
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+
+      if(i_intModuleID > 99)
+      {
+        if(_CommandSequence(ML_STAR,
+                            i_intModuleID,
+                            strFunctionName,
+                            arrstrCommands,
+                            arrstrResponses,
+                            arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        } 
+      }
+      else
+      {
+        if(Hamilton_SerialInterface::TransmitCommandList(i_intModuleID,
+                                                         arrstrCommands,
+                                                         arrfltTimeouts,
+                                                         arrstrResponses,
+                                                         arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                    "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // Stop
+
+    //***********************************************************************************************************************
+    //* function Maintenance
+    //***********************************************************************************************************************
+    function Maintenance(device ML_STAR,
+                         variable i_intModuleID) variable
+    {
+      variable arrstrCommands[], arrstrResponses[], arrfltTimeouts[], arrstrErrorCodes[];
+      variable strFunctionName("");
+
+      if(Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+     if(Hamilton_DriverTools::CheckInteger(i_intModuleID,
+                                           "i_intModuleID",
+                                           strFunctionName,
+                                           gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(i_intModuleID > SERIAL_MODULE_ID_MAX)
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   CAN_MODULE_ID_MIN,
+                                                   CAN_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+      else
+      {
+        if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                   "i_intModuleID",
+                                                   SERIAL_MODULE_ID_MIN,
+                                                   SERIAL_MODULE_ID_MAX,
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+      }
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_intModuleID = " + IStr(i_intModuleID),
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      //Array of Commands
+      arrstrCommands.AddAsLast("PCpc1");
+      arrstrCommands.AddAsLast("PCpc2");
+      arrstrCommands.AddAsLast("PCpc3");
+      arrstrCommands.AddAsLast("PSps1");
+
+      arrfltTimeouts.AddAsLast(2.0);
+      arrfltTimeouts.AddAsLast(2.0);
+      arrfltTimeouts.AddAsLast(2.0);
+      arrfltTimeouts.AddAsLast(2.0);
+
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+      arrstrResponses.AddAsLast("PSer00 - simulated -");
+
+      if(i_intModuleID > 99)
+      {
+        if(_CommandSequence(ML_STAR,
+                            i_intModuleID,
+                            strFunctionName,
+                            arrstrCommands,
+                            arrstrResponses,
+                            arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        } 
+      }
+      else
+      {
+        if(Hamilton_SerialInterface::TransmitCommandList(i_intModuleID,
+                                                         arrstrCommands,
+                                                         arrfltTimeouts,
+                                                         arrstrResponses,
+                                                         arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                    "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      MessageBox("Valve 1 is open now.\n\nRemove/Insert tube, then click OK", "Maintenance", hslOKOnly | hslInformation, hslInfinite);
+
+      arrstrCommands.SetSize(0);
+      arrstrCommands.AddAsLast("PCpc1");
+      arrstrCommands.AddAsLast("PSps2");
+
+      arrfltTimeouts.SetSize(0);
+      arrfltTimeouts.AddAsLast(2.0);
+      arrfltTimeouts.AddAsLast(2.0);
+
+      arrstrResponses.SetSize(0);
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+      arrstrResponses.AddAsLast("PSer00 - simulated -");
+
+      if(i_intModuleID > 99)
+      {
+        if(_CommandSequence(ML_STAR,
+                            i_intModuleID,
+                            strFunctionName,
+                            arrstrCommands,
+                            arrstrResponses,
+                            arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        } 
+      }
+      else
+      {
+        if(Hamilton_SerialInterface::TransmitCommandList(i_intModuleID,
+                                                         arrstrCommands,
+                                                         arrfltTimeouts,
+                                                         arrstrResponses,
+                                                         arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                    "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      MessageBox("Valve 2 is open now.\n\nRemove/Insert tube, the click OK", "Maintenance", hslOKOnly | hslInformation, hslInfinite);
+
+      arrstrCommands.SetSize(0);
+      arrstrCommands.AddAsLast("PCpc2");
+      arrstrCommands.AddAsLast("PSps3");
+
+      arrfltTimeouts.SetSize(0);
+      arrfltTimeouts.AddAsLast(2.0);
+      arrfltTimeouts.AddAsLast(2.0);
+
+      arrstrResponses.SetSize(0);
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+      arrstrResponses.AddAsLast("PSer00 - simulated -");
+
+      if(i_intModuleID > 99)
+      {
+        if(_CommandSequence(ML_STAR,
+                            i_intModuleID,
+                            strFunctionName,
+                            arrstrCommands,
+                            arrstrResponses,
+                            arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        } 
+      }
+      else
+      {
+        if(Hamilton_SerialInterface::TransmitCommandList(i_intModuleID,
+                                                         arrstrCommands,
+                                                         arrfltTimeouts,
+                                                         arrstrResponses,
+                                                         arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                    "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      MessageBox("Valve 3 is open now.\n\nRemove/Insert tube, the click OK", "Maintenance", hslOKOnly | hslInformation, hslInfinite);
+
+      arrstrCommands.SetSize(0);
+      arrstrCommands.AddAsLast("PCpc3");
+
+      arrfltTimeouts.SetSize(0);
+      arrfltTimeouts.AddAsLast(2.0);
+
+      arrstrResponses.SetSize(0);
+      arrstrResponses.AddAsLast("PCer00 - simulated -");
+
+      if(i_intModuleID > 99)
+      {
+        if(_CommandSequence(ML_STAR,
+                            i_intModuleID,
+                            strFunctionName,
+                            arrstrCommands,
+                            arrstrResponses,
+                            arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                     "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        } 
+      }
+      else
+      {
+        if(Hamilton_SerialInterface::TransmitCommandList(i_intModuleID,
+                                                         arrstrCommands,
+                                                         arrfltTimeouts,
+                                                         arrstrResponses,
+                                                         arrstrErrorCodes) == ASWGLOBAL::BOOL::FALSE)
+        {
+          _AddErrorDescriptions(arrstrErrorCodes);
+          Hamilton_DriverTools::TraceArrayFaceToFace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                                     TRACE_LEVEL_RELEASE,
+                                                     "Command",
+                                                     arrstrCommands,
+                                                    "returned",
+                                                     arrstrErrorCodes,
+                                                     strFunctionName,
+                                                     gHamilton_Pump_intTraceLevel,
+                                                     gHamilton_Pump_strLibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // Maintenance
+
+    //***********************************************************************************************************************
+    //* private function _EvaluateErrorMessage
+    //***********************************************************************************************************************
+    private function _EvaluateErrorMessage(variable i_strErrorCode) variable
+    {
+      variable strErrorDescription("");
+
+      if(Hamilton_SerialInterface::EvaluateError(i_strErrorCode, strErrorDescription))  return(strErrorDescription);
+      if(i_strErrorCode == ERROR_NO_ERROR)                                              return(ERROR_MSG_NO_ERROR);
+      if(i_strErrorCode == ERROR_UNDEFINED_COMMAND)                                     return(ERROR_MSG_UNDEFINED_COMMAND);
+      if(i_strErrorCode == ERROR_UNDEFINED_PARAMETER)                                   return(ERROR_MSG_UNDEFINED_PARAMETER);
+      if(i_strErrorCode == ERROR_PARAMETER_OUT_OF_RANGE)                                return(ERROR_MSG_PARAMETER_OUT_OF_RANGE);
+      if(i_strErrorCode == ERROR_X_INIT_POSITION_NOT_FOUND)                             return(ERROR_MSG_X_INIT_POSITION_NOT_FOUND);
+      if(i_strErrorCode == ERROR_X_STEP_LOST)                                           return(ERROR_MSG_X_STEP_LOST);
+      if(i_strErrorCode == ERROR_X_NOT_INITIALIZED)                                     return(ERROR_MSG_X_NOT_INITIALIZED);
+      if(i_strErrorCode == ERROR_Y_NOT_INITIALIZED)                                     return(ERROR_MSG_Y_NOT_INITIALIZED);
+      if(i_strErrorCode == ERROR_Y_POSITIONING)                                         return(ERROR_MSG_Y_POSITIONING);
+      if(i_strErrorCode == ERROR_COMMAND_NOT_RELEASED)                                  return(ERROR_MSG_COMMAND_NOT_RELEASED);
+      if(i_strErrorCode == ERROR_TEMP_SENSOR_NOT_ALIGNED)                               return(ERROR_MSG_TEMP_SENSOR_NOT_ALIGNED);
+      if(i_strErrorCode == ERROR_Y_POSITIONING)                                         return(ERROR_MSG_Y_POSITIONING);
+      if(i_strErrorCode == ERROR_Y_MOTOR_OVERLOAD)                                      return(ERROR_MSG_Y_MOTOR_OVERLOAD);
+      return("Unknown error number");
+    } // _EvaluateErrorMessage
+
+    //***********************************************************************************************************************
+    //* private function _AddErrorDescriptions
+    //***********************************************************************************************************************
+    private function _AddErrorDescriptions(variable& io_arrstrErrorCodes[]) void
+    {
+      variable intLoopCounterErrorCodes(0);
+      variable strActualErrorCode("");
+
+      for(intLoopCounterErrorCodes = 0; intLoopCounterErrorCodes < io_arrstrErrorCodes.GetSize(); intLoopCounterErrorCodes++)
+      {
+        strActualErrorCode = io_arrstrErrorCodes.GetAt(intLoopCounterErrorCodes);
+        io_arrstrErrorCodes.SetAt(intLoopCounterErrorCodes,  strActualErrorCode + " --> " + _EvaluateErrorMessage(strActualErrorCode));
+      }
+    } // _AddErrorDescriptions
+
+    //***********************************************************************************************************************
+    //* private function _CommandSequence
+    //***********************************************************************************************************************
+    private function _CommandSequence(device ML_STAR,
+                                      variable i_intModuleID,
+                                      variable i_strCallingFunctionName,
+                                      variable i_arrstrCommands[],
+                                      variable& o_arrstrResponses[],
+                                      variable& o_arrstrErrorCodes[]) variable
+    {
+      variable intActualCommand, strResponse, strErrorCode;
+      string strCommand, strParameter, strTmp, strModuleName;
+
+      strModuleName = gHamilton_Pump_arrstrCANModuleNames.GetAt(i_intModuleID - 100);
+
+      for(intActualCommand = 0; intActualCommand < i_arrstrCommands.GetSize(); intActualCommand++)
+      {
+        strResponse = o_arrstrResponses.GetAt(intActualCommand);
+        strTmp = i_arrstrCommands.GetAt(intActualCommand); //Get next Command
+        strCommand = strModuleName + strTmp.Mid(0, 2); //extract command
+        strParameter = strTmp.Mid(2, strTmp.GetLength()); //extract parameter
+
+        if(!_SendFirmwareCommand(ML_STAR,
+                                 strCommand,
+                                 strParameter,
+                                 gHamilton_Pump_arrblnCANModuleSimulated.GetAt(i_intModuleID - 100),
+                                 gHamilton_Pump_arrintCANModuleTraceLevel.GetAt(i_intModuleID - 100),
+                                 i_strCallingFunctionName,
+                                 strResponse,
+                                 strErrorCode)) return(hslFalse);
+        o_arrstrResponses.SetAt(intActualCommand, strResponse);
+      }
+      return (hslTrue);
+    } // _CommandSequence
+
+    //***********************************************************************************************************************
+    //* private function _SendFirmwareCommand
+    //***********************************************************************************************************************
+    private function _SendFirmwareCommand(device ML_STAR,
+                                          variable i_strCommand,
+                                          variable i_strParameter,
+                                          variable i_blnSimulationMode,
+                                          variable i_intTraceLevel,
+                                          variable i_strCallingFunctionName,
+                                          variable& o_strResponse,
+                                          variable& o_strErrorCode) variable
+    {
+      variable intIndex;
+      variable arrstrFirmwareReturnValues[];
+      string strReturnValue;
+      variable strFunctionName("");
+
+      if(Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamilton_Pump_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      strFunctionName = i_strCallingFunctionName + " - " + strFunctionName;
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_strCommand = '" + i_strCommand + "'" +
+                                        ", i_strParameter = '" + i_strParameter + "'" +
+                                        ", i_blnSimulationMode = " + IStr(i_blnSimulationMode) +
+                                        ", i_intTraceLevel = " + IStr(i_intTraceLevel),
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+
+      if(!i_blnSimulationMode)
+      {
+        arrstrFirmwareReturnValues = ML_STAR._1FB5DA01_3ACB_11d4_AE1F_0004ACB1DCB2( "95a980c9_6302_4eb0_9e4bc94fcc717802" ); // FirmwareCommand
+
+        if(arrstrFirmwareReturnValues.GetSize() < 4)
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Firmware command returned unsuccessful!",
+                                            strFunctionName,
+                                            i_intTraceLevel,
+                                            gHamilton_Pump_strLibraryName);
+          return(hslFalse);
+        }
+
+        Hamilton_DriverTools::StatusTraceArray(Hamilton_DriverTools::ACTION::PROGRESS,
+                                               TRACE_LEVEL_DEBUG,
+                                               arrstrFirmwareReturnValues,
+                                               "Firmware return value",
+                                               strFunctionName,
+                                               i_intTraceLevel,
+                                               gHamilton_Pump_strLibraryName);
+
+        o_strResponse = arrstrFirmwareReturnValues.GetAt(3);
+      }
+
+      strReturnValue = o_strResponse;
+      intIndex = strReturnValue.Find("er");
+      o_strErrorCode = strReturnValue.Mid(intIndex + 2, 2);
+
+      if(strReturnValue.Mid(intIndex, 4) != "er00")
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Firmware error occured: " +
+                                          arrstrFirmwareReturnValues.GetAt(2) +
+                                          " | " +
+                                          arrstrFirmwareReturnValues.GetAt(3),
+                                          strFunctionName,
+                                          i_intTraceLevel,
+                                          gHamilton_Pump_strLibraryName);
+        return (hslFalse);
+      }
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_strResponse = '" + o_strResponse + "'" +
+                                        ", o_strErrorCode = '" + o_strErrorCode + "'",
+                                        strFunctionName,
+                                        gHamilton_Pump_intTraceLevel,
+                                        gHamilton_Pump_strLibraryName);
+      return (hslTrue);
+    } // _SendFirmwareCommand
+  }
+#endif
+// $$author=Daniel$$valid=1$$time=2016-06-06 15:57$$checksum=fced243c$$length=083$$

@@ -1,0 +1,210 @@
+ namespace _Method { #include "Common\\Common96HeadSubMethods.hs_" } 
+ namespace _Method { #include "HSLTipCountingLib.hsl" } 
+ namespace _Method { #include "HSLSeqLib.hsl" } 
+ namespace _Method { #include "HSLStrLib.hsl" } 
+ namespace _Method { #include "Common\\LMSF_Utilities.hs_" } 
+ namespace _Method { #include "HSLExtensions\\Dictionary.hsl" } 
+ namespace _Method { #include "HSLExtensions\\String.hsl" } 
+ namespace _Method { #include "HSLExtensions\\File.hsl" } 
+ namespace _Method { #include "Common\\Tip Handling\\With 96-Head\\Tip Handling with 96-Head.hs_" } 
+ namespace _Method { #include "HSLTrcLib.hsl" } 
+ namespace _Method { #include "Common\\PlateAndLidMovement.hs_" } 
+ namespace _Method { #include "GSF-IMS Project\\GSF-IMS.shared_submethods.hs_" } 
+ namespace _Method { #include "HSLExtensions\\Sequence.hsl" } 
+#include "LMSF tour method.res"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+sequence tip_seq_arr[];
+variable tip_counter_array[];
+variable is_pipetting;
+variable pipette_volume;
+variable plate_number;
+global device ML_STAR ("LMSF tour method.lay", "ML_STAR", hslTrue);
+sequence media_pipette_arr[];
+variable culture_volume;
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+ namespace _Method { #include "HSLMETEDLib.hs_" } 
+ namespace _Method { #include "HSLMECCLib.hs_" } 
+ namespace _Method { #include "HSLPTLLib.hsl" } 
+// }} ""
+// {{{ 2 "LocalSubmethodInclude" ""
+ namespace _Method {  #include __filename__ ".sub"  } 
+// }} ""
+/* {{ 2 "ProcessInsertLine" "" */ // }} ""
+// {{{ 5 "main" "Begin"
+namespace _Method { method main(  ) void {
+// }} ""
+// {{ 5 "main" "InitLocals"
+// }} ""
+// {{ 2 "AutoInitBlock" ""
+PTL::SetWashingStateDefault("RinseTime1", 5);
+PTL::SetWashingStateDefault("SoakTime1", 5);
+PTL::SetWashingStateDefault("FlowRate1", 11);
+PTL::SetWashingStateDefault("RinseTime2", 0);
+PTL::SetWashingStateDefault("SoakTime2", 0);
+PTL::SetWashingStateDefault("FlowRate2", 11);
+PTL::SetWashingStateDefault("DrainingTime", 10);
+PTL::SetWashingStateDefault("StartWashLiquid", 0);
+PTL::SetLoadingStateDefault("RecoveryOptionContinue", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionExclude", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionDefault", 0);
+PTL::SetLoadingStateDefault("KitLotCheckEnabled", hslFalse);
+COMMON96HEADSUBMETHODS::_InitLibrary();
+LMSF_UTILITIES::_InitLibrary();
+TIP_HANDLING_WITH_96_HEAD::_InitLibrary();
+PLATEANDLIDMOVEMENT::_InitLibrary();
+GSF_IMS_SHARED_SUBMETHODS::_InitLibrary();
+::RegisterAbortHandler( "OnAbort");
+// }} ""
+// {{ 1 1 0 "c2c13df3_c301_43d0_b06e93ca17b88e37" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("==============================================================\nThis method used for lab tours and demos. \nIt moves a growth plate from the handoff, \nthen pipettes some media/water into it, \nthen moves it back to the handoff\n=============================================================="));
+// }} ""
+// {{{ 2 1 0 "f3ecbea8_97e1_4d6e_ab57aa38af1f9de6" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+GetParams();
+// }} ""
+// {{{ 3 1 0 "6402e3b3_9e93_49a2_a2440617c9fd4825" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+StartUp();
+// }} ""
+// {{ 4 1 0 "74e471ce_857c_4d00_a2913e29ca923deb" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 5 1 0 "17f28966_da44_41ef_b7d9ff1aa1b7a314" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveGrowthPlateWithLid(ML_STAR.Move_Growth_Plate_Handoff, ML_STAR.Growth_Plate_Handoff_lid, ML_STAR.Move_Growth_Plate, ML_STAR.Growth_Plate_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 1, 0, ML_STAR);
+// }} ""
+// {{{ 6 1 0 "1bc4085f_fff5_4a58_ab05f030a1c93e34" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Growth_Plate_lid, ML_STAR.Lid_parking_Growth_Plate, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{{ 7 1 0 "9cb37857_4deb_4d2b_9bfd6b1ff97237b1" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Media_source_lid, ML_STAR.Lid_parking_Media_trough, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 1, ML_STAR);
+// }} ""
+// {{ 8 1 0 "74e471ce_857c_4d00_a2913e29ca923deb" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 9 1 0 "4f94624a_3f46_4af2_bdee16eaa8d60b1b" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 10 1 0 "6408aca8_efb1_4d51_a39226c97d7b059a" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 11 1 0 "ab250322_83e7_4c87_ac967f2822b58797" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 12 1 0 "39f386ca_c365_40a9_a69e009bfc328b56" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+media_pipette_arr.SetSize(0);
+// }} ""
+// {{ 13 1 0 "fd5fe1d0_8a08_4d44_b802fefe0078fd30" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+media_pipette_arr.AddAsLast(ML_STAR.media_pipette_1);
+// }} ""
+// {{ 14 1 0 "8c41e38c_daca_47c5_81efa7a90dc17c18" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+media_pipette_arr.AddAsLast(ML_STAR.media_pipette_2);
+// }} ""
+// {{ 15 1 0 "98bad9b7_5c61_4bb0_b641860a9fbae348" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+media_pipette_arr.AddAsLast(ML_STAR.media_pipette_3);
+// }} ""
+// {{ 16 1 0 "c9a86210_daa1_418a_b39c0d9a43adf193" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+media_pipette_arr.AddAsLast(ML_STAR.media_pipette_4);
+// }} ""
+// {{ 17 1 0 "4f94624a_3f46_4af2_bdee16eaa8d60b1b" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 18 1 0 "3d974e74_6a86_4779_b6c865ecc3691cdf" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 19 1 0 "413efad5_0af0_4bb6_974e5838eb399bf8" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("==============================================================\nPipette media into growth plate and gradient starter plate\n=============================================================="));
+// }} ""
+// {{ 20 1 0 "a47605ea_f310_4b75_be9b6944a1e0b269" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+pipette_volume = culture_volume;
+// }} ""
+// {{ 21 1 0 "ed30ce12_dd62_49c1_9aeec5b348670f78" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_pipetting == "true")
+{
+// }} ""
+// {{ 22 1 0 "839f4f5c_5fba_4ced_88d6f873fe23fdc5" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 23 1 0 "be6c4e6d_de00_43fd_b4226b85757743e8" "{E09A7A75-BB29-4e45-B265-7C8388E27D2C}"
+PTL::ResetTipHandlingState();
+PTL::SetTipHandlingState("UserResponseTime", 0);
+PTL::SetTipHandlingState("ErrorHandling", 3);
+PTL::SetTipHandlingState("TipCountingEnabled", hslFalse);
+PTL::SetTipHandlingState("TipCountingIdentifier", "");
+PTL::SetTipHandlingState("InitializeCustomStepID", 0);
+PTL::SetTipHandlingState("TipPickupCustomStepID", 0);
+PTL::SetTipHandlingState("TipPickupChannelVariable", "");
+PTL::SetTipHandlingState("TipPickupSequenceReloadable", hslTrue);
+PTL::SetTipHandlingState("TipPickupSequenceReducible", hslTrue);
+if( 0 == PTL::TipPickup(ML_STAR, ML_STAR.Tips_1000_Channels) )
+{
+    PTL::RaiseRuntimeError(-1472986880, PTL::IDS::smartStepTipPickup, PTL::IDS::smartStepFailed, "HxGRUCompCmd");
+}
+
+// }} ""
+// {{ 24 1 0 "dc78bd81_01c6_434b_ab16c8c21aff5bc9" "{B31F353A-5D80-11d4-A5EB-0050DA737D89}"
+ML_STAR.Media_pipette_from.SetCurrentPosition(1);
+// }} ""
+// {{ 25 1 0 "52a60cf1_f0cc_493e_ac0c5c176133e03e" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 26 1 0 "a1bb076c_6888_4a6e_b510a11bc6b5bd67" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+pipette_media(media_pipette_arr.ElementAt( plate_number -1), pipette_volume, 0);
+// }} ""
+// {{ 27 1 0 "05a67b0e_0ec4_4dc7_a43a035a26ff3198" "{2C884145-FBC2-46a3-9A50-7B1731970262}"
+PTL::ResetTipHandlingState();
+PTL::SetTipHandlingState("UserResponseTime", hslInfinite);
+PTL::SetTipHandlingState("ErrorHandling", 3);
+PTL::SetTipHandlingState("InitializeCustomStepID", 0);
+PTL::SetTipHandlingState("TipEjectCustomStepID", 0);
+PTL::SetTipHandlingState("TipEjectChannelVariable", "");
+if( 0 == PTL::TipEject(ML_STAR) )
+{
+    PTL::RaiseRuntimeError(-1456209664, PTL::IDS::smartStepTipEject, PTL::IDS::smartStepFailed, "HxGRUCompCmd");
+}
+
+// }} ""
+// {{ 28 1 0 "f034d055_9a97_4749_9fb678ac9db4d50a" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 29 1 0 "ed30ce12_dd62_49c1_9aeec5b348670f78" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 30 1 0 "ed30ce12_dd62_49c1_9aeec5b348670f78" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 31 1 0 "3d974e74_6a86_4779_b6c865ecc3691cdf" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 32 1 0 "0cd35694_7c73_44c2_8c89546236c45c70" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 33 1 0 "6383a331_42ea_4582_91b514f7a9bf0ca1" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Lid_parking_Media_trough, ML_STAR.Media_source_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 1, 0, ML_STAR);
+// }} ""
+// {{{ 34 1 0 "875cb9ce_f570_4e5a_8145d5a47f758164" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Lid_parking_Growth_Plate, ML_STAR.Growth_Plate_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{{ 35 1 0 "c3022b46_5ef5_453e_b2fac04550bb9bb5" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveGrowthPlateWithLid(ML_STAR.Move_Growth_Plate, ML_STAR.Growth_Plate_lid, ML_STAR.Move_Growth_Plate_Handoff, ML_STAR.Growth_Plate_Handoff_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 1, ML_STAR);
+// }} ""
+// {{ 36 1 0 "0cd35694_7c73_44c2_8c89546236c45c70" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 37 1 0 "eb69218c_6f48_4919_af6e80ea697024f0" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("-----------------------------------------------------------------------------------------------------------"));
+// }} ""
+// {{{ 38 1 0 "af13fb68_17bf_4f43_b95488dd2ab87f18" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+CleanUp();
+// }} ""
+// {{ 2 "AutoExitBlock" ""
+COMMON96HEADSUBMETHODS::_ExitLibrary();
+LMSF_UTILITIES::_ExitLibrary();
+TIP_HANDLING_WITH_96_HEAD::_ExitLibrary();
+PLATEANDLIDMOVEMENT::_ExitLibrary();
+GSF_IMS_SHARED_SUBMETHODS::_ExitLibrary();
+// }} ""
+// {{{ 5 "main" "End"
+} }
+// }} ""
+// $$author=Hamilton$$valid=0$$time=2023-02-09 17:10$$checksum=266d849e$$length=087$$

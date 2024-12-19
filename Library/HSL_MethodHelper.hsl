@@ -1,0 +1,138 @@
+#pragma global
+
+#ifndef __HSL_MethodHelper_hsl__
+#define __HSL_MethodHelper_hsl__ 1
+
+#include "HSLStrLib.hsl"
+
+namespace TRACE
+{
+
+   function SUBMETHOD_BLOCK(variable i_str_FunctionName,variable i_bln_Start,variable i_bln_ParseFunctionName) void;
+   function TRACE02(variable i_Value1,variable i_Value2) void;
+   function TRACE04(variable i_Value1,variable i_Value2,variable i_Value3,variable i_Value4) void;
+   function TRACE06(variable i_Value1,variable i_Value2,variable i_Value3,variable i_Value4,variable i_Value5,variable i_Value6) void;
+   function TRACE08(variable i_Value1,variable i_Value2,variable i_Value3,variable i_Value4,variable i_Value5,variable i_Value6,variable i_Value7,variable i_Value8) void;
+   function TRACE12(variable i_Value1,variable i_Value2,variable i_Value3,variable i_Value4,variable i_Value5,variable i_Value6,variable i_Value7,variable i_Value8,variable i_Value9,variable i_Value10,variable i_Value11,variable i_Value12) void;
+   function TRACE_SEQUENCE(sequence i_Seq) void;
+
+   function SUBMETHOD_BLOCK(variable i_str_FunctionName,variable i_bln_Start,variable i_bln_ParseFunctionName) void
+   {
+      private variable _str_FunctionName(i_str_FunctionName);
+      private variable _str_FunctionNameCut("");
+      private variable _int_Count(0);
+      private variable _int_Length(0);
+      private variable _int_CutNum(0);
+
+      //_str_FunctionName = GetFunctionName();
+      _int_Count = StrReverseFind(_str_FunctionName, Translate(":"));
+      _int_Count = _int_Count + 1;
+      _int_Length = StrGetLength(_str_FunctionName);
+      _int_CutNum = _int_Length - _int_Count;
+
+
+      if(i_bln_ParseFunctionName)
+      {
+         _str_FunctionNameCut = StrMid(_str_FunctionName, _int_Count, _int_CutNum);
+      }
+      else
+      {
+         _str_FunctionNameCut = _str_FunctionName;
+      }
+
+      if(i_bln_Start)
+      {
+         Trace("===========================================================================");
+         Trace(_str_FunctionNameCut, " - START");
+         Trace("");
+      }
+      else
+      {
+         Trace("");
+         Trace(_str_FunctionNameCut, " - FINISH");
+         Trace("===========================================================================");
+      }
+   }
+
+
+
+   function TRACE02(variable i_Value1,variable i_Value2) void
+   {
+      Trace(i_Value1, i_Value2);
+   } 
+
+   function TRACE04(variable i_Value1,variable i_Value2,variable i_Value3,variable i_Value4) void
+   {
+      Trace(i_Value1, i_Value2, i_Value3, i_Value4);
+   } 
+
+   function TRACE06(variable i_Value1,variable i_Value2,variable i_Value3,variable i_Value4,variable i_Value5,variable i_Value6) void
+   {
+      Trace(i_Value1, i_Value2, i_Value3, i_Value4, i_Value5, i_Value6);
+   } 
+
+   function TRACE08(variable i_Value1,variable i_Value2,variable i_Value3,variable i_Value4,variable i_Value5,variable i_Value6,variable i_Value7,variable i_Value8) void
+   {
+      Trace(i_Value1, i_Value2, i_Value3, i_Value4, i_Value5, i_Value6, i_Value7, i_Value8);
+   } 
+
+   function TRACE12(variable i_Value1,variable i_Value2,variable i_Value3,variable i_Value4,variable i_Value5,variable i_Value6,variable i_Value7,variable i_Value8,variable i_Value9,variable i_Value10,variable i_Value11,variable i_Value12) void
+   {
+      Trace(i_Value1, i_Value2, i_Value3, i_Value4, i_Value5, i_Value6, i_Value7, i_Value8, i_Value9, i_Value10, i_Value11, i_Value12);
+   }
+
+   function TRACE_SEQUENCE(sequence i_Seq) void
+   {
+	variable currentPosBak;		// backup of current position
+	variable countPosBak;		// backup of count position
+	variable index;				// loop index
+	variable labwareId(Translate("labwareId"));
+	variable positionId(Translate("positionId"));
+
+	// backup original current position 
+	currentPosBak = i_Seq.GetCurrentPosition();
+
+	// backup original count position 
+	countPosBak = i_Seq.GetCount();
+
+	// set count to total
+	i_Seq.SetCount(i_Seq.GetTotal());
+
+	// trace attributes 
+	Trace(Translate("name = "), i_Seq.GetName());
+	Trace(Translate("current = "), currentPosBak);
+	Trace(Translate("count = "), countPosBak);
+	Trace(Translate("total = "), i_Seq.GetTotal());
+	Trace(Translate("max = "), i_Seq.GetMax());
+	Trace(Translate("used = "), i_Seq.GetUsedPositions());
+	for (index = i_Seq.SetCurrentPosition(1); 
+		 index != 0; 
+		 index = i_Seq.Increment(1))
+		 Trace(labwareId, " = ", i_Seq.GetLabwareId(), ", ", positionId, " = ", i_Seq.GetPositionId());
+
+	// restore original count position
+	i_Seq.SetCount(countPosBak);
+
+	// restore original current position 
+	i_Seq.SetCurrentPosition(currentPosBak);
+   }
+}
+
+namespace BOOLEON
+{
+   const variable TRUE(hslTrue);
+   const variable FALSE(hslFalse);
+}
+namespace DIALOGS
+{
+   const variable OK(1);
+   const variable CANCEL(2);
+   const variable ABORT(3);
+   const variable RETRY(4);
+   const variable IGNORE(5);
+   const variable YES(6);
+   const variable NO(7);
+}
+
+#endif
+// $$author=Bare_B$$valid=0$$time=2019-09-18 11:23$$checksum=6337ce7d$$length=085$$

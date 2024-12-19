@@ -1,0 +1,2094 @@
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+// ----------------------------------------------------------------------------------------------------
+// HSL interface library for all Hamilton DaisyChained electronic boxes
+// ----------------------------------------------------------------------------------------------------
+// Modification History
+// 2011-07-27   v1.0  BHhuf  creation of this library based on MultiDaisyChainedCommunication library
+//              - reworked to comply to AAW 650410
+//              - removed function "InitializeComPort"
+//              - extended function "InitializeMultiDaisyChainModule", changed name to "InitializeModule":
+//              - takes all parameters from old function and removed function "InitializeCommPort"
+//              - returns oModuleID [1..NumberOfComPorts * NumberOfDaisyChainedModules) to identify Module
+//              - TraceLevel and SimulationMode is handled for each module, independent from COM Port
+//              - changed namespace and library filename
+//              - removed unused function "ListAllModules"
+//              - new function "ShowUsage"
+//  2012.02.02  v1.1  TAdank modified
+//  2012-04-17  v1.2  BHuf
+//              - modified function _TerminatePort to check, if there are still modules connected
+//  2012-05-10  v1.3  BHuf
+//              - function _TransmitCommand returns error 99 for timeout
+//  2012-05-11  v1.4  BHuf
+//              - added parameter i_blnAlwaysInitialize to function InitializeModule
+//              - added parameter i_blnTerminatePort to function TerminateModule
+//  2012-05-21  v1.5  BHuf
+//              - created constants for serial errors < 0
+//              - created error messages for serial errors
+//              - new function EvaluateError
+//  2012-07-05  v1.6  BHuf
+//              - get semaphore in _TransmitCommand earlier, include _setTimeout in semaphore to ensure matching of timeout and command
+//              - new event 'gHamilton_Serial_Interface_MainCriticalSection' to secure functions working with the main variables (Init, Terminate, ShowUsage)
+//              - rearranged functions in library
+//              - cosmetic changes in function ShowUsage
+//  2012-09-03  v1.7  BHuf
+//              - added onerror statement in function _InitializePort to prevent crashes
+//  2012-10-25  v1.8  BHuf
+//              - added error handling for unknown modules and short answers
+//  2012-11-02  v1.9  BHuf
+//              - added check for connection parameter in case the same port is reused
+//              - changed the namespace and all global/tasklocal variables to comply AAW650410
+//              - removed dependency on HSLStrLib.hsl (new private functions _TrimLeft and _TrimRight)
+//  2012-12-12  v2.0  BHuf
+//              - fixed a bug in function "InitializeModule" which allowed modules to be registered on two positions if there are "holes" in the chain
+//              - changed constant HAMILTON_COM_SETTINGS to STANDARD_COM_SETTINGS
+//              - set constant MAXIMUM_MODULEID to correct value _Hamilton_Serial_Interface_intMatrixSize - 1
+//  2013-02-11  v2.1  BHuf
+//              - added functions to enable usage of Non-Hamilton serial devices, too: InitializeDevice(), TerminateDevice(), _TransmitUniversalCommand()
+//              - fixed a bug in function _GetPortIdForModuleID()
+//  2013-04-22  v2.2  BHuf
+//              - fixed a bug in function _InitializePort(): simulation mode didn't set the connection string parameter
+//              - switched Trace entry from 'HSL SerialInterface' to 'Hamilton SerialInterface'
+//              - removed some unnecessary traces
+//              - fixed a bug in function _StatusTrace(): TraceLevel for module is now being evaluated
+//  2013-05-03  v2.3  BHuf
+//              - usage of standard settings for communication parameters enabled 
+//  2013-06-24  v2.4  DKa
+//              - fixed open statement in function "_TransmitUniversalCommand"
+//  2013-10-02  v2.5  DKa
+//              - added function TransmitCommandSilent / _TransmitUniversalCommandSilent (no answer triggered)
+//              - added function GetSecondRead
+//  2013-11-21  v2.6  DKa
+//              - fixed clear buffer _TransmitUniversal commands
+//  2013-12-03  v2.7  DKa
+//              - fixed io_variable in _TransmitCommand  (BugFix 2.7.1)
+//  2014-01-23  v2.8  DKa
+//              - BugFix _TransmitUniversalCommandSilent (optimized timeouts)
+//  2014-02-04  v2.9  DKa
+//              - Added function SetTraceLevelSilent. Will Change TraceLevel without StatusTrace
+//  2014-05-03  v3.0  BHuf
+//              - adapted to version 1.8 of DriverTools library
+//  2014-06-11  v3.1  BHuf
+//              - renamed the following functions (old names still available, but as static functions calling the new functions)
+//                TransmitCommandList to TransmitModuleCommandList
+//                TransmitCommand to TransmitDeviceCommand
+//                TransmitCommandSilent to TransmitDeviceCommandSilent
+//              - new function TransmitDeviceCommandList
+//  2015-01-14  v3.2  BHuf
+//              - validated version of v3.1
+//  2015-02-03  v3.3  BHuf
+//              - fixed bug in function _UniversalRead: set timeout before reading
+//              - cosmetics: usage of new DriverTools function FloatToString for tracing float values
+//  2016-02-19  v3.4  BHuf
+//              - new function 'SendDeviceCommandSilent' based on function 'TransmitCommandSilent' to send to port without any traces (only errors)
+//              - new function 'ReceiveDeviceAnswerSilent' based on function 'GetSecondRead' to read from port without any traces (only errors)
+//              - new function '_UniversalReadSilent' based on function '_UniversalRead' to read from port without any traces (only errors)
+//  2016-06-20  v3.5  BHuf
+//              - bugfix in function ReceiveDeviceAnswerSilent: check return value of function _UniversalReadSilent
+//  2016-07-05  v3.6  BHuf
+//              - new private function _SendCommand
+//              - new function SendModuleCommand
+//              - renamed the following function (old names still available, but as static functions calling the new functions)
+//                TransmitDeviceCommandSilent to SendDeviceCommandSilent
+//  2016-11-22  v3.7  BHuf
+//              - bugfix in private function '_InitializePort': enlarged OnError statement over Write/ReadRecord
+//  2017-01-10  v3.8  BHuf
+//              - extended number of serial ports to be handled to 20
+//
+///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#ifndef __Hamilton_SerialInterface_hsl__
+  #define __Hamilton_SerialInterface_hsl__  1
+
+  #ifndef __TraceLevel_hsl__
+    #include "ASWStandard\\TraceLevel\\TraceLevel.hsl"
+  #endif
+
+  #ifndef __ASWGLOBAL_hsl__
+    #include "ASWStandard\\ASWGlobal\\ASWGlobal.hsl"
+  #endif
+
+  #ifndef __Hamilton_DriverTools_hsl__
+    #include "Hamilton DriverTools\\Hamilton DriverTools.hsl"
+  #endif
+
+  namespace Hamilton_SerialInterface
+  {
+    static const variable CMD_START             (1);
+    static const variable CMD_COMPLET           (2);
+    static const variable CMD_ERROR             (3);
+    static const variable CMD_PROGRESS          (4);
+    static const variable CMD_ERRCOMPL          (5);
+
+    private static const variable SW_VERSION ("3.8");
+
+    static const variable _Hamilton_Serial_Interface_intMaximumNumberOfPorts    (20);
+    static const variable _Hamilton_Serial_Interface_intMaximumNumberOfModules  (8);
+    static const variable _Hamilton_Serial_Interface_intMatrixSize              (_Hamilton_Serial_Interface_intMaximumNumberOfPorts * _Hamilton_Serial_Interface_intMaximumNumberOfModules);
+
+    const variable PORT_MIN                                                     (1);
+    const variable PORT_MAX                                                     (256);
+    const variable MAXIMUM_MODULEID                                             (_Hamilton_Serial_Interface_intMatrixSize - 1);
+    const variable STANDARD_COM_SETTINGS                                        ("1200,E,8,1,N,CR/LF");
+
+    static global event    gHamilton_Serial_Interface_MainCriticalSection;
+    static global variable gHamilton_Serial_Interface_blnInitialized            (ASWGLOBAL::BOOL::FALSE);
+    static global event    gHamilton_Serial_Interface_hdlCriticalSections[]     (_Hamilton_Serial_Interface_intMaximumNumberOfPorts);
+    static global variable gHamilton_Serial_Interface_intPortNumbers[]          (_Hamilton_Serial_Interface_intMaximumNumberOfPorts);
+    static global variable gHamilton_Serial_Interface_fltTimeouts[]             (_Hamilton_Serial_Interface_intMaximumNumberOfPorts);
+    static global file     gHamilton_Serial_Interface_hdlChannels[]             (_Hamilton_Serial_Interface_intMaximumNumberOfPorts);
+    static global variable gHamilton_Serial_Interface_strBuffers[]              (_Hamilton_Serial_Interface_intMaximumNumberOfPorts);
+    static global variable gHamilton_Serial_Interface_strConnectionStrings[]    (_Hamilton_Serial_Interface_intMaximumNumberOfPorts);
+    static global variable gHamilton_Serial_Interface_strModuleNames[]          (_Hamilton_Serial_Interface_intMatrixSize);
+    static global variable gHamilton_Serial_Interface_blnSimulationFlags[]      (_Hamilton_Serial_Interface_intMatrixSize);
+    static global variable gHamilton_Serial_Interface_intTraceLevels[]          (_Hamilton_Serial_Interface_intMatrixSize);
+    static global variable gHamilton_Serial_Interface_strLibraryName            ("Hamilton SerialInterface");
+
+    const static variable ERROR_TIMEOUT                                 ("-1");
+    const static variable ERROR_MODULE_NAME_UNKNOWN                     ("-2");
+    const static variable ERROR_RESPONSE_TOO_SHORT                      ("-3");
+    const static variable ERROR_WRONG_CONNECTION_SETTINGS               ("-4");
+
+    const static string ERROR_MSG_TIMEOUT                               ("Timeout in serial transmission!");
+    const static string ERROR_MSG_MODULE_NAME_UNKNOWN                   ("Module not found in this chain!");
+    const static string ERROR_MSG_RESPONSE_TOO_SHORT                    ("Module Response too short!");
+    const static string ERROR_MSG_WRONG_CONNECTION_SETTINGS             ("COM port already initialized with different settings!");
+
+    // --------------------------------------------------------------------------------------
+    // function declarations
+    // --------------------------------------------------------------------------------------
+    function InitializeModule(variable i_intPort,
+                              variable i_strPortSettings,
+                              variable i_strModuleName,
+                              variable i_blnSimulationMode,
+                              variable i_blnAlwaysInitialize,
+                              variable i_arrstrInitCommands[],
+                              variable i_arrfltTimeouts[],
+                              variable& o_intModuleID,
+                              variable& o_arrstrResponses[],
+                              variable& o_arrstrErrorCodes[]) variable;
+
+    function InitializeDevice(variable i_intPort,
+                              variable i_strPortSettings,
+                              variable i_strModuleName,
+                              variable i_blnSimulationMode,
+                              variable& o_intModuleID) variable;
+
+    function SetTraceLevel(variable i_intModuleID,
+                           variable i_intTraceLevel) variable;
+
+    function SetTraceLevelSilent(variable i_intModuleID,
+                                 variable i_intTraceLevel) variable;
+
+    function TerminateModule(variable i_intModuleID,
+                             variable i_blnAlwaysTerminate,
+                             variable i_blnTerminatePort,
+                             variable i_arrstrTerminateCommands[],
+                             variable i_arrfltTimeouts[],
+                             variable& o_arrstrResponses[],
+                             variable& o_arrstrErrorCodes[]) variable;
+
+    function TerminateDevice(variable i_intModuleID) variable;
+
+    function ShowUsage() variable;
+
+    function TransmitModuleCommandList(variable i_intModuleID,
+                                       variable i_arrstrCommands[],
+                                       variable i_arrfltTimeouts[],
+                                       variable& o_arrstrResponses[],
+                                       variable& o_arrstrErrorCodes[]) variable;
+
+    function SendModuleCommand(variable i_intModuleID,
+                               variable i_strCommand) variable;
+
+    function TransmitDeviceCommand(variable i_intModuleID,
+                                   variable i_strCommand,
+                                   variable i_fltTimeout,
+                                   variable& o_strResponse) variable;
+
+    function TransmitDeviceCommandList(variable i_intModuleID,
+                                       variable i_arrstrCommands[],
+                                       variable i_arrfltTimeouts[],
+                                       variable& o_arrstrResponses[]) variable;
+
+    function SendDeviceCommandSilent(variable i_intModuleID,
+                                     variable i_strCommand) variable;
+
+    function ReceiveDeviceAnswerSilent(variable i_intModuleID,
+                                       variable i_fltTimeout,
+                                       variable& o_strResponse) variable;
+
+    function GetSecondRead(variable i_intModuleID,
+                           variable i_fltTimeout,
+                           variable& o_strResponse) variable;
+
+    function EvaluateError(variable i_strErrorCode,
+                           variable& o_strErrorMessage) variable;
+
+    // --------------------------------------------------------------------------------------
+    // private function declarations
+    // --------------------------------------------------------------------------------------
+    private function _InitializeLibrary() void;
+
+    private function _InitializePort(variable i_intPort,
+                                     variable i_strPortSettings,
+                                     variable i_blnSimulationMode,
+                                     variable o_intPortIndex) variable;
+
+    private function _SetTimeout(variable i_intModuleID,
+                                 variable i_fltTimeout,
+                                 variable i_strCallingFunctionName) variable;
+
+    private function _TerminatePort(variable i_intPort) variable;
+
+    private function _TransmitCommand(variable i_intModuleID,
+                                      variable i_strCommand,
+                                      variable i_fltTimeout,
+                                      variable& o_strResponse,
+                                      variable& o_strErrorCode) variable;
+
+    private function _SendCommand(variable i_intModuleID,
+                                  variable i_strCommand) variable;
+
+    private function _TransmitUniversalCommand(variable i_intModuleID,
+                                               variable i_strCommand,
+                                               variable i_fltTimeout,
+                                               variable& o_strResponse,
+                                               variable i_strCallingFunctionName) variable;
+
+    private function _UniversalRead(variable i_intModuleID,
+                                    variable i_fltTimeout,
+                                    variable& o_strResponse,
+                                    variable i_strCallingFunctionName) variable;
+
+    private function _UniversalReadSilent(variable i_intModuleID,
+                                          variable i_fltTimeout,
+                                          variable& o_strResponse,
+                                          variable i_strCallingFunctionName) variable;
+
+    private function _TransmitUniversalCommandSilent (variable i_intModuleID,
+                                                      variable i_strCommand,
+                                                      variable i_fltTimeout,
+                                                      variable i_strCallingFunctionName) variable;
+
+
+    private function _GetPortIdForModuleID(variable i_intModuleID,
+                                           variable& o_intPortID) void;
+
+    private function _StatusTrace(variable i_intState,
+                                  variable i_intTraceLevel,
+                                  variable i_strMessage,
+                                  variable i_intModuleID,
+                                  variable i_strFunctionName) void;
+
+    // --------------------------------------------------------------------------------------
+    // function InitializeModule
+    // --------------------------------------------------------------------------------------
+    function InitializeModule(variable i_intPort,
+                              variable i_strPortSettings,
+                              variable i_strModuleName,
+                              variable i_blnSimulationMode,
+                              variable i_blnAlwaysInitialize,
+                              variable i_arrstrInitCommands[],
+                              variable i_arrfltTimeouts[],
+                              variable& o_intModuleID,
+                              variable& o_arrstrResponses[],
+                              variable& o_arrstrErrorCodes[]) variable
+    {
+      variable blnTransmitSuccess(ASWGLOBAL::BOOL::FALSE);
+      variable intLoopCounter(0), intPortIndex(0), intModuleIDStartIndex(0), intModuleIDStopIndex(0);
+      variable blnModuleFound(hslFalse);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intPort,
+                                                 "i_intPort",
+                                                 PORT_MIN,
+                                                 PORT_MAX,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckString(i_strPortSettings,
+                                           "i_strPortSettings",
+                                           strFunctionName,
+                                           gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(i_strPortSettings == "") i_strPortSettings = STANDARD_COM_SETTINGS;
+
+      if(Hamilton_DriverTools::CheckString(i_strModuleName,
+                                           "i_strModuleName",
+                                           strFunctionName,
+                                           gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckBool(i_blnSimulationMode,
+                                         "i_blnSimulationMode",
+                                         strFunctionName,
+                                         gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckBool(i_blnAlwaysInitialize,
+                                         "i_blnAlwaysInitialize",
+                                         strFunctionName,
+                                         gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+
+      _StatusTrace(CMD_START,
+                   TRACE_LEVEL_DEBUG,
+                   "Hamilton SerialInterface version: " + SW_VERSION,
+                   -1,
+                   strFunctionName);
+
+      _StatusTrace(CMD_START,
+                   TRACE_LEVEL_DEBUG,
+                   "i_intPort = " + IStr(i_intPort) +
+                   ", i_strPortSettings = " + i_strPortSettings +
+                   ", i_strModuleName = " + i_strModuleName +
+                   ", i_blnSimulationMode = " + IStr(i_blnSimulationMode) +
+                   ", i_blnAlwaysInitialize = " + IStr(i_blnAlwaysInitialize),
+                   -1,
+                   strFunctionName);
+
+      _InitializeLibrary();
+
+      gHamilton_Serial_Interface_MainCriticalSection.WaitEvent(hslInfinite);
+
+      if(!_InitializePort(i_intPort, i_strPortSettings, i_blnSimulationMode, intPortIndex))
+      {
+        gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      _StatusTrace(CMD_PROGRESS,
+                   TRACE_LEVEL_DEBUG,
+                   "intPortIndex = " + IStr(intPortIndex),
+                   -1,
+                   strFunctionName);
+
+      // set variables for searching the moduleID
+      intModuleIDStartIndex = intPortIndex * _Hamilton_Serial_Interface_intMaximumNumberOfModules;
+      intModuleIDStopIndex = intModuleIDStartIndex + _Hamilton_Serial_Interface_intMaximumNumberOfModules;
+
+      for(intLoopCounter = intModuleIDStartIndex; intLoopCounter < intModuleIDStopIndex; intLoopCounter ++)
+      {
+        if(gHamilton_Serial_Interface_strModuleNames.GetAt(intLoopCounter) == i_strModuleName)
+        {
+          // module found --> just set simulation mode and tracelevel
+          o_intModuleID = intLoopCounter;
+          gHamilton_Serial_Interface_blnSimulationFlags.SetAt(o_intModuleID, i_blnSimulationMode);
+          gHamilton_Serial_Interface_intTraceLevels.SetAt(o_intModuleID, TRACELEVEL::GetTraceLevel());
+          if(i_blnAlwaysInitialize == ASWGLOBAL::BOOL::FALSE)
+          {
+            gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+            _StatusTrace(CMD_COMPLET,
+                         TRACE_LEVEL_RELEASE,
+                         "Module " + i_strModuleName +
+                         " already initialized,.o_intModuleID = " + IStr(o_intModuleID),
+                         o_intModuleID,
+                         strFunctionName);
+            return(ASWGLOBAL::BOOL::TRUE);
+          }
+          blnModuleFound = hslTrue;
+          break;
+        }
+      }
+
+      if(!blnModuleFound)
+      {
+        // find o_intModuleID for i_strModuleName
+        for(intLoopCounter = intModuleIDStartIndex; intLoopCounter < intModuleIDStopIndex; intLoopCounter ++)
+        {
+          if(gHamilton_Serial_Interface_strModuleNames.GetAt(intLoopCounter) == "free")
+          {
+            // free position found --> new Module will be located here
+            o_intModuleID = intLoopCounter;
+            gHamilton_Serial_Interface_strModuleNames.SetAt(o_intModuleID, i_strModuleName);
+            gHamilton_Serial_Interface_blnSimulationFlags.SetAt(o_intModuleID, i_blnSimulationMode);
+            gHamilton_Serial_Interface_intTraceLevels.SetAt(o_intModuleID, TRACELEVEL::GetTraceLevel());
+            _StatusTrace(CMD_PROGRESS,
+                         TRACE_LEVEL_DEBUG,
+                         "Module " + i_strModuleName +
+                         " added at position." + IStr(o_intModuleID),
+                         o_intModuleID,
+                         strFunctionName);
+            blnModuleFound = hslTrue;
+            break;
+          }
+        }
+      }
+
+      if(!blnModuleFound)
+      {
+        gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+        o_intModuleID = -1;
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Module " + i_strModuleName + " could not be added, all positions occupied!",
+                     -1,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // transmit i_strInitCommands
+      blnTransmitSuccess = TransmitModuleCommandList(o_intModuleID, i_arrstrInitCommands, i_arrfltTimeouts, o_arrstrResponses, o_arrstrErrorCodes);
+      if(blnTransmitSuccess == ASWGLOBAL::BOOL::FALSE)
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Transmitting initialization command list failed!",
+                     -1,
+                     strFunctionName);
+        // free the position again and terminate the port if necessary
+        gHamilton_Serial_Interface_strModuleNames.SetAt(o_intModuleID, "free");
+        _TerminatePort(i_intPort);
+        gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+
+      _StatusTrace(CMD_COMPLET,
+                   TRACE_LEVEL_DEBUG,
+                   "o_intModuleID = " + IStr(o_intModuleID),
+                   -1,
+                   strFunctionName);
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // InitializeModule
+
+    // --------------------------------------------------------------------------------------
+    // function InitializeDevice
+    // --------------------------------------------------------------------------------------
+    function InitializeDevice(variable i_intPort,
+                              variable i_strPortSettings,
+                              variable i_strModuleName,
+                              variable i_blnSimulationMode,
+                              variable& o_intModuleID) variable
+    {
+      variable blnTransmitSuccess(ASWGLOBAL::BOOL::FALSE);
+      variable intLoopCounter(0), intPortIndex(0), intModuleIDStartIndex(0), intModuleIDStopIndex(0);
+      variable blnModuleFound(hslFalse);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intPort,
+                                                 "i_intPort",
+                                                 PORT_MIN,
+                                                 PORT_MAX,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckString(i_strPortSettings,
+                                           "i_strPortSettings",
+                                           strFunctionName,
+                                           gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(i_strPortSettings == "") i_strPortSettings = STANDARD_COM_SETTINGS;
+
+      if(Hamilton_DriverTools::CheckString(i_strModuleName,
+                                           "i_strModuleName",
+                                           strFunctionName,
+                                           gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckBool(i_blnSimulationMode,
+                                         "i_blnSimulationMode",
+                                         strFunctionName,
+                                         gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      _StatusTrace(CMD_START, 
+                   TRACE_LEVEL_DEBUG,
+                   "i_intPort = " + IStr(i_intPort) +
+                   ", i_strPortSettings = '" + i_strPortSettings + "'" +
+                   ", i_strModuleName = '" + i_strModuleName + "'" +
+                   ", i_blnSimulationMode = " + IStr(i_blnSimulationMode),
+                   -1,
+                   strFunctionName);
+
+      _InitializeLibrary();
+
+      gHamilton_Serial_Interface_MainCriticalSection.WaitEvent(hslInfinite);
+
+      if(!_InitializePort(i_intPort, i_strPortSettings, i_blnSimulationMode, intPortIndex))
+      {
+        gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      _StatusTrace(CMD_PROGRESS,
+                   TRACE_LEVEL_DEBUG,
+                   "intPortIndex = " + IStr(intPortIndex),
+                   -1,
+                   strFunctionName);
+
+      // set variables for searching the moduleID
+      intModuleIDStartIndex = intPortIndex * _Hamilton_Serial_Interface_intMaximumNumberOfModules;
+      intModuleIDStopIndex = intModuleIDStartIndex + _Hamilton_Serial_Interface_intMaximumNumberOfModules;
+
+      _StatusTrace(CMD_PROGRESS,
+                   TRACE_LEVEL_DEBUG,
+                   "intModuleIDStartIndex = " + IStr(intModuleIDStartIndex) +
+                   ", intModuleIDStopIndex = " + IStr(intModuleIDStopIndex),
+                   -1,
+                   strFunctionName);
+
+      for(intLoopCounter = intModuleIDStartIndex; intLoopCounter < intModuleIDStopIndex; intLoopCounter ++)
+      {
+        if(gHamilton_Serial_Interface_strModuleNames.GetAt(intLoopCounter) == i_strModuleName)
+        {
+          // module found --> just set simulation mode and tracelevel
+          o_intModuleID = intLoopCounter;
+          gHamilton_Serial_Interface_blnSimulationFlags.SetAt(o_intModuleID, i_blnSimulationMode);
+          gHamilton_Serial_Interface_intTraceLevels.SetAt(o_intModuleID, TRACELEVEL::GetTraceLevel());
+          gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+          _StatusTrace(CMD_COMPLET,
+                       TRACE_LEVEL_RELEASE,
+                       "Module " + i_strModuleName + " already initialized,.o_intModuleID = " + IStr(o_intModuleID),
+                       o_intModuleID,
+                       strFunctionName);
+          return(ASWGLOBAL::BOOL::TRUE);
+        }
+      }
+
+      // find o_intModuleID for i_strModuleName
+      for(intLoopCounter = intModuleIDStartIndex; intLoopCounter < intModuleIDStopIndex; intLoopCounter ++)
+      {
+        if(gHamilton_Serial_Interface_strModuleNames.GetAt(intLoopCounter) == "free")
+        {
+          // free position found --> new Module will be located here
+          o_intModuleID = intLoopCounter;
+          gHamilton_Serial_Interface_strModuleNames.SetAt(o_intModuleID, i_strModuleName);
+          gHamilton_Serial_Interface_blnSimulationFlags.SetAt(o_intModuleID, i_blnSimulationMode);
+          gHamilton_Serial_Interface_intTraceLevels.SetAt(o_intModuleID, TRACELEVEL::GetTraceLevel());
+          _StatusTrace(CMD_PROGRESS,
+                       TRACE_LEVEL_DEBUG,
+                       "Module " + i_strModuleName +
+                       " added at position " + IStr(o_intModuleID),
+                       o_intModuleID,
+                       strFunctionName);
+          blnModuleFound = hslTrue;
+          break;
+        }
+      }
+
+      if(!blnModuleFound)
+      {
+        gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+        o_intModuleID = -1;
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Module " + i_strModuleName + " could not be added, all positions occupied!",
+                     -1,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+
+      _StatusTrace(CMD_COMPLET,
+                   TRACE_LEVEL_DEBUG,
+                   "o_intModuleID = " + IStr(o_intModuleID),
+                   -1,
+                   strFunctionName);
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // InitializeDevice
+
+    // --------------------------------------------------------------------------------------
+    // function SetTraceLevel
+    // --------------------------------------------------------------------------------------
+    function SetTraceLevel(variable i_intModuleID,
+                           variable i_intTraceLevel) variable
+    {
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                 "i_intModuleID",
+                                                 0,
+                                                 _Hamilton_Serial_Interface_intMatrixSize,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intTraceLevel,
+                                                 "i_intTraceLevel",
+                                                 TRACE_LEVEL_NONE,
+                                                 TRACE_LEVEL_DEBUG,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      _StatusTrace(CMD_START,
+                   TRACE_LEVEL_NONE,
+                   "i_intModuleID = " + IStr(i_intModuleID) +
+                   ", i_intTraceLevel = " + IStr(i_intTraceLevel),
+                   i_intModuleID,
+                   strFunctionName);
+
+      gHamilton_Serial_Interface_intTraceLevels.SetAt(i_intModuleID, i_intTraceLevel);
+
+      _StatusTrace(CMD_COMPLET,
+                   TRACE_LEVEL_DEBUG,
+                   "",
+                   i_intModuleID,
+                   strFunctionName);
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // SetTraceLevel
+
+    // --------------------------------------------------------------------------------------
+    // function SetTraceLevelSilent
+    // --------------------------------------------------------------------------------------
+    function SetTraceLevelSilent(variable i_intModuleID,
+                                 variable i_intTraceLevel) variable
+    {
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                 "i_intModuleID",
+                                                 0,
+                                                 _Hamilton_Serial_Interface_intMatrixSize,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intTraceLevel,
+                                                 "i_intTraceLevel",
+                                                 TRACE_LEVEL_NONE,
+                                                 TRACE_LEVEL_DEBUG,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      gHamilton_Serial_Interface_intTraceLevels.SetAt(i_intModuleID, i_intTraceLevel);
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // SetTraceLevelSilent
+
+    // --------------------------------------------------------------------------------------
+    // function TerminateModule
+    // --------------------------------------------------------------------------------------
+    function TerminateModule(variable i_intModuleID,
+                             variable i_blnAlwaysTerminate,
+                             variable i_blnTerminatePort,
+                             variable i_arrstrTerminateCommands[],
+                             variable i_arrfltTimeouts[],
+                             variable& o_arrstrResponses[],
+                             variable& o_arrstrErrorCodes[]) variable
+    {
+      variable blnTransmitSuccess(ASWGLOBAL::BOOL::FALSE);
+      variable intPortIndex(0);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                 "i_intModuleID",
+                                                 0,
+                                                 _Hamilton_Serial_Interface_intMatrixSize,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckBool(i_blnAlwaysTerminate,
+                                         "i_blnAlwaysTerminate",
+                                         strFunctionName,
+                                         gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckBool(i_blnTerminatePort,
+                                         "i_blnTerminatePort",
+                                         strFunctionName,
+                                         gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      _StatusTrace(CMD_START,
+                   TRACE_LEVEL_DEBUG,
+                   "i_intModuleID = " + IStr(i_intModuleID) +
+                   ", i_blnTerminatePort = " + IStr(i_blnTerminatePort) +
+                   ", i_blnAlwaysTerminate = " + IStr(i_blnAlwaysTerminate),
+                   i_intModuleID,
+                   strFunctionName);
+
+      gHamilton_Serial_Interface_MainCriticalSection.WaitEvent(hslInfinite);
+
+      if(i_blnAlwaysTerminate == ASWGLOBAL::BOOL::FALSE)
+      {
+        if(gHamilton_Serial_Interface_strModuleNames.GetAt(i_intModuleID) == "free")
+        {
+          gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+          _StatusTrace(CMD_ERRCOMPL,
+                       TRACE_LEVEL_RELEASE,
+                       "Module with ID " + IStr(i_intModuleID) + " not initialized",
+                       i_intModuleID,
+                       strFunctionName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      // transmit i_strTerminateCommands
+      blnTransmitSuccess = TransmitModuleCommandList(i_intModuleID, i_arrstrTerminateCommands, i_arrfltTimeouts, o_arrstrResponses, o_arrstrErrorCodes);
+      if(blnTransmitSuccess == ASWGLOBAL::BOOL::FALSE)
+      {
+        gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Transmitting termination command list failed!",
+                     i_intModuleID,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // calculate port index for moduleID and terminate it, if necessary
+      intPortIndex = i_intModuleID / _Hamilton_Serial_Interface_intMaximumNumberOfModules;
+
+      if(i_blnTerminatePort == ASWGLOBAL::BOOL::TRUE)
+      {
+        // mark used ModuleID as free
+        gHamilton_Serial_Interface_strModuleNames.SetAt(i_intModuleID, "free");
+        _TerminatePort(gHamilton_Serial_Interface_intPortNumbers.GetAt(intPortIndex));
+      }
+
+      gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+      _StatusTrace(CMD_COMPLET, TRACE_LEVEL_DEBUG, "", i_intModuleID, strFunctionName);
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // TerminateModule
+
+    // --------------------------------------------------------------------------------------
+    // function TerminateDevice
+    // --------------------------------------------------------------------------------------
+    function TerminateDevice(variable i_intModuleID) variable
+    {
+      variable intPortIndex(0);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                 "i_intModuleID",
+                                                 0,
+                                                 _Hamilton_Serial_Interface_intMatrixSize,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      _StatusTrace(CMD_START,
+                   TRACE_LEVEL_DEBUG,
+                   "i_intModuleID = " + IStr(i_intModuleID),
+                   i_intModuleID,
+                   strFunctionName);
+
+      gHamilton_Serial_Interface_MainCriticalSection.WaitEvent(hslInfinite);
+
+      if(gHamilton_Serial_Interface_strModuleNames.GetAt(i_intModuleID) == "free")
+      {
+        gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Module with ID " + IStr(i_intModuleID) + " not initialized",
+                     i_intModuleID,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      // calculate port index for moduleID and terminate it, if necessary
+      intPortIndex = i_intModuleID / _Hamilton_Serial_Interface_intMaximumNumberOfModules;
+
+      // mark used ModuleID as free
+      gHamilton_Serial_Interface_strModuleNames.SetAt(i_intModuleID, "free");
+      _TerminatePort(gHamilton_Serial_Interface_intPortNumbers.GetAt(intPortIndex));
+
+      gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+      _StatusTrace(CMD_COMPLET,
+                   TRACE_LEVEL_DEBUG,
+                   "",
+                   i_intModuleID,
+                   strFunctionName);
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // TerminateDevice
+
+    // --------------------------------------------------------------------------------------
+    // function ShowUsage
+    // --------------------------------------------------------------------------------------
+    function ShowUsage() variable
+    {
+      variable intOuterLoopCounter(0), intInnerLoopCounter(0);
+      variable strTraceString(""), strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      gHamilton_Serial_Interface_MainCriticalSection.WaitEvent(hslInfinite);
+
+      _StatusTrace(CMD_START,
+                   TRACE_LEVEL_NONE,
+                   "   ******************************************************",
+                   -1,
+                   strFunctionName);
+
+      for(intOuterLoopCounter = 0; intOuterLoopCounter < _Hamilton_Serial_Interface_intMaximumNumberOfPorts; intOuterLoopCounter++)
+      {
+        strTraceString = IStr(gHamilton_Serial_Interface_intPortNumbers.GetAt(intOuterLoopCounter));
+        strTraceString = Hamilton_DriverTools::FillLeft(strTraceString,
+                                                        "0",
+                                                        3,
+                                                        strFunctionName,
+                                                        gHamilton_Serial_Interface_strLibraryName);
+        strTraceString = strTraceString + " ";
+        for(intInnerLoopCounter = 0; intInnerLoopCounter < _Hamilton_Serial_Interface_intMaximumNumberOfModules; intInnerLoopCounter++)
+          strTraceString = strTraceString + "--" + gHamilton_Serial_Interface_strModuleNames.GetAt(intOuterLoopCounter * _Hamilton_Serial_Interface_intMaximumNumberOfModules + intInnerLoopCounter);
+        _StatusTrace(CMD_PROGRESS,
+                     TRACE_LEVEL_NONE,
+                     strTraceString,
+                     -1,
+                     strFunctionName);
+      }
+      _StatusTrace(CMD_COMPLET,
+                   TRACE_LEVEL_NONE,
+                   "******************************************************",
+                   -1,
+                   strFunctionName);
+
+      gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // ShowUsage
+
+    // --------------------------------------------------------------------------------------
+    // function TransmitModuleCommandList
+    // --------------------------------------------------------------------------------------
+    function TransmitModuleCommandList(variable i_intModuleID,
+                                       variable i_arrstrCommands[],
+                                       variable i_arrfltTimeouts[],
+                                       variable& o_arrstrResponses[],
+                                       variable& o_arrstrErrorCodes[]) variable
+    {
+      variable intNumberOfCommands(0), intLoopCounter(0), intArraySize(0), intPortIndex(0);
+      variable blnReturnValue(hslTrue);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                 "i_intModuleID",
+                                                 0,
+                                                 _Hamilton_Serial_Interface_intMatrixSize,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      // check input arrays
+      intArraySize = i_arrstrCommands.GetSize();
+      if(intArraySize != i_arrfltTimeouts.GetSize())
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Size of array i_arrstrCommands doesn't match size of array i_arrfltTimeouts!",
+                     i_intModuleID,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      intNumberOfCommands = i_arrstrCommands.GetSize();
+
+      for(intLoopCounter = 0; intLoopCounter < intNumberOfCommands; intLoopCounter++)
+      {
+        if(Hamilton_DriverTools::CheckString(i_arrstrCommands.GetAt(intLoopCounter),
+                                             "i_arrstrCommands(" + IStr(intLoopCounter) + ")",
+                                              strFunctionName,
+                                              gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) blnReturnValue = hslFalse;
+        if(Hamilton_DriverTools::CheckFloat(i_arrfltTimeouts.GetAt(intLoopCounter),
+                                            "i_arrfltTimeouts(" + IStr(intLoopCounter) + ")",
+                                            strFunctionName,
+                                            gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) blnReturnValue = hslFalse;
+      }
+
+      // at least one value had the wrong type
+      if(!blnReturnValue) return(ASWGLOBAL::BOOL::FALSE);
+
+      // trace input parameter
+      _StatusTrace(CMD_START, 
+                   TRACE_LEVEL_DEBUG,
+                   "i_intModuleID = " + IStr(i_intModuleID),
+                   i_intModuleID,
+                   strFunctionName);
+      for(intLoopCounter = 0; intLoopCounter < intNumberOfCommands; intLoopCounter++)
+      {
+        _StatusTrace(CMD_START, 
+                     TRACE_LEVEL_DEBUG,
+                     "i_arrstrCommands(" + IStr(intLoopCounter) + ") = '" + i_arrstrCommands.GetAt(intLoopCounter) + "'",
+                     i_intModuleID,
+                     strFunctionName);
+      }
+      for(intLoopCounter = 0; intLoopCounter < intNumberOfCommands; intLoopCounter++)
+      {
+        _StatusTrace(CMD_START,
+                     TRACE_LEVEL_DEBUG,
+                     "i_arrfltTimeouts(" + IStr(intLoopCounter) + ") = " +
+                     Hamilton_DriverTools::FloatToString(i_arrfltTimeouts.GetAt(intLoopCounter),
+                                                         strFunctionName,
+                                                         gHamilton_Serial_Interface_strLibraryName),
+                     i_intModuleID,
+                     strFunctionName);
+      }
+
+      intNumberOfCommands = i_arrstrCommands.GetSize();
+
+      o_arrstrErrorCodes.SetSize(o_arrstrResponses.GetSize());
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].WaitEvent(hslInfinite);
+
+      for(intLoopCounter = 0; intLoopCounter < intNumberOfCommands; intLoopCounter++)
+      {
+        if(!_TransmitCommand(i_intModuleID,
+                             i_arrstrCommands.GetAt(intLoopCounter),
+                             i_arrfltTimeouts.GetAt(intLoopCounter),
+                             o_arrstrResponses.ElementAt(intLoopCounter),
+                             o_arrstrErrorCodes.ElementAt(intLoopCounter)))
+        {
+          gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+          o_arrstrErrorCodes.SetSize(intLoopCounter + 1);
+          _StatusTrace(CMD_ERRCOMPL, TRACE_LEVEL_RELEASE, "", i_intModuleID, strFunctionName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+        if(o_arrstrErrorCodes.ElementAt(intLoopCounter) != "00")
+        {
+          gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+          o_arrstrErrorCodes.SetSize(intLoopCounter + 1);
+          _StatusTrace(CMD_ERRCOMPL,
+                       TRACE_LEVEL_RELEASE,
+                       "",
+                       i_intModuleID,
+                       strFunctionName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+      _StatusTrace(CMD_COMPLET,
+                   TRACE_LEVEL_DEBUG,
+                   "",
+                   i_intModuleID,
+                   strFunctionName);
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // TransmitModuleCommandList
+
+    // --------------------------------------------------------------------------------------
+    // function TransmitDeviceCommand
+    // --------------------------------------------------------------------------------------
+    function TransmitDeviceCommand(variable i_intModuleID,
+                                   variable i_strCommand,
+                                   variable i_fltTimeout,
+                                   variable& o_strResponse) variable
+    {
+      variable intPortIndex(0);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                 "i_intModuleID",
+                                                 0,
+                                                 _Hamilton_Serial_Interface_intMatrixSize,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckString(i_strCommand,
+                                           "i_strCommand",
+                                           strFunctionName,
+                                           gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckFloat(i_fltTimeout,
+                                          "i_fltTimeout",
+                                          strFunctionName,
+                                          gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      // trace input parameter
+      _StatusTrace(CMD_START,
+                   TRACE_LEVEL_DEBUG,
+                   "i_intModuleID = " + IStr(i_intModuleID) +
+                   ", i_strCommand = '" + i_strCommand + "'" +
+                   ", i_fltTimeout = " + Hamilton_DriverTools::FloatToString(i_fltTimeout,
+                                                                             strFunctionName,
+                                                                             gHamilton_Serial_Interface_strLibraryName),
+                   i_intModuleID,
+                   strFunctionName);
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].WaitEvent(hslInfinite);
+      if(!_TransmitUniversalCommand(i_intModuleID, i_strCommand, i_fltTimeout, o_strResponse, strFunctionName))
+      {
+        gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+        _StatusTrace(CMD_ERRCOMPL, TRACE_LEVEL_RELEASE, "", i_intModuleID, strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+      _StatusTrace(CMD_COMPLET,
+                   TRACE_LEVEL_DEBUG,
+                   "o_strResponse = '" + o_strResponse + "'",
+                   i_intModuleID,
+                   strFunctionName);
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // TransmitDeviceCommand
+
+    // --------------------------------------------------------------------------------------
+    // function TransmitDeviceCommandList
+    // --------------------------------------------------------------------------------------
+    function TransmitDeviceCommandList(variable i_intModuleID,
+                                       variable i_arrstrCommands[],
+                                       variable i_arrfltTimeouts[],
+                                       variable& o_arrstrResponses[]) variable
+    {
+      variable intNumberOfCommands(0), intLoopCounter(0), intArraySize(0), intPortIndex(0);
+      variable blnReturnValue(hslTrue);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                 "i_intModuleID",
+                                                 0,
+                                                 _Hamilton_Serial_Interface_intMatrixSize,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      // check input arrays
+      intArraySize = i_arrstrCommands.GetSize();
+      if(intArraySize != i_arrfltTimeouts.GetSize())
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Size of array i_arrstrCommands doesn't match size of array i_arrfltTimeouts!",
+                     i_intModuleID,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      intNumberOfCommands = i_arrstrCommands.GetSize();
+
+      for(intLoopCounter = 0; intLoopCounter < intNumberOfCommands; intLoopCounter++)
+      {
+        if(Hamilton_DriverTools::CheckString(i_arrstrCommands.GetAt(intLoopCounter),
+                                             "i_arrstrCommands(" + IStr(intLoopCounter) + ")",
+                                              strFunctionName,
+                                              gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) blnReturnValue = hslFalse;
+        if(Hamilton_DriverTools::CheckFloat(i_arrfltTimeouts.GetAt(intLoopCounter),
+                                            "i_arrfltTimeouts(" + IStr(intLoopCounter) + ")",
+                                            strFunctionName,
+                                            gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) blnReturnValue = hslFalse;
+      }
+
+      // at least one value had the wrong type
+      if(!blnReturnValue) return(ASWGLOBAL::BOOL::FALSE);
+
+      // trace input parameter
+      _StatusTrace(CMD_START, 
+                   TRACE_LEVEL_DEBUG,
+                   "i_intModuleID = " + IStr(i_intModuleID),
+                   i_intModuleID,
+                   strFunctionName);
+      for(intLoopCounter = 0; intLoopCounter < intNumberOfCommands; intLoopCounter++)
+      {
+        _StatusTrace(CMD_PROGRESS, 
+                     TRACE_LEVEL_DEBUG,
+                     "i_arrstrCommands(" + IStr(intLoopCounter) + ") = '" + i_arrstrCommands.GetAt(intLoopCounter) + "'",
+                     i_intModuleID,
+                     strFunctionName);
+      }
+      for(intLoopCounter = 0; intLoopCounter < intNumberOfCommands; intLoopCounter++)
+      {
+        _StatusTrace(CMD_PROGRESS,
+                     TRACE_LEVEL_DEBUG,
+                     "i_arrfltTimeouts(" + IStr(intLoopCounter) + ") = " +
+                     Hamilton_DriverTools::FloatToString(i_arrfltTimeouts.GetAt(intLoopCounter),
+                                                         strFunctionName,
+                                                         gHamilton_Serial_Interface_strLibraryName),
+                     i_intModuleID,
+                     strFunctionName);
+      }
+
+      intNumberOfCommands = i_arrstrCommands.GetSize();
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].WaitEvent(hslInfinite);
+
+      for(intLoopCounter = 0; intLoopCounter < intNumberOfCommands; intLoopCounter++)
+      {
+        if(!_TransmitUniversalCommand(i_intModuleID,
+                                      i_arrstrCommands.GetAt(intLoopCounter),
+                                      i_arrfltTimeouts.GetAt(intLoopCounter),
+                                      o_arrstrResponses.ElementAt(intLoopCounter),
+                                      strFunctionName))
+        {
+          o_arrstrResponses.SetSize(intLoopCounter);
+          gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+          _StatusTrace(CMD_ERRCOMPL, TRACE_LEVEL_RELEASE, "", i_intModuleID, strFunctionName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+
+      for(intLoopCounter = 0; intLoopCounter < intNumberOfCommands; intLoopCounter++)
+      {
+        _StatusTrace(CMD_PROGRESS,
+                     TRACE_LEVEL_DEBUG,
+                     "o_arrstrResponses(" + IStr(intLoopCounter) + ") = '" + o_arrstrResponses.GetAt(intLoopCounter) + "'",
+                     i_intModuleID,
+                     strFunctionName);
+      }
+
+      _StatusTrace(CMD_COMPLET,
+                   TRACE_LEVEL_DEBUG,
+                   "",
+                   i_intModuleID,
+                   strFunctionName);
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // TransmitDeviceCommandList
+
+    // --------------------------------------------------------------------------------------
+    // function GetSecondRead
+    // --------------------------------------------------------------------------------------
+    function GetSecondRead(variable i_intModuleID,
+                           variable i_fltTimeout,
+                           variable& o_strResponse) variable
+    {
+      variable intPortIndex(0);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                 "i_intModuleID",
+                                                 0,
+                                                 _Hamilton_Serial_Interface_intMatrixSize,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckFloat(i_fltTimeout,
+                                          "i_fltTimeout",
+                                          strFunctionName,
+                                          gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      // trace input parameter
+      _StatusTrace(CMD_START,
+                   TRACE_LEVEL_DEBUG,
+                   "i_intModuleID = " + IStr(i_intModuleID) +
+                   ", i_fltTimeout = " + Hamilton_DriverTools::FloatToString(i_fltTimeout,
+                                                                             strFunctionName,
+                                                                             gHamilton_Serial_Interface_strLibraryName),
+                   i_intModuleID,
+                   strFunctionName);
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].WaitEvent(hslInfinite);
+      if(!_UniversalRead(i_intModuleID, i_fltTimeout, o_strResponse, strFunctionName))
+      {
+        gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "",
+                     i_intModuleID,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+      _StatusTrace(CMD_COMPLET,
+                   TRACE_LEVEL_DEBUG,
+                   "o_strResponse = '" + o_strResponse + "'",
+                   i_intModuleID,
+                   strFunctionName);
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // GetSecondRead
+
+    // --------------------------------------------------------------------------------------
+    // function ReceiveDeviceAnswerSilent
+    // --------------------------------------------------------------------------------------
+    function ReceiveDeviceAnswerSilent(variable i_intModuleID,
+                                       variable i_fltTimeout,
+                                       variable& o_strResponse) variable
+    {
+      variable intPortIndex(0);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                 "i_intModuleID",
+                                                 0,
+                                                 _Hamilton_Serial_Interface_intMatrixSize,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckFloat(i_fltTimeout,
+                                          "i_fltTimeout",
+                                          strFunctionName,
+                                          gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].WaitEvent(hslInfinite);
+      if(!_UniversalReadSilent(i_intModuleID, i_fltTimeout, o_strResponse, strFunctionName))
+      {
+        gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "",
+                     i_intModuleID,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // ReceiveDeviceAnswerSilent
+
+    // --------------------------------------------------------------------------------------
+    // function SendDeviceCommandSilent
+    // --------------------------------------------------------------------------------------
+    function SendDeviceCommandSilent(variable i_intModuleID,
+                                     variable i_strCommand) variable
+    {
+      variable intPortIndex(0);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                 "i_intModuleID",
+                                                 0,
+                                                 _Hamilton_Serial_Interface_intMatrixSize,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckString(i_strCommand,
+                                           "i_strCommand",
+                                           strFunctionName,
+                                           gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].WaitEvent(hslInfinite);
+      if(!_TransmitUniversalCommandSilent(i_intModuleID, i_strCommand, 0.1, strFunctionName))
+      {
+        gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "",
+                     i_intModuleID,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // SendDeviceCommandSilent
+
+    // --------------------------------------------------------------------------------------
+    // function SendModuleCommand
+    // --------------------------------------------------------------------------------------
+    function SendModuleCommand(variable i_intModuleID,
+                               variable i_strCommand) variable
+    {
+      variable intPortIndex(0);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      if(Hamilton_DriverTools::CheckIntegerRange(i_intModuleID,
+                                                 "i_intModuleID",
+                                                 0,
+                                                 _Hamilton_Serial_Interface_intMatrixSize,
+                                                 strFunctionName,
+                                                 gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(Hamilton_DriverTools::CheckString(i_strCommand,
+                                           "i_strCommand",
+                                           strFunctionName,
+                                           gHamilton_Serial_Interface_strLibraryName) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].WaitEvent(hslInfinite);
+      if(!_SendCommand(i_intModuleID, i_strCommand))
+      {
+        gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "",
+                     i_intModuleID,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // SendModuleCommand
+
+    // --------------------------------------------------------------------------------------
+    // function EvaluateError
+    // --------------------------------------------------------------------------------------
+    function EvaluateError(variable i_strErrorCode,
+                           variable& o_strErrorMessage) variable
+    {
+      o_strErrorMessage = "";
+
+      if(i_strErrorCode == ERROR_TIMEOUT)             o_strErrorMessage = ERROR_MSG_TIMEOUT;
+      if(i_strErrorCode == ERROR_MODULE_NAME_UNKNOWN) o_strErrorMessage = ERROR_MSG_MODULE_NAME_UNKNOWN;
+      if(i_strErrorCode == ERROR_RESPONSE_TOO_SHORT)  o_strErrorMessage = ERROR_MSG_RESPONSE_TOO_SHORT;
+
+      if(o_strErrorMessage == "")
+        return(ASWGLOBAL::BOOL::FALSE);
+      else
+        return(ASWGLOBAL::BOOL::TRUE);
+    } // EvaluateError
+
+    // --------------------------------------------------------------------------------------
+    // private function _InitializeLibrary
+    // --------------------------------------------------------------------------------------
+    private function _InitializeLibrary() void
+    {
+      variable intLoopCounter(0);
+
+      if(gHamilton_Serial_Interface_blnInitialized == ASWGLOBAL::BOOL::TRUE) return;
+
+      for(intLoopCounter = 0; intLoopCounter < _Hamilton_Serial_Interface_intMaximumNumberOfPorts; intLoopCounter++)
+      {
+        gHamilton_Serial_Interface_intPortNumbers.SetAt(intLoopCounter, 0);
+        gHamilton_Serial_Interface_strBuffers.SetAt(intLoopCounter, "");
+        gHamilton_Serial_Interface_strConnectionStrings.SetAt(intLoopCounter, "");
+        gHamilton_Serial_Interface_hdlCriticalSections[intLoopCounter].SetEvent();
+      }
+
+      for(intLoopCounter = 0; intLoopCounter < _Hamilton_Serial_Interface_intMatrixSize; intLoopCounter++)
+      {
+        gHamilton_Serial_Interface_strModuleNames.SetAt(intLoopCounter, "free");
+        gHamilton_Serial_Interface_blnSimulationFlags.SetAt(intLoopCounter, ASWGLOBAL::BOOL::TRUE);
+        gHamilton_Serial_Interface_intTraceLevels.SetAt(intLoopCounter, TRACE_LEVEL_DEBUG);
+      }
+
+      gHamilton_Serial_Interface_MainCriticalSection.SetEvent();
+
+      gHamilton_Serial_Interface_blnInitialized = ASWGLOBAL::BOOL::TRUE;
+    } // _InitializeLibrary
+
+    // --------------------------------------------------------------------------------------
+    // discontinued functions
+    // --------------------------------------------------------------------------------------
+    static function TransmitCommandList(variable i_intModuleID,
+                                        variable i_arrstrCommands[],
+                                        variable i_arrfltTimeouts[],
+                                        variable& o_arrstrResponses[],
+                                        variable& o_arrstrErrorCodes[]) variable
+    {
+      return (TransmitModuleCommandList(i_intModuleID, i_arrstrCommands, i_arrfltTimeouts, o_arrstrResponses, o_arrstrErrorCodes));
+    } // TransmitCommandList
+
+    static function TransmitCommand(variable i_intModuleID,
+                                    variable i_strCommand,
+                                    variable i_fltTimeout,
+                                    variable& o_strResponse) variable
+    {
+      return(TransmitDeviceCommand(i_intModuleID, i_strCommand, i_fltTimeout, o_strResponse));
+    } // TransmitCommand
+
+    static function TransmitCommandSilent(variable i_intModuleID,
+                                          variable i_strCommand,
+                                          variable i_fltTimeout) variable
+    {
+      return(SendDeviceCommandSilent(i_intModuleID, i_strCommand));
+    } // TransmitCommandSilent
+
+    static function TransmitDeviceCommandSilent(variable i_intModuleID,
+                                                variable i_strCommand,
+                                                variable i_fltTimeout) variable
+    {
+      return (SendDeviceCommandSilent(i_intModuleID, i_strCommand));
+    } // TransmitDeviceCommandSilent
+
+    // --------------------------------------------------------------------------------------
+    // private function _InitializePort
+    // --------------------------------------------------------------------------------------
+    private function _InitializePort(variable i_intPort,
+                                     variable i_strPortSettings,
+                                     variable i_blnSimulationMode,
+                                     variable& o_intPortIndex) variable
+    {
+      variable ReadIntervalTimeout(hslInfinite);        // maximum time between read chars
+      variable ReadTotalTimeoutMultiplier(hslInfinite); // mutiplier of characters
+      variable ReadTotalTimeoutConstant(1.0);           // constant in seconds
+      variable WriteTotalTimeoutMultiplier(0.0);        // mutiplier of characters 
+      variable WriteTotalTimeoutConstant(1.0);          // constant in seconds
+      variable intLoopCounter(0);
+      variable strCOMPortOpenString(""), strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      o_intPortIndex = -1;
+
+      // check if COM port already initialized
+      for(intLoopCounter = 0; intLoopCounter < _Hamilton_Serial_Interface_intMaximumNumberOfPorts; intLoopCounter++)
+        if(gHamilton_Serial_Interface_intPortNumbers.GetAt(intLoopCounter) == i_intPort)
+        {
+          o_intPortIndex = intLoopCounter;
+          // check, if port is opened with different settings
+          strCOMPortOpenString = gHamilton_Serial_Interface_strConnectionStrings.GetAt(intLoopCounter);
+          if(strCOMPortOpenString != i_strPortSettings)
+          {
+            _StatusTrace(CMD_ERRCOMPL,
+                         TRACE_LEVEL_RELEASE,
+                         "Port " + IStr(i_intPort) +
+                         " already initialized with parameter " + strCOMPortOpenString +
+                         " which is not equal to " + i_strPortSettings,
+                         -1,
+                         strFunctionName);
+            return(hslFalse);
+          }
+          return(hslTrue);
+        }
+
+      // find first empty COM port
+      for(intLoopCounter = 0; intLoopCounter < _Hamilton_Serial_Interface_intMaximumNumberOfPorts; intLoopCounter++)
+      {
+        if(gHamilton_Serial_Interface_intPortNumbers.GetAt(intLoopCounter) == 0)
+        {
+          o_intPortIndex = intLoopCounter;
+          break;
+        }
+      }
+
+      if(o_intPortIndex == -1)
+      {
+        _StatusTrace(CMD_ERRCOMPL, TRACE_LEVEL_RELEASE, "No free COM ports anymore", -1, strFunctionName);
+        return(hslFalse);
+      }
+
+      if(i_blnSimulationMode == ASWGLOBAL::BOOL::FALSE)
+      {
+        // initialize communication port
+        gHamilton_Serial_Interface_hdlCriticalSections[o_intPortIndex].WaitEvent(hslInfinite);
+        gHamilton_Serial_Interface_hdlChannels[o_intPortIndex].SetDelimiter(hslAsciiText);
+        if(gHamilton_Serial_Interface_hdlChannels[o_intPortIndex].AddField(1, gHamilton_Serial_Interface_strBuffers.ElementAt(o_intPortIndex), hslString) == 0)
+        {
+          gHamilton_Serial_Interface_hdlCriticalSections[o_intPortIndex].SetEvent();
+          _StatusTrace(CMD_ERRCOMPL, TRACE_LEVEL_RELEASE, "<AddField> failed!", -1, strFunctionName);
+          return(hslFalse);
+        }
+
+        onerror goto COMPORT_ERROR;
+
+        // Open port
+        strCOMPortOpenString = "COM" + IStr(i_intPort) + " " + i_strPortSettings;
+
+        if(gHamilton_Serial_Interface_hdlChannels[o_intPortIndex].Open(strCOMPortOpenString, hslWrite) == 0)
+        {
+          gHamilton_Serial_Interface_hdlChannels[o_intPortIndex].RemoveFields();
+          gHamilton_Serial_Interface_hdlCriticalSections[o_intPortIndex].SetEvent();
+          _StatusTrace(CMD_ERRCOMPL, TRACE_LEVEL_RELEASE, "<Port.Open()> with '" + strCOMPortOpenString + "' failed!", -1, strFunctionName);
+          return(hslFalse);
+        }
+
+        // Configure dummy command Timeouts
+        if(SetCommTimeouts(gHamilton_Serial_Interface_hdlChannels.GetAt(o_intPortIndex)) == 0)
+        {
+          gHamilton_Serial_Interface_hdlCriticalSections[o_intPortIndex].SetEvent();
+          _TerminatePort(i_intPort);  
+          _StatusTrace(CMD_ERRCOMPL,
+                       TRACE_LEVEL_RELEASE,
+                       "<SetCommTimeouts> (1) failed!", 
+                      -1,
+                      strFunctionName);
+          return(hslFalse);
+        }
+
+        gHamilton_Serial_Interface_hdlChannels[o_intPortIndex].WriteRecord();
+        gHamilton_Serial_Interface_hdlChannels[o_intPortIndex].ReadRecord();
+
+        ReadTotalTimeoutConstant = 250.0;
+
+        // Configure standard Timeouts
+        if(SetCommTimeouts(gHamilton_Serial_Interface_hdlChannels.GetAt(o_intPortIndex)) == 0)
+        {
+          gHamilton_Serial_Interface_hdlCriticalSections[o_intPortIndex].SetEvent();
+          _TerminatePort(i_intPort);  
+          _StatusTrace(CMD_ERRCOMPL,
+                       TRACE_LEVEL_RELEASE,
+                       "<SetCommTimeouts> (2) failed!",
+                       -1,
+                       strFunctionName);
+          return(hslFalse);
+        }
+
+        onerror goto 0;
+
+        gHamilton_Serial_Interface_hdlCriticalSections[o_intPortIndex].SetEvent();
+      }
+
+      // set values
+      gHamilton_Serial_Interface_strConnectionStrings.SetAt(o_intPortIndex, i_strPortSettings);
+      gHamilton_Serial_Interface_intPortNumbers.SetAt(o_intPortIndex, i_intPort);
+
+      return(hslTrue);
+
+      COMPORT_ERROR:
+      {
+        gHamilton_Serial_Interface_hdlCriticalSections[o_intPortIndex].SetEvent();
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "COM port " + IStr(i_intPort) + " not available.",
+                     -1,
+                     strFunctionName);
+        return(hslFalse);
+      }
+    } // _InitializePort
+
+    // --------------------------------------------------------------------------------------
+    // private function _TerminatePort
+    // --------------------------------------------------------------------------------------
+    private function _TerminatePort(variable i_intPort) variable
+    {
+      variable intLoopCounter(0), intPortIndex(-1), intModuleIDStartIndex(0), intModuleIDStopIndex(0);
+      variable strCOMPortOpenString(""), strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      // find port in list
+      for(intLoopCounter = 0; intLoopCounter < _Hamilton_Serial_Interface_intMaximumNumberOfPorts; intLoopCounter++)
+      {
+        if(gHamilton_Serial_Interface_intPortNumbers.GetAt(intLoopCounter) == i_intPort)
+        {
+          intPortIndex = intLoopCounter;
+          break;
+        }
+      }
+
+      if(intPortIndex == -1)
+      {
+        _StatusTrace(CMD_ERRCOMPL, TRACE_LEVEL_RELEASE, "COM port " + IStr(i_intPort) + " not found in list!", -1, strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      intModuleIDStartIndex = intPortIndex * _Hamilton_Serial_Interface_intMaximumNumberOfModules;
+      intModuleIDStopIndex = intModuleIDStartIndex + _Hamilton_Serial_Interface_intMaximumNumberOfModules;
+
+      for(intLoopCounter = intModuleIDStartIndex; intLoopCounter < intModuleIDStopIndex; intLoopCounter ++)
+      {
+        if(gHamilton_Serial_Interface_strModuleNames.GetAt(intLoopCounter) != "free")
+        {
+          // occupied position found --> do not close COM port
+          _StatusTrace(CMD_COMPLET, TRACE_LEVEL_DEBUG, "still modules connected to COM port", -1, strFunctionName);
+          return(ASWGLOBAL::BOOL::TRUE);
+        }
+      }
+
+      // close port
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].WaitEvent(hslInfinite);
+      gHamilton_Serial_Interface_hdlChannels[intPortIndex].RemoveFields();
+      if(gHamilton_Serial_Interface_hdlChannels[intPortIndex].Close() != 0)
+      {
+        gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+        _StatusTrace(CMD_ERRCOMPL, TRACE_LEVEL_RELEASE, "<Port.Close()> failed!", -1, strFunctionName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+      gHamilton_Serial_Interface_hdlCriticalSections[intPortIndex].SetEvent();
+
+      // remove port number from list
+      gHamilton_Serial_Interface_intPortNumbers.SetAt(intPortIndex, 0);
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // _TerminatePort
+
+    // --------------------------------------------------------------------------------------
+    // private function _SetTimeout
+    // --------------------------------------------------------------------------------------
+    private function _SetTimeout(variable i_intModuleID,
+                                 variable i_fltTimeout,
+                                 variable i_strCallingFunctionName) variable
+    {
+      variable intPortIndex(0);
+      variable strFunctionName("");
+      variable ReadTotalTimeoutConstant(i_fltTimeout);
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+      strFunctionName = i_strCallingFunctionName + " --> " + strFunctionName;
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      if(gHamilton_Serial_Interface_fltTimeouts.GetAt(intPortIndex) == i_fltTimeout) return(hslTrue);
+
+      ReadTotalTimeoutConstant = i_fltTimeout;
+
+      if(SetCommTimeouts(gHamilton_Serial_Interface_hdlChannels.GetAt(intPortIndex)) == 0)
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "SetCommTimeouts failed!",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+
+      gHamilton_Serial_Interface_fltTimeouts.SetAt(intPortIndex, i_fltTimeout);
+
+      return(hslTrue);
+    } // _SetTimeout
+
+    // --------------------------------------------------------------------------------------
+    // private function _TransmitCommand
+    // --------------------------------------------------------------------------------------
+    private function _TransmitCommand(variable i_intModuleID,
+                                      variable i_strCommand,
+                                      variable i_fltTimeout,
+                                      variable& o_strResponse,
+                                      variable& o_strErrorCode) variable
+    {
+      variable intPortIndex(0), intPosition(0);
+      variable strFunctionName(""), strCommandToSend("");
+      string strResponse("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      // Activate error handler
+      onerror goto UNEXPECTED;
+
+      if(gHamilton_Serial_Interface_blnSimulationFlags.GetAt(i_intModuleID) == ASWGLOBAL::BOOL::TRUE)
+      {
+        _StatusTrace(CMD_COMPLET,
+                     TRACE_LEVEL_DEBUG,
+                     "Simulated: sending " +
+                     gHamilton_Serial_Interface_strModuleNames.GetAt(i_intModuleID) +
+                     i_strCommand +
+                     ", receiving " +
+                     o_strResponse,
+                     i_intModuleID,
+                     strFunctionName);
+        o_strErrorCode ="00";
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+
+      // reset output
+      o_strResponse = "";
+      o_strErrorCode ="";
+
+      // prepare command string
+      strCommandToSend = gHamilton_Serial_Interface_strModuleNames.GetAt(i_intModuleID) + i_strCommand;
+
+      if(!_SetTimeout(i_intModuleID, i_fltTimeout, strFunctionName)) return(hslFalse);
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      gHamilton_Serial_Interface_strBuffers.SetAt(intPortIndex, strCommandToSend);
+
+      // transmit command
+      if(gHamilton_Serial_Interface_hdlChannels[intPortIndex].WriteRecord() == 0)
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "<WriteRecord()> for command <" + strCommandToSend + "> failed!",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+
+      // receive response
+      if(gHamilton_Serial_Interface_hdlChannels[intPortIndex].ReadRecord() == 0)
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "<ReadRecord()> for command <" + strCommandToSend + "> failed!",
+                     i_intModuleID,
+                     strFunctionName);
+        o_strErrorCode = ERROR_TIMEOUT;
+        return(hslFalse);
+      }
+
+      strResponse = gHamilton_Serial_Interface_strBuffers.GetAt(intPortIndex);
+
+      onerror goto 0;
+
+      strResponse = Hamilton_DriverTools::TrimRight(strResponse,
+                                                    " ",
+                                                    strFunctionName,
+                                                    gHamilton_Serial_Interface_strLibraryName);
+
+      // evaluate module response
+      if(strResponse.GetLength() < 8)
+      {
+        o_strErrorCode = ERROR_RESPONSE_TOO_SHORT;
+        if(strResponse.Compare(strCommandToSend) == 0)
+          o_strErrorCode = ERROR_MODULE_NAME_UNKNOWN;
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Command transmission for <" + strCommandToSend +
+                     "> failed! - Response = <" + o_strResponse + 
+                     ">, Length of response too short!)",
+                     i_intModuleID,
+                     strFunctionName);
+         return(hslFalse);
+      }
+
+      intPosition = strResponse.Find("er");
+
+      if(intPosition != -1)
+        o_strErrorCode = strResponse.Mid((intPosition + 2), 2);
+
+      //BugFix 2.7.1:
+      o_strResponse = strResponse;
+
+      return(hslTrue);
+
+      UNEXPECTED:
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Command transmission for  <" + strCommandToSend +
+                     "> failed! - Unexpected error occured",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+    } // _TransmitCommand
+
+    // --------------------------------------------------------------------------------------
+    // private function _SendCommand
+    // --------------------------------------------------------------------------------------
+    private function _SendCommand(variable i_intModuleID,
+                                  variable i_strCommand) variable
+    {
+      variable intPortIndex(0), intPosition(0);
+      variable strFunctionName(""), strCommandToSend("");
+      string strResponse("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+
+      // Activate error handler
+      onerror goto UNEXPECTED;
+
+      if(gHamilton_Serial_Interface_blnSimulationFlags.GetAt(i_intModuleID) == ASWGLOBAL::BOOL::TRUE)
+      {
+        _StatusTrace(CMD_COMPLET,
+                     TRACE_LEVEL_DEBUG,
+                     "Simulated: sending '" +
+                     gHamilton_Serial_Interface_strModuleNames.GetAt(i_intModuleID) +
+                     i_strCommand + "'",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslTrue);
+      }
+
+      // prepare command string
+      strCommandToSend = gHamilton_Serial_Interface_strModuleNames.GetAt(i_intModuleID) + i_strCommand;
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      gHamilton_Serial_Interface_strBuffers.SetAt(intPortIndex, strCommandToSend);
+
+      // transmit command
+      if(gHamilton_Serial_Interface_hdlChannels[intPortIndex].WriteRecord() == 0)
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "<WriteRecord()> for command '" + i_strCommand + "' failed!",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+      onerror goto 0;
+
+      return(hslTrue);
+
+      UNEXPECTED:
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Command transmission for  <" + strCommandToSend +
+                     "> failed! - Unexpected error occured",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+    } // _SendCommand
+
+    // --------------------------------------------------------------------------------------
+    // private function _TransmitUniversalCommand
+    // --------------------------------------------------------------------------------------
+    private function _TransmitUniversalCommand(variable i_intModuleID,
+                                               variable i_strCommand,
+                                               variable i_fltTimeout,
+                                               variable& o_strResponse,
+                                               variable i_strCallingFunctionName) variable
+    {
+      variable intPortIndex(0), intPosition(0);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+      strFunctionName = i_strCallingFunctionName + " --> " + i_strCallingFunctionName;
+     
+      // Activate error handler
+      onerror goto UNEXPECTED;
+
+      if(gHamilton_Serial_Interface_blnSimulationFlags.GetAt(i_intModuleID) == ASWGLOBAL::BOOL::TRUE)
+      {
+        _StatusTrace(CMD_COMPLET,
+                     TRACE_LEVEL_DEBUG,
+                     "Simulated: sending '" + i_strCommand +
+                     "', receiving '" + o_strResponse + "'",
+                     i_intModuleID,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+
+      // reset output
+      o_strResponse = "";
+
+      // clear receive buffer first
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      if(!_SetTimeout(i_intModuleID, 0.5, strFunctionName)) return(hslFalse);
+
+      while(gHamilton_Serial_Interface_hdlChannels[intPortIndex].ReadRecord() != 0){}
+
+      if(!_SetTimeout(i_intModuleID, i_fltTimeout, strFunctionName)) return(hslFalse);
+
+      gHamilton_Serial_Interface_strBuffers.SetAt(intPortIndex, i_strCommand);
+
+      // transmit command
+      if(gHamilton_Serial_Interface_hdlChannels[intPortIndex].WriteRecord() == 0)
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "<WriteRecord()> for command '" + i_strCommand + "' failed!",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+
+      // receive response
+      if(gHamilton_Serial_Interface_hdlChannels[intPortIndex].ReadRecord() == 0)
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "<ReadRecord()> for command '" + i_strCommand + "' failed!",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+
+      o_strResponse = gHamilton_Serial_Interface_strBuffers.GetAt(intPortIndex);
+
+      onerror goto 0;
+
+      return(hslTrue);
+
+      UNEXPECTED:
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Command transmission for  <" + i_strCommand +
+                     "> failed! - Unexpected error occured",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+    } // _TransmitUniversalCommand
+
+    // --------------------------------------------------------------------------------------
+    // private function _UniversalRead
+    // --------------------------------------------------------------------------------------
+    private function _UniversalRead(variable i_intModuleID,
+                                    variable i_fltTimeout,
+                                    variable& o_strResponse,
+                                    variable i_strCallingFunctionName) variable
+    {
+      variable intPortIndex(0), intPosition(0);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+      strFunctionName = i_strCallingFunctionName + " --> " + i_strCallingFunctionName;
+     
+      // Activate error handler
+      onerror goto UNEXPECTED;
+
+      if(gHamilton_Serial_Interface_blnSimulationFlags.GetAt(i_intModuleID) == ASWGLOBAL::BOOL::TRUE)
+      {
+        _StatusTrace(CMD_COMPLET,
+                     TRACE_LEVEL_DEBUG,
+                     "Simulated: receiving '" + o_strResponse + "'",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslTrue);
+      }
+
+      // reset output
+      o_strResponse = "";
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      if(!_SetTimeout(i_intModuleID, i_fltTimeout, strFunctionName)) return(hslFalse);
+
+      // receive second read
+      if(gHamilton_Serial_Interface_hdlChannels[intPortIndex].ReadRecord() == 0)
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "<ReadRecord()> failed. COM Buffer is empty",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+
+      o_strResponse = gHamilton_Serial_Interface_strBuffers.GetAt(intPortIndex);
+
+      onerror goto 0;
+
+      return(hslTrue);
+
+      UNEXPECTED:
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Reading failed! - Unexpected error occured",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+    } // _UniversalRead
+
+    // --------------------------------------------------------------------------------------
+    // private function _UniversalReadSilent
+    // --------------------------------------------------------------------------------------
+    private function _UniversalReadSilent(variable i_intModuleID,
+                                          variable i_fltTimeout,
+                                          variable& o_strResponse,
+                                          variable i_strCallingFunctionName) variable
+    {
+      variable intPortIndex(0), intPosition(0);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+      strFunctionName = i_strCallingFunctionName + " --> " + i_strCallingFunctionName;
+     
+      // Activate error handler
+      onerror goto UNEXPECTED;
+
+      if(gHamilton_Serial_Interface_blnSimulationFlags.GetAt(i_intModuleID) == ASWGLOBAL::BOOL::TRUE) return(hslTrue);
+
+      o_strResponse = "";
+
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      if(!_SetTimeout(i_intModuleID, i_fltTimeout, strFunctionName)) return(hslFalse);
+
+      if(gHamilton_Serial_Interface_hdlChannels[intPortIndex].ReadRecord() == 0) return(hslFalse);
+
+      o_strResponse = gHamilton_Serial_Interface_strBuffers.GetAt(intPortIndex);
+
+      onerror goto 0;
+
+      return(hslTrue);
+
+      UNEXPECTED:
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Reading failed! - Unexpected error occured",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+    } // _UniversalReadSilent
+
+    // --------------------------------------------------------------------------------------
+    // private function _TransmitUniversalCommandSilent
+    // --------------------------------------------------------------------------------------
+    private function _TransmitUniversalCommandSilent(variable i_intModuleID,
+                                                     variable i_strCommand,
+                                                     variable i_fltTimeout,
+                                                     variable i_strCallingFunctionName) variable
+    {
+      variable intPortIndex(0), intPosition(0);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName(), strFunctionName, gHamilton_Serial_Interface_strLibraryName);
+      strFunctionName = i_strCallingFunctionName + " --> " + i_strCallingFunctionName;
+     
+      // Activate error handler
+      onerror goto UNEXPECTED;
+
+      if(gHamilton_Serial_Interface_blnSimulationFlags.GetAt(i_intModuleID) == ASWGLOBAL::BOOL::TRUE)
+      {
+        _StatusTrace(CMD_COMPLET,
+                     TRACE_LEVEL_DEBUG,
+                     "Simulated: sending '" + i_strCommand,
+                     i_intModuleID,
+                     strFunctionName);
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+
+      // clear receive buffer first
+      _GetPortIdForModuleID(i_intModuleID, intPortIndex);
+
+      if(!_SetTimeout(i_intModuleID, 0.1, strFunctionName)) return(hslFalse);
+
+      while(gHamilton_Serial_Interface_hdlChannels[intPortIndex].ReadRecord() != 0){}
+
+      if(!_SetTimeout(i_intModuleID, i_fltTimeout, strFunctionName)) return(hslFalse);
+
+      gHamilton_Serial_Interface_strBuffers.SetAt(intPortIndex, i_strCommand);
+
+      // transmit command
+      if(gHamilton_Serial_Interface_hdlChannels[intPortIndex].WriteRecord() == 0)
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "<WriteRecord()> for command '" + i_strCommand + "' failed!",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+
+      onerror goto 0;
+
+      return(hslTrue);
+
+      UNEXPECTED:
+      {
+        _StatusTrace(CMD_ERRCOMPL,
+                     TRACE_LEVEL_RELEASE,
+                     "Command transmission for  <" + i_strCommand + "> failed! - Unexpected error occured",
+                     i_intModuleID,
+                     strFunctionName);
+        return(hslFalse);
+      }
+    } // _TransmitUniversalCommandSilent
+
+    //----------------------------------------------------------------------------------------------
+    // private function _GetPortIdForModuleID
+    //----------------------------------------------------------------------------------------------
+    private function _GetPortIdForModuleID(variable i_intModuleID,
+                                           variable& o_intPortID) void
+    {
+      o_intPortID = i_intModuleID / _Hamilton_Serial_Interface_intMaximumNumberOfModules;
+    } // _GetPortIdForModuleID
+
+    //----------------------------------------------------------------------------------------------
+    // private function _StatusTrace
+    //----------------------------------------------------------------------------------------------
+    private function _StatusTrace(variable i_intState,
+                                  variable i_intTraceLevel,
+                                  variable i_strMessage,
+                                  variable i_intModuleID,
+                                  variable i_strFunctionName) void
+    {
+      if((i_intModuleID >= 0 && i_intTraceLevel <= gHamilton_Serial_Interface_intTraceLevels.GetAt(i_intModuleID)) ||
+         (i_intModuleID == -1 && i_intTraceLevel <= TRACELEVEL::GetTraceLevel()))
+        Hamilton_DriverTools::StatusTrace(i_intState,
+                                          TRACE_LEVEL_DEBUG,
+                                          i_strMessage,
+                                          i_strFunctionName,
+                                          TRACE_LEVEL_DEBUG,
+                                          gHamilton_Serial_Interface_strLibraryName);
+    } // _StatusTrace
+  }  //end namespace
+#endif
+// $$author=bhuf$$valid=1$$time=2017-01-10 09:05$$checksum=fff2107f$$length=083$$

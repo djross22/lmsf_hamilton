@@ -1,0 +1,63 @@
+//  ------------------------------------------------------------------------------------
+//  Hamilton Company Software Product
+//  Copyright (c) 2009 by Hamilton Bonaduz AG.
+//  ------------------------------------------------------------------------------------
+//
+//  Modification History
+//  --------------------
+//  1.00  2004-10-18/cjoerg    Library created.
+//  1.01  2005-07-28/cjoerg    Added debug traces for step parameters.
+//  1.10  2005-07-28/cjoerg    Renamed formal sequence-parameter from tipPickUp_Eject_Sequence to tipEjectSequence
+//                             The previous added note is not longer true for V4.0 -> note removed:
+//                             // IMPORTANT NOTE (tipPickUp_Eject_Sequence): 2004-10-18 / cjoerg
+//                             // With current runmaster 3.2.1.2165 (equal to 3.2.0) the CoRe96TipEject sets the 'Used Positions' for the 
+//                             // tip PICKUP sequence if its startet with option 'Eject on tip pick up sequence'.
+//                             // This results normally in an error because the TipEject is executed in an other context that the 
+//                             // TipPickUp and the pick up sequence does not longer exist.
+//                             // ( Phoenix Error:  C:\GRU\SW\Runmaster\Methods\AUSBIO\runAusBioActionList.hsl(3724) : failed to lookup
+//                             //   identifier 'tipSequence' in the symbol table  Error code  0x23 - 0x1 - 0x3  )
+//                             // As work arround within the OEM Interface we use for the PickUp and for the Eject the same
+//                             // sequence name.
+//  1.20  2008-02-11/cjoerg    Edited step with SW 4.2. Updated error settings for new/changed errors.
+//  1.30  2009-11-19/cjoerg    Edited step with SW 4.3. Updated error settings for new/changed errors.
+//  ------------------------------------------------------------------------------------
+#pragma once
+
+#ifndef INCLUDED_FROM_METHOD
+	#ifndef HSL_RUNTIME
+		device ML_STAR;
+	#endif
+#endif
+
+#ifdef _DEBUG_STAR_STEPPARAMS
+	#ifndef __MlStarStepsUtilLib_hsl__
+	#include "MlStarStepsUtilLib.hsl"
+	#endif
+#endif
+
+
+function CoRe96Head_TipEject_001(
+	device   ML_STAR,
+	sequence& tipEjectSequence,
+	variable sequenceCounting,
+	variable tipEjectSetting) variable[]
+{
+	variable rc[];
+
+	#ifdef _DEBUG_STAR_STEPPARAMS
+	{
+		variable stepName;
+		stepName = GetFunctionName();
+		DEBUG::TraceStepParamDevice(stepName, "device", ML_STAR);
+		DEBUG::TraceStepParamSequence(stepName, "tipEjectSequence", tipEjectSequence);
+		DEBUG::TraceStepParamVariable(stepName, "sequenceCounting", sequenceCounting);
+		DEBUG::TraceStepParamVariable(stepName, "tipEjectSetting", tipEjectSetting);
+	}
+	#endif
+
+	// Abort must be invisible in the error settings
+	rc = ML_STAR._2880E77A_3D6D_40FE_AF57_1BD1FE13960C( "81e4fcbe_22a4_4e1c_88a397744c810ab6" ); // Head96TipEject
+	return( rc );
+}	
+
+// $$author=wbarmettler$$valid=1$$time=2017-03-14 13:14$$checksum=25659b27$$length=088$$

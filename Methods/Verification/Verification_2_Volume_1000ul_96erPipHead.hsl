@@ -1,0 +1,1555 @@
+/***************************************************************************************************
+*  Method     : Verification_2_Volume_1000ul_96erPipHead.hsl
+*  Copyright by HAMILTON Bonaduz AG, CH-7402 Bonaduz
+****************************************************************************************************
+*
+*  Description : Volume Verification of "1000ul 96er Multi Pipetting Heads", executable on sofware version >= 4.1
+*
+* ==================================================================================================
+*  ATTENTION: Change this HSL only with HSL Editor of SW Version 4.1!
+*              (Note: This library must run from SW-version 4.1 on)
+* ==================================================================================================
+*  Modification History:
+* ----------------------
+* Rev 1.3 2013-09-13 Erich Caflisch / Module Version : 04 
+*           ECO13197: 
+*						Balance status dialog included
+*						Option extended report included
+* --------------------------------------------------------------------------------------------------
+* Rev 1.2 2012-11-12 Erich Caflisch / Module Version : 03 
+*                Balance status dialog included
+* --------------------------------------------------------------------------------------------------
+* Rev 1.1 2010-11-22 Erich Caflisch / Module Version : 02 / ECO 12'600 :    
+*                Changed text: use only "solution 1", "solution 2" and "solution 3"
+*						Calibration weight No. included in report
+* --------------------------------------------------------------------------------------------------
+* Rev 1.0 2010-07-19 Erich Caflisch  /  Module Version : 01
+*                First released version for software version >=4.1
+* --------------------------------------------------------------------------------------------------
+* Rev 0.7 2009-11-03	Erich Caflisch
+*                First test version running on software version 4.1.0
+*
+****************************************************************************************************/
+
+//device ML_STAR("TestDeck_1.lay");
+//device ML_STAR("Verification_Starlet.lay");
+
+	// -----------------------------------------------------------------------------
+	// Debug switch for this file
+	// -----------------------------------------------------------------------------
+	//		#define _DEBUG_VolVer 1
+
+	// -----------------------------------------------------------------------------
+	// Included libraries
+	// -----------------------------------------------------------------------------
+
+	#ifndef __HSLML_STARLib_hsl__
+	#include "HSLML_STARLib.hsl"
+	#endif
+
+	#ifndef __HslVerToolsLib_hs___
+	#include "HslVerToolsLib.hs_"
+	#endif
+
+	#ifndef __HSLStrLib_hsl__
+	#include "HSLStrLib.hsl"
+	#endif
+
+	#ifndef __HSLTrcLib_hs__
+	#include "HSLTrcLib.hsl"
+	#endif
+
+	#ifndef __HSLVerOpt_hsl__
+	#include "HSLVerOpt.hs_"
+	#endif
+
+	//==============================================================================
+	// general variable definition (nameing has to be unique)
+	//==============================================================================
+	variable LC_LowVolume_96er_1000ul_mpH_Verification("LowVolume_Verification_96er1000ulmpHEAD_DispenseSurface");
+	variable LC_HighVolume_96er_1000ul_mpH_Verification("HighVolume_Verification_96er1000ulmpHEAD_DispenseJet_Part");
+
+	//==============================================================================
+	// prototyping local functions
+	//==============================================================================
+
+namespace VOL_96_1	
+{	
+	variable moduleVersion("04");				// verification subversion of this library	
+
+	variable processSummaryState;
+	variable accConfidenceFactor(1.0);
+	variable precConfidenceFactor(1.0);
+	variable tipType(-1);	
+	variable liquidDensity_1(0.0),liquidDensity_2(0.0);
+	private variable arrLowVolume_P_UpperLimit[], arrLowVolume_P_LowerLimit[], arrLowVolume_Status[];
+	private variable arrHighVolume_P_UpperLimit[], arrHighVolume_P_LowerLimit[], arrHighVolume_Status[];
+	private variable SimulationBadData(0);
+	private variable extendedReporting(hslFalse);
+
+	//==============================================================================
+	// local functions
+	//==============================================================================
+
+	//------------------------------------------------------------------------------
+	private function OnRun_Abort() //variable
+	//------------------------------------------------------------------------------
+	{
+		variable returnValue;
+//		variable channelPattern(VerDef::channelPattern);	
+		device ML_STAR(VerDef::layoutFileName);		
+		// eject LV tips back into rack
+		if(tipType ==TipType::_10ulLowVolumeTip) 
+		{
+		Trace("Run abort: Low Volume Tips will be eject into tip rack");
+			ML_STAR.Head96TipEject( "643a4a82_f8ee_48d1_85e65709e622ea18" );
+		}
+
+		// eject HV tips back into rack
+		if(tipType ==TipType::_1000ulHighVolumeTip) 
+		{
+		Trace("Run abort: High Volume Tips will be eject into tip rack");
+			ML_STAR.Head96TipEject( "1bab4b1d_b9fa_4a35_b0527dd5123a4dcd" );
+		}
+	}  // -- end of function "OnRun_Abort"
+
+	//------------------------------------------------------------------------------
+	private function defineDataSimulationMode() 
+	//------------------------------------------------------------------------------
+	{
+		dialog 	userDialog;
+		
+		if(!VerDef::SimulationMode) return;
+		SimulationBadData = 0;
+		if(!extendedReporting) return;
+		userDialog.SetInputSize( 1);		
+		userDialog.SetInputField( 0, "Mode: 0=none,1=low vol/low limit,2=low vol/high limit,3=high vol/low limit,4=high vol/high limit", hslInteger,SimulationBadData );
+		userDialog.ShowInput( "Bad data simulation ", hslInfinite);
+		SimulationBadData 	= userDialog.GetInputField( 0 );
+	}
+		
+
+	//------------------------------------------------------------------------------
+	private function StartDialog(device& ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information
+
+		dialogTitle 		= LdT("Start of the CO-RE 96-Probe Head Volume Verification:");
+		if(VerDef::useOfWindShield)	pictureFile = "Start96VolVer.jpg";
+		else									pictureFile = "Start96VolVer_noWS.jpg";
+
+		VerTool::InitializeDataVariables();		
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");
+		Trace(" ");
+		Trace("           ",dialogTitle);
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");	
+		Trace(" ");
+
+		// unlock front cover
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+		VerTool::NewTextLine(1, " ");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, LdT("Next processing steps to be performed:"));
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, LdT("CO-RE 96-Probe Head Volume Verification"));
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, "               " + LdT("( Type: 1000ul )"));
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, LdT("Remove the present Labware from the Balance."));
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, LdT("Place the Plate Platform."));
+		if(VerDef::useOfWindShield)
+		{
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, LdT("and the 96 Windshield back onto the Balance."));
+		}
+		VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,"", hslOKOnly,  1,"","","");
+
+		VerTool::MWPBalanceDisplay(Balance::DisplayMode1);		// Set balance display to #.#mg
+		// set balance to zero (fast mode)
+		VerTool::MWPSetZero(1); 
+		Balance::emptyWeight = VerTool::MWPMeasure(Balance::MeasureMode_0, 0.0)/1000000.0; 		
+		
+		defineDataSimulationMode();
+
+	}  // -- end of function "StartDialog"
+
+	
+	//------------------------------------------------------------------------------
+	private function Load_ReagentCarrier(device& ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable dialogTitle("");			//	dialog titel information
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable warning("");
+		variable returnValue;
+		sequence seq_DummyDef;  // place holder sequence definition
+
+		// unlock front cover
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+		dialogTitle 		= LdT("Loading Information for the CO-RE 96-Probe Head Volume Verification:");
+ 		if(VerDef::useOfWindShield) pictureFile 		= "Load_3Solutions_96WS.jpg";
+		else								 pictureFile 		= "Load_3Solutions_96noWS.jpg";
+
+		VerTool::NewTextLine(1, " ");
+		VerTool::NewTextLine(0, LdT("Load the following Labware onto the Reagent Carrier:"));
+		VerTool::NewTextLine(0," -----------------------------------------------------");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,"- " + LdT("on Reagent Carrier Pos.") +" 1: Verification Solution 2");
+		VerTool::NewTextLine(0,"- " + LdT("on Reagent Carrier Pos.") +" 2: Verification Solution 1");
+		VerTool::NewTextLine(0,"- " + LdT("on Reagent Carrier Pos.") +" 3: Verification Solution 3");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,LdT("ATTENTION:") + " " + LdT("Pour new bottles entirely in containers!"));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,LdT("Place onto the Balance:"));
+		VerTool::NewTextLine(0,"- " + LdT("96 Well Microplate ( MTP-1 )"));
+		if(VerDef::useOfWindShield) VerTool::NewTextLine(0,"- " + LdT("96 Windshield"));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,LdT("ATTENTION:") + " " + LdT("Position well 'A1' at the left, rear position."));
+
+		returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,"", hslOKOnly, 1, "", "", "");
+
+		VerTool::CheckLoadingOnBalance(ML_STAR, VerDef::_96erPlate);
+		VerTool::AddRackOnCarrier(VerDef::site_ResetAll,"","",seq_DummyDef); 
+		VerTool::AddRackOnCarrier(VerDef::site_1, VerDef::Reagent_Container_96Ch,	"Buffer",		PS::seq_BufferSolution);
+		VerTool::AddRackOnCarrier(VerDef::site_2, VerDef::Reagent_Container_96Ch,	"DarkDye",		PS::seq_DarkSolution);
+		VerTool::AddRackOnCarrier(VerDef::site_3, VerDef::Reagent_Container_96Ch,	"LightDye",		PS::seq_LightSolution);
+		VerTool::AddRackOnCarrier(VerDef::site_Balance, VerDef::_96erPlate,			"LowVolPlate",	PS::seq_lowVolume_Plate);
+
+		PS::seq_BufferSolution.SetCurrentPosition( 1 );
+		PS::seq_DarkSolution.SetCurrentPosition( 1 );
+		PS::seq_LightSolution.SetCurrentPosition( 1 );
+		PS::seq_lowVolume_Plate.SetCurrentPosition( 1 );
+
+/*
+		TrcTraceSequence(PS::seq_BufferSolution);
+		TrcTraceSequence(PS::seq_DarkSolution);
+		TrcTraceSequence(PS::seq_LightSolution);
+		TrcTraceSequence(PS::seq_lowVolume_Plate);
+*/
+		// load above pre-defined rack on "balance carrier"
+		VerTool::AddTemplateOnDeck(ML_STAR,  VerDef::carrierName_Reagent, VerDef::ReagentCarBalancePlate, VerDef::balanceTrackPos - 6);
+		VerTool::Load_Carrier(ML_STAR, VerDef::carrierName_Reagent,VerDef::balanceTrackPos - 6, hslFalse);
+												
+	}  // -- end of function "Load_ReagentCarrier"
+
+	//------------------------------------------------------------------------------
+	private function LoadTipPlateCarrier(device& ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable prop2, prop3, sn, date(""),lcd(""),lcb(""); // dummy place holder 
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable returnValue;
+		variable inputDescription(""), remarks(""), warning("");
+		variable trackNo, track(0);
+		variable dialogTitle("");			//	dialog titel information
+		sequence seq_DummyDef;  // place holder sequence definition
+
+		trackNo 				= IStr(VerDef::tipPlateCarrierTrackPos);
+		dialogTitle 		= LdT("Loading Information for the CO-RE 96-Probe Head Volume Verification:");
+ 		pictureFile 		= "Load_2Tips_3MTP.jpg";
+		inputDescription 	= LdT("Place the loaded Plate-Tip Carrier on Track:");
+
+		VerTool::GetVerificationInformation(VerDef::KeyTipPlateCarTrack, trackNo, prop2 , prop3 ,sn, date,lcd,lcb);
+
+		// unlock front cover
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+		VerTool::NewTextLine(1, " ");
+		VerTool::NewTextLine(0, LdT("Load the following Labware onto the Tip-Plate Carrier:"));
+		VerTool::NewTextLine(0," ---------------------------------------------------------");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0, "- " + LdT("on Carrier Pos.") + " 1: " + LdT("1000µl 96 Tip Rack ( HVT )"));
+		VerTool::NewTextLine(0, "- " + LdT("on Carrier Pos.") + " 2: " + LdT("10µl 96 Tip Rack ( LVT )"));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0, "- " + LdT("on Carrier Pos.") + " 3: " + LdT("96 Well Microplate ( MTP-2 )"));
+		VerTool::NewTextLine(0, "- " + LdT("on Carrier Pos.") + " 4: " + LdT("96 Well Microplate ( MTP-3 )"));
+		VerTool::NewTextLine(0, "- " + LdT("on Carrier Pos.") + " 5: " + LdT("96 Well Microplate ( MTP-4 )"));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0, LdT("ATTENTION:") + " " + LdT("Position well 'A1' at the left, rear position."));
+		warning = LdT("ATTENTION:") + " " + LdT("Only define a reachable position!");
+
+		while(hslTrue)
+		{// show load dialog	
+			returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,warning, hslOKOnly, 1, 
+																	inputDescription, remarks, trackNo);
+			if(VerTool::checkInputValue(trackNo, 100,-5, track)) break;
+			remarks = LdT("Define correct number!");
+		}
+
+		VerTool::UpdateVerificationInformation(1, VerDef::KeyTipPlateCarTrack, trackNo, prop2, prop3,sn, GetDate("%Y-%m-%d"));	// date = today);
+		VerDef::tipPlateCarrierTrackPos = track;
+
+		VerTool::AddRackOnCarrier(VerDef::site_ResetAll,"","",seq_DummyDef); 
+		VerTool::AddRackOnCarrier(VerDef::site_1, VerDef::TipRack_1000ul,	"HV_Tips",	PS::seq_HighVolTips);
+		VerTool::AddRackOnCarrier(VerDef::site_2, VerDef::TipRack_10ul,	"LV_Tips",	PS::seq_LowVolTips);
+		VerTool::AddRackOnCarrier(VerDef::site_3, VerDef::_96erPlate,		"MTP_2",		PS::seq_highVolume_Plates);
+		VerTool::AddRackOnCarrier(VerDef::site_4, VerDef::_96erPlate,		"MTP_3",		PS::seq_highVolume_Plates);
+		VerTool::AddRackOnCarrier(VerDef::site_5, VerDef::_96erPlate,		"MTP_4",		PS::seq_highVolume_Plates);
+
+		PS::seq_HighVolTips.SetCurrentPosition( 1 );
+		PS::seq_LowVolTips.SetCurrentPosition( 1 );
+		PS::seq_highVolume_Plates.SetCurrentPosition( 1 );
+/*	
+		TrcTraceSequence(PS::seq_HighVolTips);
+		TrcTraceSequence(PS::seq_LowVolTips);
+		TrcTraceSequence(PS::seq_highVolume_Plates);
+*/
+		// load above pre-defined rack on carrier
+		VerTool::Load_Carrier(ML_STAR, VerDef::carrierName_TipPlate,VerDef::tipPlateCarrierTrackPos, hslTrue);
+		VerTool::MoveToEndPositions(ML_STAR);		
+
+		Trace("Test: Loaded tip rack 1 barcode =>", RPD::tipRackID_1,"<==");
+		Trace("Test: Loaded tip rack 2 barcode =>", RPD::tipRackID_2,"<==");
+
+	}  // -- end of function "LoadTipPlateCarrier"
+
+	//------------------------------------------------------------------------------
+	private function Reload_ReagentCarrier(device& ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable dialogTitle("");			//	dialog titel information
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable warning("");
+		variable returnValue;
+		sequence seq_DummyDef;  // place holder sequence definition
+
+		// set balance to zero (fast mode)
+		VerTool::MWPSetZero(1); 
+		Balance::emptyWeight = VerTool::MWPMeasure(Balance::MeasureMode_0, 0.0)/1000000.0; 		
+
+		VerTool::MoveToEndPositions(ML_STAR);
+		// unlock front cover
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+		dialogTitle 		= LdT("Re-Loading Information for the CO-RE 96-Probe Head Volume Verification:");
+ 		if(VerDef::useOfWindShield)	pictureFile = "ReloadPlateonBalance.jpg";
+		else									pictureFile = "ReloadPlateonBalance_noWS.jpg";
+		VerTool::NewTextLine(1, " ");
+		VerTool::NewTextLine(0, LdT("Place a new 96 well Microplate onto the Balance"));
+		VerTool::NewTextLine(0," ----------------------------------------------------");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,"- " + LdT("Keep the check solutions on the Deck."));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,LdT("Place onto the Balance:"));
+		VerTool::NewTextLine(0,"- " + LdT("96 Well Microplate ( MTP-1 )"));
+		if(VerDef::useOfWindShield) VerTool::NewTextLine(0,"- " + LdT("96 Windshield"));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,LdT("ATTENTION:") + " " + LdT("Position well 'A1' at the left, rear position."));
+
+		returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,"", hslOKOnly, 1, "", "", "");
+	
+		VerTool::CheckLoadingOnBalance(ML_STAR, VerDef::_96erPlate);
+
+		VerTool::AddRackOnCarrier(VerDef::site_ResetAll,"","",seq_DummyDef); 
+		VerTool::AddRackOnCarrier(VerDef::site_Balance, VerDef::_96erPlate,			"MTP_1",PS::seq_highVolume_Plates);
+
+		PS::seq_highVolume_Plates.SetCurrentPosition( 1 );
+
+/*
+		TrcTraceSequence(PS::seq_DarkSolution);
+		TrcTraceSequence(PS::seq_BufferSolution);
+		TrcTraceSequence(PS::seq_LightSolution);
+		TrcTraceSequence(PS::seq_highVolume_Plates);
+*/
+		// load above pre-defined rack on carrier
+		VerTool::Load_Carrier(ML_STAR, VerDef::carrierName_Reagent,VerDef::balanceTrackPos - 6, hslFalse);
+		VerTool::MoveToEndPositions(ML_STAR);												
+
+	// close reader door and switch to idle mode
+		VerTool::Reader_IdleMode();
+
+	}  // -- end of function "Reload_ReagentCarrier"
+
+
+	//------------------------------------------------------------------------------
+	private function Check_Balance_Position(device& ML_STAR, sequence seqPlatePosition) 
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable returnValue;
+		variable dialogTitle("");			//	dialog titel information
+		variable checkHeight(20);
+
+		dialogTitle 		= LdT("Check the Tip to Balance Position");
+		if(VerDef::useOfWindShield)
+		{
+			pictureFile = "TipCheck_96_Tips.jpg";
+		 	checkHeight = 20.0;
+		}
+		else
+		{
+			pictureFile = "TipCheck_96_Tips_noWS.jpg";
+			checkHeight = 12.5;
+		}
+		
+		if(!VerTool::MoveToPosition( ML_STAR, VerDef::multi96PipHead_1000ul, "", seqPlatePosition, checkHeight))
+		{ // not reachable position
+			VerTool::VerificationFailedDialog(LdT("Balance Position") , "m");
+			ML_STAR.Head96TipEject( "33e5f427_6932_4b65_8db5cd87fb4a4ddd" );
+			abort;
+		}
+		// unlock front cover
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+		VerTool::NewTextLine(1, LdT("Examine the Tip Position over the Balance:"));
+		VerTool::NewTextLine(0," ---------------------------------------------");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		if(VerDef::useOfWindShield) 
+				VerTool::NewTextLine(0,"- " + LdT("Are the Tips correctly positioned over the Windshield holes?"));
+		else	VerTool::NewTextLine(0,"- " + LdT("Are the Tips correctly positioned over the plate?"));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,LdT("Press 'OK' to continue the Volume Verification."));
+		VerTool::NewTextLine(0, LdT("Press 'Cancel' to abort the Volume Verification!"));
+				
+		returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,"", hslOKCancel, 1, "","","");
+
+		// unlock front cover
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+		if (returnValue == hslCancel) 
+		{ // eject tips and abort run
+			ML_STAR.Head96TipEject( "c8cf6071_244f_4526_8378c94669d4ae25" );
+			abort;
+		}
+
+	}  // -- end of function "Check_Balance_Position"
+
+	//------------------------------------------------------------------------------
+	private function ClearPressureData(device& ML_STAR) void
+	// Clear pressure data FIFO
+	//------------------------------------------------------------------------------
+	{
+		if(!extendedReporting ) return;
+		VerTool::FwCommand("H0AN", "", hslFalse, ML_STAR );
+		return;
+	}  // -- end of function "ClearPressureData"
+
+	//------------------------------------------------------------------------------
+	private function defineExtendedReportingVariable(device& ML_STAR) 
+	//------------------------------------------------------------------------------
+	{
+		static const variable lowVolumeLimitData(7);
+		static const variable highVolumeLimitData(8);
+		variable arraySize, i;
+
+		extendedReporting = ((RPD::extendedReportMode > 0) && (VerDef::multi96PipHead == 4)); // extended reporting only for 96er mPH TADM 
+		RPD::reportTemplateFileName ="Report_Vol_Ver_1000ul96erPipHead";		// Report_Vol_Ver_1000ulSingleChannelsEnu.xls
+
+		if(!extendedReporting ) return;
+
+		RPD::reportTemplateFileName ="Report_Vol_Ver_1000ul96erPipHeadX";		// 	Report_Vol_Ver_1000ul96erPipHeadXEnu.xls
+
+		arrLowVolume_Status.SetSize(0);
+		arrHighVolume_Status.SetSize(0);
+		for (i = 0; i < 96; i++)
+		{
+        arrLowVolume_Status.AddAsLast(VerDef::passed);
+        arrHighVolume_Status.AddAsLast(VerDef::passed);
+      }
+
+		VerTool::OpenReportFile_2( RPD::reportTemplateFileName, hslTrue);
+
+		// ---- get pressure limit curves for low volume aspiration
+		VerOpt::GetLimitCurves(lowVolumeLimitData, arrLowVolume_P_UpperLimit,arrLowVolume_P_LowerLimit);
+
+		// write limit values into excel file
+		arraySize = arrLowVolume_P_UpperLimit.GetSize();
+		for (i = 0; i < arraySize; i++)
+		{
+			VerTool::WriteCell_2( 2, i + 3, arrLowVolume_P_UpperLimit.GetAt(i), hslInteger); 
+			VerTool::WriteCell_2( 3, i + 3, arrLowVolume_P_LowerLimit.GetAt(i), hslInteger); 
+		}
+//	VerTool::TraceArray("Test: ----  lowVolume: upper Pressure Limit ---------", arrLowVolume_P_UpperLimit);
+//	VerTool::TraceArray("Test: ----  lowVolume: lower Pressure Limit ---------", arrLowVolume_P_LowerLimit);
+
+		// ---- get pressure limit curves for high volume aspiration
+		VerOpt::GetLimitCurves(highVolumeLimitData, arrHighVolume_P_UpperLimit,arrHighVolume_P_LowerLimit);
+		
+		// write limit values into excel file
+		arraySize = arrHighVolume_P_UpperLimit.GetSize();
+		for (i = 0; i < arraySize; i++)
+		{
+			VerTool::WriteCell_2( 2, i + 200, arrHighVolume_P_UpperLimit.GetAt(i), hslInteger); 
+			VerTool::WriteCell_2( 3, i + 200, arrHighVolume_P_LowerLimit.GetAt(i), hslInteger); 
+		}
+//	VerTool::TraceArray("Test: ----  high Volume: upper Pressure Limit ---------", arrHighVolume_P_UpperLimit);
+//	VerTool::TraceArray("Test: ----  high Volume: lower Pressure Limit ---------", arrHighVolume_P_LowerLimit);
+
+		// Reset pressure limit curves
+		VerTool::FwCommand("H0AQ", "", hslFalse, ML_STAR );
+
+		// Set default parameter values of later SW version for aspiration and dispensing commands
+		VerTool::FwCommand("C0AA", "mj000cwFFFFFFFFFFFFFFFFFFFFFFFFpp0050", hslFalse, ML_STAR );
+
+		return;
+	}  // -- end of function "defineExtendedReportingVariable"
+
+
+	//-----------------------------------------------------------------------------------------------------
+	function aspirateWithRecording( device ML_STAR, variable aspirateVolume, sequence seqAspiratePositions) variable
+	// Aspirate with activated pressure recording
+	//-----------------------------------------------------------------------------------------------------
+	{
+		variable labID(""), posID(""), rackID(""), templateConfigFile;
+		variable xcurrentPosition;
+		variable cmd(""), prm(""), prm_xs(""), prm_yh(""), prm_lz(""), prm_zt(""), prm_zm(""), prm_fh(""), prm_af("");
+		variable response;
+		variable i, xPos(0), yPos(0), zPos(5);
+		variable arrLabPosition[];
+
+		if((aspirateVolume != 10 ) && (aspirateVolume != 1000 ) ) return(hslFalse); // only for 10ul and 1000ul programmed
+
+//		TrcTraceSequence(seqAspiratePositions);
+
+		labID = seqAspiratePositions.GetLabwareId();
+		posID = seqAspiratePositions.GetPositionId();
+		ML_STAR.GetLabwarePosition(labID, arrLabPosition,posID );
+		xPos	= IVal(FStr(10 * arrLabPosition.GetAt(0)));
+		yPos	= IVal(FStr(10 * arrLabPosition.GetAt(1)));
+		zPos	= IVal(FStr(10 * arrLabPosition.GetAt(2)));
+		
+		// Aspirate 10ul:		C0EAid0227aa0xs01260xd0yh4292zh2450ze2450 lz2282zt1897zm1897iw020ix0fh001af00112ag0250vt000bv00010wv00000cm1cs3bs0020wh10hv00000hc00hp000hs0250zv0000zq00000
+		// Aspirate 1000ul:  C0EAid0266aa0xs01260xd0yh1872zh2450ze2450 lz2282zt1897zm1897iw020ix0fh103af10250ag2500vt080bv00000wv00000cm1cs3bs0020wh10hv00000hc00hp000hs2500zv0000zq00000	
+
+		cmd		= "C0EA";
+		if(xPos >= 0)	prm_xs	= "xs" + StrFillLeft(IStr(xPos), "0", 5) + "xd0";
+		else				prm_xs	= "xs" + StrFillLeft(IStr(-xPos), "0", 5) + "xd1";
+
+		prm_yh 	= "yh" + StrFillLeft(IStr(yPos), "0", 4);
+		prm_lz 	= "lz" + StrFillLeft(IStr(zPos + 385), "0", 4); // LLD search height 38.5mm above well bottom; 
+		prm_zt 	= "zt" + StrFillLeft(IStr(zPos ), "0", 4); 		// position channel at level without LLD at well bottom; 
+		prm_zm 	= "zm" + StrFillLeft(IStr(zPos ), "0", 4); 		// minimum height at well bottom; 
+
+//Trace("Test:  Aspirate at labID=>",labID,"< posID=>",posID,"< xPos=>",xPos,"< yPos=>",yPos,"< zPos=>",zPos,"<==");
+
+		if (aspirateVolume == 10 )
+		{
+			prm_fh = "fh001";
+			prm_af = "af00112";   // corrected volume at 10ul
+		}
+		else
+		{
+			prm_fh = "fh103";
+			prm_af = "af10250";   // corrected volume at 1000ul
+		}
+
+		// Aspirate parameter  aa0xs01260xd0yh4292 zh2450ze2450lz2282zt1897zm1897
+		prm = "aa0"+ prm_xs + prm_yh +"zh2450ze2450" + prm_lz + prm_zt + prm_zm;
+		// + iw020ix0fh001af00112
+		prm = prm + "iw020ix0" + prm_fh + prm_af; 
+
+		// + ag0250vt000bv00010wv00000cm1cs3bs0020wh10hv00000hc00hp000hs0250zv0000zq00000
+		if (aspirateVolume == 10 ) prm = prm + "ag0250vt000bv00010wv00000cm1cs3bs0020wh10hv00000hc00hp000hs0250zv0000zq00000"; 
+		else								prm = prm + "ag2500vt080bv00000wv00000cm1cs3bs0020wh10hv00000hc00hp000hs2500zv0000zq00000";
+
+		prm = prm + "cr000cj1cx2"; // pressure signal recording on
+
+		Trace("Test:  Aspirate FW command =>", cmd,"< prm =>",prm,"<==");
+		response = VerTool::FwCommand(cmd, prm, hslFalse, ML_STAR );
+
+		if(StrFind(response,"er00")< 0)  return(hslFalse); // an error occured
+		
+		return(hslTrue);
+
+	} // end of function "aspirateWithRecording"
+
+	//-----------------------------------------------------------------------------------------------------
+	function dispenseWithFWCmd( device ML_STAR, variable dispenseVolume,variable pipettingLoop, sequence seqDispensePositions) variable
+	// Aliquote dispense with Firmware command (after step 'aspirateWithRecording')
+	//-----------------------------------------------------------------------------------------------------
+	{
+		variable labID(""), posID(""), rackID(""), templateConfigFile;
+//		variable currentPosition;
+		variable cmd(""), prm(""),prm_xs(""),prm_yh(""),prm_lz(""),prm_zt(""),prm_zm(""),prm_zl(""),prm_df(""),prm_fh(""),prm_iw(""),prm_end("");
+		variable response;
+		variable i, xPos(0), yPos(0), zPos(5);
+		variable arrLabPosition[];
+//		variable aliquoteLoops(1), aliquoteLoopNo(0) ;
+		variable arrCorrVol[];					// corrected volume values for aliquote dispense
+		variable arr_fh[];					// corrected volume values for aliquote dispense
+
+		if((dispenseVolume != 10 ) && (dispenseVolume != 250 ) ) return(hslFalse); // only for 10ul and 250ul programmed
+
+		arrCorrVol.SetSize(0);
+		arr_fh.SetSize(0);
+		pipettingLoop = pipettingLoop -1; // zero based array index
+		if (dispenseVolume == 10 )
+		{
+			arrCorrVol.AddAsLast("00112");
+			arr_fh.AddAsLast("000");	
+		}
+		else
+		{
+			arrCorrVol.AddAsLast("02550");
+			arrCorrVol.AddAsLast("02510");
+			arrCorrVol.AddAsLast("02505");
+			arrCorrVol.AddAsLast("02685");
+			arr_fh.AddAsLast("071");
+			arr_fh.AddAsLast("070");
+			arr_fh.AddAsLast("070");
+			arr_fh.AddAsLast("075");
+		}
+		
+		labID = seqDispensePositions.GetLabwareId();
+		posID = seqDispensePositions.GetPositionId();
+		ML_STAR.GetLabwarePosition(labID, arrLabPosition,posID );
+		xPos	= IVal(FStr(10 * arrLabPosition.GetAt(0)));
+		yPos	= IVal(FStr(10 * arrLabPosition.GetAt(1)));
+		zPos	= IVal(FStr(10 * arrLabPosition.GetAt(2)));
+//Trace("Test:  Aspirate at labID=>",labID,"< posID=>",posID,"< xPos=>",xPos,"< yPos=>",yPos,"< zPos=>",zPos,"<==");
+
+		// Dispense 10ul: C0EDid0228da3xs01270xd0yh3082zh2450ze2450lz2137zt2107zm2007iw005ix0fh000df00112dg0350vt000bv00010cm1cs1bs0020wh10hv00000hc00hp000hs0350es0250ev000zv0113ej00zq09285
+		// Dispense 4x 250ul: 
+		//						C0EDid0267da0xs03205xd0yh3380zh2450ze2450lz1999zt1919zm1869iw000ix0fh071df02550dg4000vt080bv00000cm0cs1bs0010wh00hv00000hc00hp000hs0010es2500ev000zv0113ej00zq09285
+		//						C0EDid0268da0xs03205xd0yh2420zh2450ze2450lz1999zt1919zm1869iw000ix0fh070df02510dg4000vt080bv00000cm0cs1bs0010wh00hv00000hc00hp000hs0010es2500ev000zv0113ej00zq09285
+		//						C0EDid0269da0xs03205xd0yh1460zh2450ze2450lz1999zt1919zm1869iw000ix0fh070df02505dg4000vt080bv00000cm0cs1bs0010wh00hv00000hc00hp000hs0010es2500ev000zv0113ej00zq09285
+		//						C0EDid0270da0xs01270xd0yh3082zh2450ze2450lz2137zt2057zm2007iw000ix0fh075df02685dg4000vt080bv00000cm0cs1bs0010wh00hv00000hc00hp000hs0010es2500ev000zv0113ej00zq09285
+		
+		cmd		= "C0ED";
+		if(xPos >= 0)	prm_xs	= "xs" + StrFillLeft(IStr(xPos), "0", 5) + "xd0";
+		else				prm_xs	= "xs" + StrFillLeft(IStr(-xPos), "0", 5) + "xd1";
+
+		prm_yh = "yh" + StrFillLeft(IStr(yPos), "0", 4); 
+		prm_lz = "lz" + StrFillLeft(IStr(zPos + 130), "0", 4); // LLD search height 13mm above well bottom					
+		prm_zm = "zm" + StrFillLeft(IStr(zPos ), "0", 4); 		// minimum height at well bottom
+		prm_fh = "fh" + arr_fh.GetAt(pipettingLoop); 	
+		prm_df = "df" + arrCorrVol.GetAt(pipettingLoop); 			// corrected volume
+		
+		if (dispenseVolume == 10 ) 
+		{
+			prm = prm 	= "da3";
+			prm_zt 		= "zt" + StrFillLeft(IStr(zPos + 100 ), "0", 4); // Liquid surface without LLD: 10mm above well bottom				
+			prm_zl 		= "zl" + StrFillLeft(IStr(zPos ), "0", 4); 		// position channel at level without LLD at well bottom
+			prm_iw 		= "iw005ix0";
+			prm_end 		= "dg0350vt000bv00010cm1cs1bs0020wh10hv00000hc00hp000hs0350es0250ev000zv0113ej00zq09285";
+		}
+		else								
+		{
+			prm = prm 	= "da0";
+			prm_zt 		= "zt" + StrFillLeft(IStr(zPos + 50 ), "0", 4); // Liquid surface without LLD: 50mm above well bottom				
+			prm_zl 		= "zl" + StrFillLeft(IStr(zPos + 110), "0", 4); // position channel at 11mm above well bottom
+			prm_iw 		= "iw000ix0";
+			prm_end 		= "dg4000vt080bv00000cm0cs1bs0010wh00hv00000hc00hp000hs0010es2500ev000zv0113ej00zq09285";
+		}
+
+		// + xs01270xd0yh3082zh2450ze2450lz2137zt2107zm2007iw005ix0fh000df00112dg0350vt000bv00010cm1cs1bs0020wh10hv00000hc00hp000hs0350es0250ev000zv0113ej00zq09285
+		prm = prm + prm_xs + prm_yh + "zh2450ze2450" + prm_lz + prm_zt + prm_zm + prm_iw + prm_fh + prm_df + prm_end;
+
+		prm = prm + "cr000cj0cx0"; // pressure signal recording off
+
+		Trace("Test:  Dispense FW command =>", cmd,"< prm =>",prm,"<==");
+		response = VerTool::FwCommand(cmd, prm, hslFalse, ML_STAR );
+
+		if(StrFind(response,"er00")< 0) return(hslFalse); // an error occured
+		
+		return(hslTrue);
+
+	} // end of function "dispenseWithFWCmd"
+
+	//------------------------------------------------------------------------------
+	private function SimulatePressureDate(variable channelNo, variable lowVolumeCheck, variable& arrP_Values[]) 
+	// In case of simultion mode : pressure data are simulated
+	//------------------------------------------------------------------------------
+	{
+		//	SimulationBadData 	0, "Mode: 0=none,1=low vol/low limit,2=low vol/high limit,3=high vol/low limit,4=high vol/high limit", hslInteger,SimulationBadData );
+
+		if (!VerDef::SimulationMode) return;
+
+		if(lowVolumeCheck) arrP_Values = arrLowVolume_P_UpperLimit;
+		else					 arrP_Values = arrHighVolume_P_UpperLimit;
+
+		if((channelNo != 3) && (channelNo != 54)) return;
+	
+		if ((lowVolumeCheck) && (SimulationBadData == 1))  arrP_Values.SetAt(30, -2000);
+		if ((lowVolumeCheck) && (SimulationBadData == 2))  arrP_Values.SetAt(30, 0);
+		if ((!lowVolumeCheck) && (SimulationBadData == 3)) arrP_Values.SetAt(30, -2000);
+		if ((!lowVolumeCheck) && (SimulationBadData == 4)) arrP_Values.SetAt(30, 0);
+		return;
+	}
+	//------------------------------------------------------------------------------
+	private function CheckAndStorePressureData(variable channelNo, variable rowBaseNo, variable arrPressureValues[],variable lowVolumeCheck) variable
+	// Check pressure data against limit and store it in report file
+	//------------------------------------------------------------------------------
+	{
+		variable sizeData,sizeUpperLimitData,sizeLowerLimitData, status;	
+		variable columnNo, rowNo;
+
+		columnNo 	= 4 + channelNo;
+		sizeData 	= arrPressureValues.GetSize();
+		for ( rowNo = 0; rowNo < sizeData ; rowNo++)
+		{
+			VerTool::WriteCell_2( columnNo, rowNo+rowBaseNo, arrPressureValues.GetAt(rowNo), hslInteger); 
+			if(lowVolumeCheck) 
+			{
+ 				if((arrPressureValues.GetAt(rowNo) > arrLowVolume_P_UpperLimit.GetAt(rowNo)) ||
+					(arrPressureValues.GetAt(rowNo) < arrLowVolume_P_LowerLimit.GetAt(rowNo))   ) 
+				{ // value outside tolerence band
+					arrLowVolume_Status.SetAt(channelNo-1,VerDef::failed);
+				}
+			}
+			else
+			{
+ 				if((arrPressureValues.GetAt(rowNo) > arrHighVolume_P_UpperLimit.GetAt(rowNo)) ||
+					(arrPressureValues.GetAt(rowNo) < arrHighVolume_P_LowerLimit.GetAt(rowNo))   ) 
+				{ // value outside tolerence band
+					arrHighVolume_Status.SetAt(channelNo-1,VerDef::failed);
+				}
+			}
+		}
+		
+		return(hslTrue);
+	}  // -- end of function "CheckAndStorePressureData"
+
+	//------------------------------------------------------------------------------
+	private function GetPressureData(device& ML_STAR, variable channelNo,  variable& arrPressureValues[]) variable
+	// Get next pressure data per channel
+	// ==> array with pressure data
+	//------------------------------------------------------------------------------
+	{
+		variable cmd(""), prm(""),prm_ch("");
+		variable response("");
+		variable amountOfData(0), dataBlock(0), startIndex(0), i(0);
+
+		arrPressureValues.SetSize(0);
+		
+		// Set pointer and check data : H0QMid0291ch01 				==> H0QMid0291qm1
+		cmd 		= "H0QM";
+		prm_ch	= "ch" + StrFillLeft(IStr(channelNo), "0", 2);
+		response = VerTool::FwCommand(cmd, prm_ch, hslFalse, ML_STAR );
+		if(StrFind( response , "qm1" ) < 0) return(0); // no data available
+		
+		// Get amount of pressure data
+		// H0QYid0292ch01		 		==> H0QYid0292qm1qy0455 0000 0000 0001 0000nr0290gdBDF8A224-A215-4425-9CF2-4A3C1A249D4F
+		cmd 		= "H0QY";
+		response = VerTool::FwCommand(cmd, prm_ch, hslFalse, ML_STAR );
+		amountOfData = IVal( StrMid( response, StrFind( response, "qy" ) + 2, 4 ));  // first value of parameter "ql"
+		cmd 			= "H0QN";
+
+		startIndex	= 0;
+		while(amountOfData > 0)
+		{
+//Trace("Test: amount of pressure data =>",amountOfData,"<==");
+		// H0QNid0293ch01li0000ln50	==> H0QNid0293qn+00019 +00019 +00019 +00019 +00019 +00019 +00019 +00014 +00010 -00122 -00244 -00400 ...
+		// ...
+		// H0QNid0304ch01li0450ln05 ==> H0QNid0304qn-01751 -01751 -01751 -01751 -01751
+			prm =prm_ch + "li" + StrFillLeft(IStr(startIndex), "0", 4);
+			if(amountOfData > 50) dataBlock = 50;
+			else						 dataBlock = amountOfData;
+			prm = prm + "ln" + StrFillLeft(IStr(dataBlock), "0", 2);
+			response = VerTool::FwCommand(cmd, prm, hslFalse, ML_STAR );
+			for (i = 0 ; i < dataBlock  ; i++ )
+			{
+				arrPressureValues.AddAsLast( IVal(StrMid( response, StrFind( response, "qn" ) + 2 +(7*i), 6 )) );
+			}
+			amountOfData 	= amountOfData - dataBlock;
+			startIndex 		= startIndex + dataBlock;
+		}
+
+		return(arrPressureValues.GetSize());
+
+	}  // -- end of function "GetPressureData"
+
+
+	//------------------------------------------------------------------------------
+	private function Pipette_Low_Volume(device& ML_STAR) variable
+	//------------------------------------------------------------------------------
+	{
+		const variable lowVolumePipetting(hslTrue);
+		variable aspirateVolume,dispenseVolume;
+		variable weight(0.0);
+		variable channelNo;
+		variable arrPressureValues[];
+
+		PS::seq_lowVolume_Plate.SetCurrentPosition( 1 );
+
+		onerror goto ProcessingError;
+
+		// pre-dispense 100ul buffer solution into  plate on balance
+		// HV tip pick up
+			tipType = TipType::_1000ulHighVolumeTip;
+			ML_STAR.Head96TipPickUp( "a4c4f311_23bb_4549_a41b3a0ed1ea94b1" );
+	
+		// Check balance position
+		//------------------------------------------------------------------------------
+			Check_Balance_Position(ML_STAR, PS::seq_lowVolume_Plate );
+		// aspirate 100ul 
+			aspirateVolume = 100.0;
+			ML_STAR.Head96Aspirate( "219ae43f_f7cc_42a2_8f460d81c7ebf3fc" );
+		// pre-dispense 100ul 
+			dispenseVolume = 100.0;
+			ML_STAR.Head96Dispense( "1d5813e0_800b_4501_af8ae59005e2581b" );
+		// HV tip eject back into rack
+			ML_STAR.Head96TipEject( "6eaa827a_0f55_468a_9b974404f067612d" );
+			tipType = TipType::noTip;
+			
+		 // pipette 10ul dark solution in plates with pre-dispensed 100ul buffer solution
+			PS::seq_lowVolume_Plate.SetCurrentPosition(1);
+		// LV tip pick up
+			ML_STAR.Head96TipPickUp( "78e9eef9_d3cb_4210_9a4f5b77cc2c859d" );
+			tipType = TipType::_10ulLowVolumeTip;
+			
+		// aspirate 10ul 
+			aspirateVolume = 10.0;
+			if(extendedReporting)
+			{  // Clear all previous pressure data stored on pipetter
+				ClearPressureData(ML_STAR);
+				// Aspirate as FW command with TADM data monitoring on
+				if(!aspirateWithRecording( ML_STAR, aspirateVolume, PS::seq_DarkSolution))
+				{// error occured -> eject LV tips back into rack
+					ML_STAR.Head96TipEject( "8d9c42d0_3c2f_4b81_b5b929e534d498a5" );
+					tipType = TipType::noTip;
+					return(hslFalse);
+				}
+			}
+			else
+			{
+				ML_STAR.Head96Aspirate( "c67cf2d5_de3d_440a_b6d907c5bd9c9433" );
+			}
+		// --- set balance to zero
+		// --- measure weight with balance before dispensing
+			weight = VerTool::MWPMeasure(Balance::MeasureMode_3, 12.0);
+//			VerTool::MWPTare();
+		// dispense 10ul into plate
+			dispenseVolume = 10.0;
+			if(extendedReporting)
+			{ // Dispense as FW command 
+				if(!dispenseWithFWCmd( ML_STAR, dispenseVolume, 1, PS::seq_lowVolume_Plate))
+				{// error occured -> eject HV tips back into rack	
+					ML_STAR.Head96TipEject( "8d9c42d0_3c2f_4b81_b5b929e534d498a5" );
+					tipType = TipType::noTip;
+					return(hslFalse);
+				}
+			}
+			else
+			{
+				ML_STAR.Head96Dispense( "1e36a7be_4eb0_4934_92a53d76b33688f2" );
+			}
+		// --- measure weight with balance 
+			RPD::measured_Weight_1 = VerTool::MWPMeasure(Balance::MeasureMode_4, 1033.0) - weight; // simulated value is approx. 1000mg		
+			Trace(" Low volume pietting weight  ==>",RPD::measured_Weight_1,"<==");
+		// LV tip eject back into rack
+			ML_STAR.Head96TipEject( "533c416c_16ae_47b8_acf9b0ad2917ce11" );
+			
+			tipType = TipType::noTip;
+
+		// post-dispense 150ul buffer solution into plate for mixing
+			PS::seq_lowVolume_Plate.SetCurrentPosition(1);
+		// HV tip pick up
+			tipType = TipType::_1000ulHighVolumeTip;
+			ML_STAR.Head96TipPickUp( "2e692b81_057f_40a1_93e1657b1a3c4a0f" );
+	
+		// aspirate 150ul 
+			aspirateVolume = 150.0;
+			ML_STAR.Head96Aspirate( "a8eb41cd_979f_42d2_9396bc8f9863e606" );
+		// dispense 150ul 
+			dispenseVolume = 150.0;
+			ML_STAR.Head96Dispense( "fc5217df_22cc_4100_aef330ca2e5fa256" );
+		// HV tip eject back into rack
+			ML_STAR.Head96TipEject( "2e4cba4b_9225_428b_aa16d1eba17e52c0" );
+			tipType = TipType::noTip;
+
+			if(extendedReporting)
+			{ // Upload pressure data
+			   for (channelNo = 1; channelNo <= 96; channelNo++)  // channelNo zero based
+				{
+					GetPressureData(ML_STAR, channelNo, arrPressureValues);
+					SimulatePressureDate(channelNo,  lowVolumePipetting ,arrPressureValues);
+					CheckAndStorePressureData(channelNo , 3, arrPressureValues, lowVolumePipetting); 
+				}
+			}
+
+			return(hslTrue);
+
+		// Eror Handling -----------------------------------------------------------------
+		ProcessingError:
+		{
+			err.Clear( );
+			// eject tip eject back into rack
+			ML_STAR.Head96TipEject( "8d9c42d0_3c2f_4b81_b5b929e534d498a5" );
+			return(hslFalse);
+		}		
+	}  // -- end of function "Pipette_Low_Volume"
+
+	//------------------------------------------------------------------------------
+	private function Pipette_High_Volume(device& ML_STAR) variable
+	//------------------------------------------------------------------------------
+	{	
+		const variable highVolumePipetting(hslFalse);
+		variable aspirateVolume,dispenseVolume;
+		variable weight(0.0);
+		variable pipettingLoop;
+		variable channelNo;
+		variable arrPressureValues[];
+
+		// pipette 4 x250ul (=1000ul) light solution in 4 plates
+		PS::seq_highVolume_Plates.SetCurrentPosition(1);
+
+		onerror goto ProcessingError;
+			
+		// HV tip pick up
+			tipType = TipType::_1000ulHighVolumeTip;
+			ML_STAR.Head96TipPickUp( "1f79f988_1eed_4205_bc77b3daffb93aa4" );
+
+		// Check balance position
+		//------------------------------------------------------------------------------
+			PS::seq_lowVolume_Plate.SetCurrentPosition( 1 );
+			Check_Balance_Position(ML_STAR, PS::seq_lowVolume_Plate );
+
+		// aspirate 1000ul 
+			aspirateVolume = 1000.0;
+			if(extendedReporting)
+			{  // Clear all previous pressure data stored on pipetter
+				ClearPressureData(ML_STAR);
+				// Aspirate as FW command with TADM data monitoring on
+				if(!aspirateWithRecording( ML_STAR, aspirateVolume, PS::seq_LightSolution))
+				{// error occured -> eject LV tips back into rack
+					ML_STAR.Head96TipEject( "7d9517e2_ea35_45f2_899a0a0b8711680c" );
+					tipType = TipType::noTip;
+					return(hslFalse);
+				}
+			}
+			else
+			{
+				ML_STAR.Head96Aspirate( "2a825287_16e7_4cf7_8119a02d2d7571a2" );
+			}
+		// dispense 4x 250ul into plates
+			dispenseVolume = 250.0;
+			for(pipettingLoop = 1; pipettingLoop <=4; pipettingLoop ++) 
+			{
+			// --- set balance to zero for last plate (on balance) measurement
+			// --- measure weight with balance before dispensing
+				if	(pipettingLoop == 4) weight = VerTool::MWPMeasure(Balance::MeasureMode_3, 12.0);
+				// dispense 250ul 
+				if(extendedReporting)
+				{ // Dispense as FW command 
+					if(!dispenseWithFWCmd( ML_STAR, dispenseVolume, pipettingLoop, PS::seq_highVolume_Plates))
+					{// error occured -> eject HV tips back into rack	
+						ML_STAR.Head96TipEject( "edbd6530_e61a_46ad_93dce952ba8d0c16" );
+						tipType = TipType::noTip;
+						return(hslFalse);
+					}
+				}
+				else
+				{
+						ML_STAR.Head96Dispense( "43e30290_d31b_4b20_8befee940efdc1b5" );
+				}
+				PS::seq_highVolume_Plates.Increment( 96 );
+			// --- measure weight with balance of last plate (on balance)
+				if	(pipettingLoop == 4)
+				{
+					RPD::measured_Weight_2 = VerTool::MWPMeasure(Balance::MeasureMode_4, 24022.0) - weight; // simulated value is approx. 24g
+//Trace("Test: High volume pietting weight at pipetting loop ",pipettingLoop,"  ==>",RPD::measured_Weight_2,"<==");
+				}
+			}
+		// HV tip eject back into rack
+			ML_STAR.Head96TipEject( "99dc3297_0615_48b4_8a40402d3a6846fd" );
+			tipType = TipType::noTip;
+
+			if(extendedReporting)
+			{ // Upload pressure data
+			   for (channelNo = 1; channelNo <= 96; channelNo++)  // channelNo zero based
+				{
+					GetPressureData(ML_STAR, channelNo, arrPressureValues);
+					SimulatePressureDate(channelNo,  highVolumePipetting ,arrPressureValues);
+					CheckAndStorePressureData(channelNo ,200, arrPressureValues, highVolumePipetting); 
+				}
+			}
+
+			ClearPressureData(ML_STAR);
+			
+			return(hslTrue);
+
+		// Eror Handling -----------------------------------------------------------------
+		ProcessingError:
+		{
+			err.Clear( );
+			// eject teaching needle back into rack
+			ML_STAR.Head96TipEject( "222d26a6_3ad9_4bcf_aaffc583a188a23a" );
+			return(hslFalse);
+		}		
+	} // -- end of function "Pipette_High_Volume"
+
+	//------------------------------------------------------------------------------
+	private function CalculateLowVolumeData()
+	// Volume values of well A1 to H12 are calculated in function of weight measurment and OD measurement
+	//------------------------------------------------------------------------------
+	{
+		variable dataIndex;
+		variable amountOfWells(96), amountOfPlates(1);
+		variable referenceValue(0.0);
+		variable arrMeanData[], arrMinData[], arrMaxData[],arrCV_Data[];			
+
+		if (VerDef::SimulationMode)
+		{	// change data in simulation mode
+			for (dataIndex = 0 ; dataIndex < RPD::arr_ODData_Volume_1.GetSize();dataIndex++) 
+																		RPD::arr_ODData_Volume_1.SetAt(dataIndex, 1.0*dataIndex/1000.0 + 1.0); 
+		}
+
+		// calculate mean OD-value of corresponding wells of plate
+		amountOfPlates = 1;
+		VerTool::statisticCalculation(RPD::arr_ODData_Volume_1, amountOfWells, 1, 1, amountOfWells, 1, 1, amountOfPlates,
+																									arrMeanData, arrMinData, arrMaxData,arrCV_Data);
+
+		VOL_96_1::liquidDensity_1 = VerTool::Density(LiquidType::DarkDye_Solution, RPD::temperature);
+		Trace("Test: LiquidDensity for dark dye at ",RPD::temperature,"°C  => ", VOL_96_1::liquidDensity_1);
+
+		referenceValue = 0.001 * RPD::measured_Weight_1 / (VOL_96_1::liquidDensity_1 * amountOfWells);
+		Trace("Test: ----  lowVolumeWeight =>", RPD::measured_Weight_1,"< volume per well =>", referenceValue,"ul<==");
+//		VerTool::TraceArray("----  lowVolumeODDataArray ---------", RPD::arr_ODData_Volume_1);
+		referenceValue = referenceValue / arrMeanData.GetAt( 0 );
+		Trace("Test: ----  reference value per well =>",  referenceValue,"ul/OD<==");
+
+		// transfer calculated data in main data array
+		for(dataIndex = 0;dataIndex <96; dataIndex++)
+		{	
+			RPD::arr_Volume_Volume_1.SetAt( dataIndex, referenceValue *RPD::arr_ODData_Volume_1.GetAt( dataIndex));
+		}
+
+	}  // -- end of function "CalculateLowVolumeData"
+	
+	//------------------------------------------------------------------------------
+	private function CalculateHighVolumeData() 
+	// 4 values are combined to one value per channel (4x250ul => 1000ul) 
+	//   in function of weight measurment and OD measurement of plate on balance and OD measurement of all plates
+	//------------------------------------------------------------------------------
+	{
+		variable dataIndex;
+		variable amountOfWells(96), amountOfPlates(1);
+		variable referenceValue(0.0);
+		variable arrMeanData[], arrMinData[], arrMaxData[],arrCV_Data[];			
+
+		if (VerDef::SimulationMode)
+		{	// change data in simulation mode
+			for (dataIndex = 0 ; dataIndex < RPD::arr_ODData_Volume_2.GetSize();dataIndex++) 
+																		RPD::arr_ODData_Volume_2.SetAt(dataIndex, 1.0*dataIndex/10000.0 + 1.0); 
+			for (dataIndex = 192 ; dataIndex < RPD::arr_ODData_Volume_2.GetSize();dataIndex++) 
+																		RPD::arr_ODData_Volume_2.SetAt(dataIndex, 1.0*(dataIndex-144)/10000.0 + 1.0); 
+		}
+
+		// calculate mean OD-value of corresponding wells of 1st plate
+		amountOfPlates = 1;
+		VerTool::statisticCalculation(RPD::arr_ODData_Volume_2, amountOfWells, 1, 1, amountOfWells, 1, 1, amountOfPlates,
+																									arrMeanData, arrMinData, arrMaxData,arrCV_Data);
+
+		VOL_96_1::liquidDensity_2 = VerTool::Density(LiquidType::LightDye_Solution, RPD::temperature);
+		Trace("Test: LiquidDensity for light dye at ",RPD::temperature,"°C  => ", VOL_96_1::liquidDensity_2);
+
+		referenceValue = 0.001 * RPD::measured_Weight_2 / (VOL_96_1::liquidDensity_2 * amountOfWells);
+
+		Trace("Test: ----  highVolumeWeight =>", RPD::measured_Weight_2,"< volume per well =>", referenceValue,"ul<==");
+//		VerTool::TraceArray("Test: ----  highVolumeODDataArray ---------", RPD::arr_ODData_Volume_2);	
+		referenceValue = referenceValue / arrMeanData.GetAt( 0 );
+		Trace("Test: ----  reference value per well =>",  referenceValue,"ul/OD<==");
+
+		// calculate mean OD-value of corresponding wells of all 4 plates
+		amountOfPlates = 4;
+		VerTool::statisticCalculation(RPD::arr_ODData_Volume_2, amountOfWells, 1, 1, amountOfWells, 1, 1, amountOfPlates,
+																									arrMeanData, arrMinData, arrMaxData,arrCV_Data);
+
+		// transfer calculated data in main data array
+//		VerTool::TraceArray("Test: ----  arrMeanData high volume ---------", arrMeanData);
+		for(dataIndex = 0;dataIndex <96; dataIndex++)
+		{	
+			RPD::arr_Volume_Volume_2.SetAt( dataIndex, referenceValue * 4.0 * arrMeanData.GetAt( dataIndex + 1));
+		}
+
+	}  // -- end of function "CalculateHighVolumeData"
+
+	//------------------------------------------------------------------------------
+	private function EvaluateSummary() 
+	// data are arranged in data array in 96er pattern 
+	// measurement loops: 1 times
+	//------------------------------------------------------------------------------
+	{
+		variable baseReportRow(69);
+		variable baseReportAspMonitoring(96);
+		variable dataIndex, rowNo, columnNo, columnsOfData, decDigits;
+		variable amountOfRows(8), amountOfColumn(12);
+		variable tipTypeDescription, acceptanceRange("");
+		variable arrMeanData[], arrMinData[], arrMaxData[],arrCV_Data[];			
+		variable meanValue(0.0), standardDeviation(0.0), minValue(0.0), maxValue(0.0);
+		variable wellValue(0.0), lowerLimit(0.0), upperLimit(0.0), range(0.0);
+		variable singleWellStatus, lowVolumeStatus, highVolumeStatus;
+		variable lowPressureStatus, highPressureStatus;
+		variable SW_version("");
+
+
+		RPD::accuracyDisplay_Volume_1		= "<= +/- " + VerTool::FormatNumber_PointAsDecimal(RPD::accuracyCriteria_Volume_1,2);
+		RPD::accuracyDisplay_Volume_2 	= "<= +/- " + VerTool::FormatNumber_PointAsDecimal(RPD::accuracyCriteria_Volume_2,2);
+		RPD::precisionDisplay_Volume_1 	= "<= " + VerTool::FormatNumber_PointAsDecimal(RPD::precisionCriteria_Volume_1,2);
+		RPD::precisionDisplay_Volume_2 	= "<= " + VerTool::FormatNumber_PointAsDecimal(RPD::precisionCriteria_Volume_2,2);
+
+		VerTool::displayArrayData(" OD Values for Low Volume measurements", RPD::arr_Volume_Volume_1);
+		VerTool::displayArrayData(" OD Values for High Volume measurements", RPD::arr_Volume_Volume_2);
+
+			// Open report 
+		//------------------------------------------------------------------------------
+		if(extendedReporting) 	VerTool::OpenReportFile_2( RPD::reportTemplateFileName, hslFalse);
+		else 							VerTool::CreateReportFile(RPD::reportTemplateFileName);
+
+		// ---  add general data
+		
+		VerTool::WriteCell( 6, 4,	VerDef::InstrumentName); 	 		// cell F4: instrument name 
+		VerTool::WriteCell( 6, 5,	VerDef::InstrumentSerialNo); 		// cell F5: instrument serial no	
+		SW_version = VerDef::SWReleaseVersion + VerDef::FVK2_ReleaseVersion;
+		StrReplace(SW_version ,"%s1",moduleVersion);
+		VerTool::WriteCell( 6, 6, 	SW_version);							// cell F6: user software version
+		VerTool::WriteCell( 6, 7,	RPD::laboratoryName); 				// cell F7: laboratory name / location
+		VerTool::WriteCell( 6, 8,	RPD::operatorName); 					// cell F8: operator name
+		VerTool::WriteCell( 6, 9,	RPD::verifcationReason); 			// cell F9: reason for verification
+		VerTool::WriteCell(12, 4, 	GetDate("%Y-%m-%d"));				// cell K4: processed date
+		VerTool::WriteCell(12, 5, 	GetTime("%H:%M"));					// cell K5: processed time
+
+		VerTool::WriteCell(12, 7, VerTool::FormatNumber_PointAsDecimal(RPD::temperature,1));	// cell K7: temperature
+		VerTool::WriteCell(12, 8, VerTool::FormatNumber_PointAsDecimal(RPD::humidity,1)); 		// cell K8: humidity
+
+		VerTool::WriteCell( 6, 14, Balance::SerialNumber); 				// cell F14: balance serial number 
+		if(Balance::CheckedStatus == VerDef::valid)							// cell I14: balance checked status
+			VerTool::WriteCell( 9, 14, "");		 								//	valid status not displayed
+		else 
+		{	VerTool::WriteCell( 9, 14, Balance::CheckedStatus);		
+			processSummaryState	= VerDef::failed;
+		}
+		VerTool::WriteCell(12, 14, Balance::ExpiryDate);					// cell K14: balance valid until
+
+		VerTool::WriteCell( 6, 15, Balance::CalibrationWeightID); 		// cell F15: Calibration Weight No.
+		VerTool::WriteCell( 9, 15, ""); 											//	cell I15: valid status not displayed
+		VerTool::WriteCell(12, 15, Balance::CalibrWeightExpiryDate); 	// cell K15: Calibration Weight Valid until: Balance::CalibrationWeightDate("");/
+		VerTool::WriteCell( 6, 16, Balance::CalibrationWeight); 			// cell F16: Actual weight 
+		VerTool::WriteCell(12, 16,"20 +/- 0.00034"); 						// cell K16: Calibration Weight [g] +/- Calibration Range [g]
+
+		VerTool::WriteCell( 6, 19, Reader::deviceSerialNo); 				// cell F19: reader serial number 
+		if(Reader::CheckedStatus == VerDef::valid)							// cell I19: reader checked status
+			VerTool::WriteCell( 9, 19, "");		 								//	valid status not displayed
+		else 		
+		{	VerTool::WriteCell( 9, 19, Reader::CheckedStatus); 				
+			processSummaryState	= VerDef::failed;
+		}
+
+		VerTool::WriteCell( 6, 20, Reader::photoCheckPlateSerial); 		// cell F20: reader checkplate serial number 
+		VerTool::WriteCell( 9, 20, ""); 											//	cell I20: valid status not displayed
+		VerTool::WriteCell(12, 20, Reader::photoCheckPlateExpiryDate);	// cell K20: reader checkplatevalid until
+
+		VerTool::WriteCell( 6, 23, RPD::humidityDeviceSerial); 			// cell F23: temperature and humidity measurement device serial number 
+		VerTool::WriteCell( 9, 23, ""); 											//	cell I23: valid status not displayed
+		VerTool::WriteCell(12, 23, RPD::humidityDeviceExpiryDate);		// cell K23: measurement device  valid until
+
+		VerTool::WriteCell( 6, 26, RPD::solutionLotNumber); 				// cell F26: Reagenz Lot No.: 
+		VerTool::WriteCell( 9, 26, ""); 											//	cell I26: valid status not displayed
+		VerTool::WriteCell(12, 26, RPD::solution1_ExpiryDate); 			// cell K26: Solution #1 valid until 
+//		VerTool::WriteCell(12, 27, RPD::solution2_ExpiryDate); 			// cell K27: Solution #2 valid until 
+//		VerTool::WriteCell(12, 28, RPD::solution3_ExpiryDate); 			// cell K28: Solution #3 valid until 
+		// 10ul specifications
+		VerTool::WriteCell( 6, 30, VerTool::FormatNumber_PointAsDecimal(RPD::Nominal_Volume_1,0));	// cell F30: Nominal volume 10ul
+		VerTool::WriteCell( 6, 31, " 96");					 					// cell F31: Number of samples
+		VerTool::getTipType(TipType::_10ulLowVolumeTip,  tipTypeDescription);
+		VerTool::WriteCell( 6, 32, tipTypeDescription);	 					// cell F32: Used Tip Type
+		VerTool::WriteCell( 6, 34, VerTool::FormatNumber_PointAsDecimal(VOL_96_1::liquidDensity_1, 4)); // cell F34: Liquid Density [g/cm3]
+		VerTool::WriteCell( 6, 39, RPD::accuracyDisplay_Volume_1);		// cell F39: Accuracy specification
+		VerTool::WriteCell( 6, 42, RPD::precisionDisplay_Volume_1); 	// cell F42: Precision specification
+		// 1000ul specifications
+		VerTool::WriteCell( 9, 30, VerTool::FormatNumber_PointAsDecimal(RPD::Nominal_Volume_2,0));// cell I30: Nominal volume 300ul
+		VerTool::WriteCell( 9, 31, " 96");					 					// cell I31: Number of samples
+		VerTool::getTipType(TipType::_1000ulHighVolumeTip,  tipTypeDescription);
+		VerTool::WriteCell( 9, 32, tipTypeDescription);	 					// cell I32: Used Tip Type
+		VerTool::WriteCell( 9, 34, VerTool::FormatNumber_PointAsDecimal(VOL_96_1::liquidDensity_2, 4)); // cell I34: Liquid Density [g/cm3]
+		VerTool::WriteCell( 9, 39, RPD::accuracyDisplay_Volume_2);		// cell I39: Accuracy specification
+		VerTool::WriteCell( 9, 42, RPD::precisionDisplay_Volume_2);		// cell I42: Precision specification
+
+	// ------------------  evaluate 10ul data:  --------------------------
+		// calculate volume value 
+		VerTool::statisticCalculation(RPD::arr_Volume_Volume_1, amountOfRows, amountOfColumn, 1, amountOfRows, 1, amountOfColumn, 1,
+																							arrMeanData, arrMinData, arrMaxData,arrCV_Data);
+		lowVolumeStatus 	= VerDef::passed;	
+		decDigits			= 2;
+		// data of individual wells
+		singleWellStatus 	= VerDef::passed;
+		// confidence interval for channel value check: 
+		// Nominal volume * (1  +/- (accConfidenceFactor*accuracyCriteria + precConfidenceFactor * precisionCriteria)
+		range	= (VOL_96_1::accConfidenceFactor * RPD::accuracyCriteria_Volume_1) + (VOL_96_1::precConfidenceFactor*RPD::precisionCriteria_Volume_1);
+		range = RPD::Nominal_Volume_1 * range / 100.0;
+
+		lowerLimit	= RPD::Nominal_Volume_1 - range;
+		upperLimit	= RPD::Nominal_Volume_1 + range; 
+
+		baseReportRow = 69;
+		for(columnNo = 0; columnNo < 12; columnNo++)
+		{ 
+			for(rowNo = 0; rowNo <8 ; rowNo ++)
+			{ 
+				dataIndex = 8* columnNo + rowNo ;
+				wellValue = RPD::arr_Volume_Volume_1.GetAt(dataIndex);	
+				VerTool::WriteCell( columnNo + 2, rowNo + baseReportRow, VerTool::FormatNumber_PointAsDecimal(wellValue, decDigits)); 
+				if ((wellValue < lowerLimit) || (wellValue > upperLimit))
+				{
+					VerTool::WriteCell( columnNo + 20, rowNo + baseReportRow, VerTool::FormatNumber_PointAsDecimal(wellValue, decDigits)); 
+					singleWellStatus = VerDef::failed;
+				}
+			}
+		}
+		rowNo = 78;
+		if (singleWellStatus == VerDef::failed)
+		{
+			lowVolumeStatus		= VerDef::failed;
+			processSummaryState	= VerDef::failed;
+			acceptanceRange = " <= " + VerTool::FormatNumber_PointAsDecimal(RPD::Nominal_Volume_1, decDigits) + 
+										" +/- " + VerTool::FormatNumber_PointAsDecimal(range, decDigits);
+			VerTool::WriteCell( 5, rowNo, acceptanceRange);		// cell E78: Acceptance range
+		}
+		else 
+		{ // in case of "passed": remove single values acceptance range information
+			VerTool::WriteCell( 4, rowNo, " ");	// cell D + row: remove title "Acceptance range [ul]"
+			VerTool::WriteCell( 5, rowNo, " ");	// cell E + row: remove default values
+			VerTool::WriteCell(11, rowNo, " ");	// cell K + row: remove 'failed' text
+			VerTool::WriteCell(28, rowNo, "X");	// cell J + row: de-activate back ground
+		}
+ 
+		// -- overall data for 10ul
+		columnNo = 6;
+		rowNo		= 36;
+
+		// mean value
+		meanValue = arrMeanData.GetAt(0);
+		VerTool::WriteCell( columnNo, rowNo, VerTool::FormatNumber_PointAsDecimal(meanValue,decDigits+1)); 
+		// standard deviation
+		standardDeviation = meanValue * arrCV_Data.GetAt(0)/100.0;
+		VerTool::WriteCell( columnNo, rowNo+1, VerTool::FormatNumber_PointAsDecimal(standardDeviation,decDigits+1)); 
+		// accuracy (%)
+		meanValue = 100* (arrMeanData.GetAt(0) - RPD::Nominal_Volume_1 )/RPD::Nominal_Volume_1;
+		VerTool::WriteCell( columnNo, rowNo+4, VerTool::FormatNumber_PointAsDecimal(meanValue,2)); 
+		// precision (%)
+		standardDeviation = arrCV_Data.GetAt(0);
+		VerTool::WriteCell( columnNo, rowNo+7, VerTool::FormatNumber_PointAsDecimal(standardDeviation,2)); 
+
+		// criterion for accuracy
+		if (meanValue < 0) meanValue = -1.0 * meanValue;
+		if(meanValue > RPD::accuracyCriteria_Volume_1) lowVolumeStatus = VerDef::failed;
+//Trace(" Evaluate 10ul  accuracy =>",meanValue,"<  AccuracyCriteriaLowVolume=>",AccuracyCriteriaLowVolume,"< singleChannelStatus=>",singleChannelStatus);
+		// criterion for precision
+		if(standardDeviation > RPD::precisionCriteria_Volume_1) lowVolumeStatus 	= VerDef::failed;
+//Trace(" Evaluate 10ul  standardDeviation =>",standardDeviation,"<  PrecisionCriteriaLowVolume=>",PrecisionCriteriaLowVolume,"< singleChannelStatus=>",singleChannelStatus);
+
+		// min value
+		minValue = arrMinData.GetAt(0);
+		VerTool::WriteCell( columnNo, rowNo+9, VerTool::FormatNumber_PointAsDecimal(minValue ,decDigits+1)); 
+		// max value
+		maxValue = arrMaxData.GetAt(0);
+		VerTool::WriteCell( columnNo, rowNo+10, VerTool::FormatNumber_PointAsDecimal(maxValue ,decDigits+1)); 
+
+		if (lowVolumeStatus == VerDef::failed) 			processSummaryState	= VerDef::failed;
+		VerTool::WriteCell( columnNo, rowNo + 12, lowVolumeStatus); 
+
+		// summary state of channels
+		lowVolumeStatus = singleWellStatus;
+
+
+	// ------------------  evaluate 1000ul data ----------------------------
+		// calculate volume value 
+		VerTool::statisticCalculation(RPD::arr_Volume_Volume_2, amountOfRows, amountOfColumn, 1, amountOfRows, 1, amountOfColumn, 1,
+																							arrMeanData, arrMinData, arrMaxData,arrCV_Data);
+		columnsOfData 		= 10;
+		highVolumeStatus 	= VerDef::passed;	
+		decDigits			= 1;
+
+		// overall data for 1000ul
+		// data of individual wells
+		singleWellStatus 	= VerDef::passed;
+		// confidence interval for channel value check: 
+		// Nominal volume * (1  +/- (accConfidenceFactor*accuracyCriteria + precConfidenceFactor * precisionCriteria)
+		range	= (VOL_96_1::accConfidenceFactor * RPD::accuracyCriteria_Volume_2) + (VOL_96_1::precConfidenceFactor*RPD::precisionCriteria_Volume_2);
+		range = RPD::Nominal_Volume_2 * range / 100.0;
+
+		lowerLimit	= RPD::Nominal_Volume_2 - range;
+		upperLimit	= RPD::Nominal_Volume_2 + range; 
+
+		baseReportRow = 84;
+		for(columnNo = 0; columnNo < 12; columnNo++)
+		{ 
+			for(rowNo = 0; rowNo <8 ; rowNo ++)
+			{ 
+				dataIndex = 8* columnNo + rowNo ;
+				wellValue = RPD::arr_Volume_Volume_2.GetAt(dataIndex);	
+				VerTool::WriteCell( columnNo + 2, rowNo + baseReportRow, VerTool::FormatNumber_PointAsDecimal(wellValue, decDigits)); 
+				if ((wellValue < lowerLimit) || (wellValue > upperLimit))
+				{
+					VerTool::WriteCell( columnNo + 20, rowNo + baseReportRow, VerTool::FormatNumber_PointAsDecimal(wellValue, decDigits)); 
+					singleWellStatus = VerDef::failed;
+				}
+			}
+		}
+		rowNo = 93;
+		if (singleWellStatus == VerDef::failed)
+		{
+			highVolumeStatus		= VerDef::failed;
+			processSummaryState	= VerDef::failed;
+			acceptanceRange = " <= " + VerTool::FormatNumber_PointAsDecimal(RPD::Nominal_Volume_2, decDigits) + 
+										" +/- " + VerTool::FormatNumber_PointAsDecimal(range, decDigits);
+			VerTool::WriteCell( 5, rowNo, acceptanceRange);		// cell E93: Acceptance range
+		}
+		else 
+		{ // in case of "passed": remove single values acceptance range information
+			VerTool::WriteCell( 4, rowNo, " ");	// cell D + row: remove title "Acceptance range [ul]"
+			VerTool::WriteCell( 5, rowNo, " ");	// cell E + row: remove default values
+			VerTool::WriteCell(11, rowNo, " ");	// cell K + row: remove 'failed' text
+			VerTool::WriteCell(28, rowNo, "X");	// cell J + row: de-activate back ground
+		}
+
+		columnNo = 9;
+		rowNo		= 36;
+		// mean value
+		meanValue = arrMeanData.GetAt(0);
+		VerTool::WriteCell( columnNo, rowNo, VerTool::FormatNumber_PointAsDecimal(meanValue,decDigits)); 
+		// standard deviation
+		standardDeviation = meanValue * arrCV_Data.GetAt(0)/100.0;
+		VerTool::WriteCell( columnNo, rowNo+1, VerTool::FormatNumber_PointAsDecimal(standardDeviation,decDigits)); 
+		// accuracy (%)
+		meanValue = 100* (arrMeanData.GetAt(0) - RPD::Nominal_Volume_2)/RPD::Nominal_Volume_2;
+		VerTool::WriteCell( columnNo, rowNo+4, VerTool::FormatNumber_PointAsDecimal(meanValue,2)); 
+		// precision (%)
+		standardDeviation = arrCV_Data.GetAt(0);
+		VerTool::WriteCell( columnNo, rowNo+7, VerTool::FormatNumber_PointAsDecimal(standardDeviation,2)); 
+		// criterion for accuracy
+		if (meanValue < 0) meanValue = -1.0 * meanValue;
+		if(meanValue > RPD::accuracyCriteria_Volume_2) highVolumeStatus = VerDef::failed;
+//Trace(" Evaluate 1000ul  accuracy =>",meanValue,"<  AccuracyCriteriaHighVolume=>",AccuracyCriteriaHighVolume,"< singleChannelStatus=>",singleChannelStatus);
+		// criterion for precision
+		if(standardDeviation > RPD::precisionCriteria_Volume_2) highVolumeStatus = VerDef::failed;
+//Trace(" Evaluate 10300ul  standardDeviation =>",standardDeviation,"<  PrecisionCriteriaHighVolume=>",PrecisionCriteriaHighVolume,"< singleChannelStatus=>",singleChannelStatus);
+		
+		// min value
+		minValue = arrMinData.GetAt(0);
+		VerTool::WriteCell( columnNo, rowNo+9, VerTool::FormatNumber_PointAsDecimal(minValue ,decDigits)); 
+		// max value
+		maxValue = arrMaxData.GetAt(0);
+		VerTool::WriteCell( columnNo, rowNo+10, VerTool::FormatNumber_PointAsDecimal(maxValue ,decDigits)); 
+
+		if (highVolumeStatus == VerDef::failed) processSummaryState = VerDef::failed;
+		VerTool::WriteCell( columnNo, rowNo + 12, highVolumeStatus); 
+
+		// summary state of channels
+		highVolumeStatus = singleWellStatus;
+
+
+	// ---  add pdf file information close to "header"
+		VerTool::WriteCell(6, 10, 	RPD::pdfReportFileName);	// cell F10: on first page 
+		VerTool::WriteCell(1, 63, 	RPD::pdfReportFileName);	// cell A63: on second page 
+
+		if(extendedReporting) 
+		{
+			VerTool::WriteCell(1, baseReportAspMonitoring,	RPD::pdfReportFileName);	// cell A96: on additional page
+			lowPressureStatus  = VerDef::passed;
+			highPressureStatus = VerDef::passed;
+			// ---  extended monitoring status
+			for(columnNo = 0; columnNo < 12; columnNo++)
+			{ 
+				for(rowNo = 0; rowNo < 8 ; rowNo ++)
+				{ 
+					singleWellStatus 	= VerDef::passed;
+					dataIndex 			= 8* columnNo + rowNo ;
+					singleWellStatus 	= arrLowVolume_Status.GetAt(dataIndex);
+					if(arrLowVolume_Status.GetAt(dataIndex)  == VerDef::failed) singleWellStatus = lowPressureStatus = VerDef::failed;
+					if(arrHighVolume_Status.GetAt(dataIndex) == VerDef::failed) singleWellStatus = highPressureStatus = VerDef::failed;
+					VerTool::WriteCell( columnNo + 2, rowNo + baseReportAspMonitoring + 4, singleWellStatus );
+					if(singleWellStatus == VerDef::failed)
+					{
+						processSummaryState = VerDef::failed;
+						VerTool::WriteCell( columnNo + 20, rowNo + baseReportAspMonitoring + 4, singleWellStatus); 
+					}		
+				}
+			}
+			if(lowPressureStatus == VerDef::failed) lowVolumeStatus = VerDef::failed;
+			VerTool::WriteCell( 6, baseReportAspMonitoring + 15 , lowPressureStatus ); // cell E111
+			if(highPressureStatus == VerDef::failed) highVolumeStatus = VerDef::failed;
+			VerTool::WriteCell( 6, baseReportAspMonitoring + 20 , highPressureStatus ); // cell E116
+
+		}
+
+	// ---  define summary state
+		VerTool::WriteCell( 6, 56, lowVolumeStatus); 
+		VerTool::WriteCell( 9, 56, highVolumeStatus); 
+
+		VerTool::WriteCell( 6, 53, processSummaryState); // cell F53: overall process status 
+
+		if (processSummaryState == VerDef::passed) return(PS::successful);
+		else	
+		{ 
+			VerTool::VerificationFailedDialog(LdT("CO-RE 96-Probe Head Volume Verification"), "x");  
+			return(PS::failed);
+		}
+
+	} // -- end of function "EvaluateSummary"
+
+
+} // end of namespace VOL_96_1
+
+//==============================================================================
+// main functions
+//==============================================================================
+
+	//------------------------------------------------------------------------------	
+	function VolumeVerification_1000ul96erPipHead(device ML_STAR) 
+	//------------------------------------------------------------------------------	
+	{
+		variable processState, returnCode(0);
+		variable arrRetValues[], preConditionIDs[];
+		variable installationData;
+		variable readerUsed(1);
+		variable dialogTitle("");			//	dialog titel information
+		variable solutionPartNo ("");
+
+		//--- general definitions 
+			RPD::Nominal_Volume_1				= 10.0;	// Nominal Low Volume: 10.0ul;
+			RPD::accuracyCriteria_Volume_1 	= 8.0; 	// Accuracy Criteria for Low Volume: <= +/- 8%  at 10ul
+			RPD::precisionCriteria_Volume_1	= 5.0; 	// Precision Criteria for Low Volume: CV <= +/- 5%  at 10ul
+
+			RPD::Nominal_Volume_2				= 1000.0;// Nominal High Volume: 1000.0ul;
+			RPD::accuracyCriteria_Volume_2 	= 2.5; 	// Accuracy Criteria for High Volume: <= +/- 2.5%  at 1000ul
+			RPD::precisionCriteria_Volume_2	= 2.0; 	// Precision Criteria for High Volume: 	//	CV <= +/- 2%  at 1000ul
+
+		// confidence interval for channel value check: 
+			// Nominal volume * (1  +/- (accConfidenceFactor*accuracyCriteria + precConfidenceFactor * precisionCriteria)
+			VOL_96_1::accConfidenceFactor		= 1.0;
+			VOL_96_1::precConfidenceFactor	= 3.0;
+
+		// Check precondition: Valid "CO-RE 96-Probe Head X/Y/Z Positioning"
+		// --------------------------------------------------------------------------
+			dialogTitle = LdT("Volume Verification for CO-RE 96-Probe Head");
+			preConditionIDs.SetSize(0);
+			preConditionIDs.AddAsLast(PID::XYZ_multi96PipHead);
+			if(!VerTool::Check_PreConditions(ML_STAR, preConditionIDs,  dialogTitle)) return; // pre-condiction not valid
+
+		// Initialization of ML_STAR
+		// --------------------------------------------------------------------------
+		//	Trace("Test: instrumentNo =>",instrumentNo,"<   layoutFileName =>",VerDef::layout
+			arrRetValues = ML_STAR.Initialize( "ee203551_7715_4a4c_9b19021b02589833" );
+			if(VerDef::iSWAP > 0)
+			{ // move iSWAP in Parkposition, gripper closed			
+				VerTool::FwCommand( "C0PG", "", hslFalse, ML_STAR ); // park iSWAP
+				VerTool::FwCommand( "R0GP", "gp0", hslFalse, ML_STAR ); // close grippe of iSWAP
+			}
+			VerTool::MoveToEndPositions(ML_STAR);
+
+		// start dialog
+		//------------------------------------------------------------------------------	
+			VOL_96_1::StartDialog(ML_STAR);
+	
+		// installation data
+		//------------------------------------------------------------------------------	
+			VOL_96_1::processSummaryState	= VerDef::passed;
+			RPD::arr_Volume_Volume_1.SetSize(96); // array of calculated volume values over 1 plate for low volume 
+			RPD::arr_Volume_Volume_2.SetSize(96); // array of calculated volume values over 4 plates for high volume 
+
+		// define consumable definitions				
+		dialogTitle = LdT("Consumables Definitions:");
+		solutionPartNo = "P/N 199'030";
+		VerTool::DialogVerifcationConsumableData(dialogTitle, solutionPartNo , 1);
+
+		// activate abort handler
+			VOL_96_1::tipType = TipType::noTip;
+			RegisterAbortHandler("VOL_96_1::OnRun_Abort");
+
+		// Execute pipetting steps
+		//------------------------------------------------------------------------------
+			VerDef::batchNo++;
+			RPD::arr_ODData_Volume_1.SetSize(0);
+			RPD::arr_ODData_Volume_2.SetSize(0);
+			RPD::measured_Weight_1 = 0.0;
+			RPD::measured_Weight_2= 0.0;
+
+		// Show balance status dialog
+		//------------------------------------------------------------------------------
+         VerTool::ShowStatusDialog(LdT("Balance Information:"));
+         VerTool::UpdateStatusDialog("",LdT("Balance in standby mode."),Dlg::Green);
+
+		// Load consumables
+		//------------------------------------------------------------------------------
+			VOL_96_1::Load_ReagentCarrier(ML_STAR);
+         VerTool::UpdateStatusDialog("",LdT("Balance in standby mode."),Dlg::Green);
+
+			VOL_96_1::LoadTipPlateCarrier(ML_STAR);
+		
+
+		// If needed define extended reporting variables & open report file for pressure data storing
+			VOL_96_1::defineExtendedReportingVariable(ML_STAR);
+
+		// Pipette 10ul
+		//------------------------------------------------------------------------------
+			if(!VOL_96_1::Pipette_Low_Volume(ML_STAR)) 
+			{ // stop processing due to processing error
+			 	VerTool::HideStatusDialog();
+				VerTool::VerificationFailedDialog(LdT("CO-RE 96-Probe Head Volume Verification"), "s");  
+				//Unload consumables
+				VerTool::Unload_Consumables(ML_STAR, readerUsed);
+				return;
+			}
+         VerTool::UpdateStatusDialog("",LdT("Balance in standby mode."),Dlg::Green);
+
+		// Measure plate in reader for low volume values
+		//------------------------------------------------------------------------------
+			VerTool::Measure_Plate_OD_Values(ML_STAR, LdT("Volume Verification 10ul"), "( " + LdT("from Balance") + " )",VerDef::_96erPlate, RPD::arr_ODData_Volume_1);
+														
+		// Reload plate on balance 
+		//------------------------------------------------------------------------------
+			VOL_96_1::Reload_ReagentCarrier(ML_STAR);
+         VerTool::UpdateStatusDialog("",LdT("Balance in standby mode."),Dlg::Green);
+			
+		// Calculate low volume data for this batch
+		//------------------------------------------------------------------------------
+			VOL_96_1::CalculateLowVolumeData();
+
+		// Pipette 1000ul
+		//------------------------------------------------------------------------------
+			if(!VOL_96_1::Pipette_High_Volume(ML_STAR)) 
+			{ // stop processing due to processing error
+				VerTool::HideStatusDialog();
+				VerTool::VerificationFailedDialog(LdT("CO-RE 96-Probe Head Volume Verification"), "s");  
+				//Unload consumables
+				VerTool::Unload_Consumables(ML_STAR, readerUsed);
+				return;
+			}
+			VerTool::HideStatusDialog();
+
+		// Unload tip/plate carrier
+			VerTool::Unload_TipCarrier(ML_STAR);
+			
+		// Measure plates in reader for high volume values
+		//------------------------------------------------------------------------------
+			VerTool::Measure_Plate_OD_Values(ML_STAR, LdT("Volume Verification 1000ul"), "1 ( " + LdT("from balance")  + " )",  VerDef::_96erPlate,  RPD::arr_ODData_Volume_2);
+			VerTool::Measure_Plate_OD_Values(ML_STAR, LdT("Volume Verification 1000ul"), "2 ( " + LdT("from position") + " 3 )",VerDef::_96erPlate,  RPD::arr_ODData_Volume_2);
+			VerTool::Measure_Plate_OD_Values(ML_STAR, LdT("Volume Verification 1000ul"), "3 ( " + LdT("from position") + " 4 )",VerDef::_96erPlate,  RPD::arr_ODData_Volume_2);
+			VerTool::Measure_Plate_OD_Values(ML_STAR, LdT("Volume Verification 1000ul"), "4 ( " + LdT("from position") + " 5 )",VerDef::_96erPlate,  RPD::arr_ODData_Volume_2);
+
+		// Calculate high volume data for this batch
+		//------------------------------------------------------------------------------
+			VOL_96_1::CalculateHighVolumeData();
+
+		// Unload consumables
+		//------------------------------------------------------------------------------
+			VerTool::Unload_Consumables(ML_STAR, readerUsed);
+
+		// Evaluate summary
+		//------------------------------------------------------------------------------
+			processState = VOL_96_1::EvaluateSummary();
+
+		// Generate report 
+		//------------------------------------------------------------------------------
+			VerTool::StoreProcessDataOnInstrument(PID::Vol_multi96PipHead, processState, ML_STAR );
+
+			VerTool::GeneratePDF_File();
+
+	}  // -- end of function "VolumeVerification_1000ul96erPipHead"
+
+//==============================================================================
+// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=74d50494$$length=088$$

@@ -1,0 +1,74 @@
+//isPipetting is a variable passed to the Hamilton Venus method; if isPipetting is true, the STAR will pipette liquids; otherwise the STAR just moves plates around
+Set(isPipetting, true)
+//isDebugging controls whether or not user debugging prompts/messages are displayed (both in LMSF and Hamilton)
+Set(isDebugging, false)
+
+//Read in commonly used directories
+Set(hamiltonMethodDir, C:\Program Files (x86)\Hamilton\Methods\GSF-IMS Project\E. coli Methods\Test Gas Permeable Heat Seal Mark 2)
+
+Set(inducer, none)
+Set(inducerStockConc, 0)
+Set(inducerStockUnits, none)
+
+Set(leftAdditive, none)
+Set(leftAdditiveStockConc, 0)
+Set(leftAdditiveStockUnits, none)
+
+Set(rightAdditive, none)
+Set(rightAdditiveStockConc, 0)
+Set(rightAdditiveStockUnits, none)
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+//User input and Overlord initialization section
+
+StartPrompt(Seal Test, C:\Program Files (x86)\HAMILTON\Methods\GSF-IMS Project\E. coli Methods\Test Gas Permeable Heat Seal Mark 2\Seal test-list.txt)
+
+NewXML(growth plate prep)
+
+Get(user, user)
+
+Get(media, media)
+
+//Venus method constrains 200<=cultureVolume<=500
+Set(cultureVolume, 500)
+
+Set(startMethod, Seal test.hsl)
+
+
+Get(strain, strain1, Select the bacteria strain used for the protocol:)
+Get(plasmid, plasmid1, Select the plasmid used for the protocol:)
+
+Get(note, note)
+
+GetExpID({startDateTime}_{strain1}_SealTest)
+
+//review experiment ok/abort dialog
+Set(msg1, Review the following, then click 'OK' to accept or 'Abort' to abort and start over:\n\n)
+Set(msg2, \tMedia: \t\t\t{media}\n\n \tBacteria: \t\t\t{strain1}, with {plasmid1}\n\n)
+Set(msg5, \tExperiment ID: \n\t\t{experimentId}\n \tData directory: \n\t\t{dataDirectory}\n\n \tNotes:\n\t\t{note})
+UserPrompt(Review Protocol Details: {experimentId}, {msg1} {msg2} {msg5})
+
+UserPrompt(Check STAR Hamilton Run Control, Make sure that the Hamilton Run Control program on the STAR computer is NOT in simulation mode.)
+
+UserPrompt(Edit Tip Counters, Switch to the the S-Cell-STAR PC and verify or edit the tip counters.)
+
+Hamilton(C:\Program Files (x86)\HAMILTON\Methods\Common\Tip Handling\With 96-Head\Edit Tip Counters.hsl)
+WaitFor(Hamilton)
+
+
+Set(msg1, Set up the STAR deck layout as shown; with the growth plate, cells and media.)
+UserPrompt(Deck Layout, {msg1}, C:\Program Files (x86)\HAMILTON\Methods\GSF-IMS Project\E. coli Methods\Test Gas Permeable Heat Seal Mark 2\Deck layout.PNG, 1000)
+
+Set(msg1, Close the front cover on the STAR.\n)
+Set(msg4, Then clisk 'OK' to start the protocol.\n)
+UserPrompt(Ready to Start, {msg1}{msg4}, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\dialog-warning.png)
+
+
+Set(worklistFile, {dataDirectory}\{experimentId}_growth-plate_1.csv)
+Hamilton({hamiltonMethodDir}\{startMethod})
+Timer(600)
+WaitFor(Timer)
+WaitFor(Hamilton)
+
+SaveXML()

@@ -1,0 +1,471 @@
+//----------------------------------------------------------------------------------------
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+//
+// Project              : HSL Extension Framework
+// Description          : Framework library with seuqence functions
+//
+// Software Version     : 4.3
+//
+// Revision history:
+// - Oliver Funke   2011.02.18   library created
+//
+//----------------------------------------------------------------------------------------
+
+#ifndef __HSLEXTENSIONS_SEQUENCE__
+#define __HSLEXTENSIONS_SEQUENCE__ 1
+
+//============================== includes ==============================
+#ifndef __HSLEXTENSIONS_FRAMEWORK__
+   #include "HSLExtensions/Framework/HSLExtensionsFramework.hsl"
+#endif
+
+#ifndef __HSLEXTENSIONS_FRAMEWORK_ENUMS__
+   #include "HSLExtensions/Framework/Enumerators.hsl"
+#endif
+
+#ifndef __HSLSeqLib_hsl__
+   #include "HSLSeqLib.hsl"
+#endif
+
+//============================== HSLExtensions ==============================
+namespace HSLExtensions
+{
+   //============================== File ==============================
+   namespace Sequence
+   {
+      //---------------------------------------------------------
+      // Concatenates two given sequences.
+      // - the start position of the new sequence will be set to '1'
+      //
+      // [in] i_seqSourceA: first source sequence
+      // [in] i_seqSourceB: second source sequence
+      // [in] i_blnConcatFullSequences: if 'true' the full sequence from position 1 to position max will be used, otherwise the sequence from current position to count will be used
+      // [returns] concatenated sequence
+      //---------------------------------------------------------
+      function Concat(sequence& i_seqSourceA, 
+                      sequence& i_seqSourceB,
+                      variable i_blnConcatFullSequences) sequence
+      {
+         variable strFunctionName(GetFunctionName());
+         
+         sequence seqTarget;
+         variable intMaxTarget;
+
+         variable intPositionA;
+         variable intCountA;
+         variable intMaxA;
+
+         variable intPositionB;
+         variable intCountB;
+         variable intMaxB;
+         
+         variable i;
+
+         variable intStart;
+         variable intEnd;
+
+         //get sequence values
+         intPositionA = i_seqSourceA.GetCurrentPosition();
+         intCountA = i_seqSourceA.GetCount();
+         intMaxA = i_seqSourceA.GetMax();
+
+         intPositionB = i_seqSourceB.GetCurrentPosition();
+         intCountB = i_seqSourceB.GetCount();
+         intMaxB = i_seqSourceB.GetMax();
+
+         //trace input         
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSourceA position", intPositionA);
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSourceA count", intCountA);
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSourceA max", intMaxA);
+         
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSourceB position", intPositionB);
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSourceB count", intCountB);
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSourceB max", intMaxB);
+
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_blnConcatFullSequences", i_blnConcatFullSequences);
+
+         //check input
+         if(HSLExtensions::Framework::Types::IsBoolean(i_blnConcatFullSequences) == hslFalse)
+         {
+            HSLExtensions::Framework::Trace::ParameterTypeErrorTrace(strFunctionName, HSLExtensions::Framework::Enumerators::Type::Boolean, i_blnConcatFullSequences);
+
+            intMaxTarget = seqTarget.GetMax();
+            HSLExtensions::Framework::Trace::FunctionResultParameterTrace(strFunctionName, intMaxTarget);
+            return(seqTarget);
+         }
+
+         //add sequence - a
+         if(i_blnConcatFullSequences == hslTrue)
+         {
+            intStart = 1;
+            intEnd = intMaxA;
+            i_seqSourceA.SetCurrentPosition(1);
+         }
+         else
+         {
+            intStart = intPositionA;
+            if(intStart == 0)
+            {
+               intStart = 1;
+            }
+
+            intEnd = intCountA;
+            i_seqSourceA.SetCurrentPosition(intStart);
+         }
+
+         for(i=intStart; i<=intEnd; i++)
+         {
+            seqTarget.Add(i_seqSourceA.GetLabwareId(), i_seqSourceA.GetPositionId());
+            i_seqSourceA.Increment(1);
+         }
+
+         i_seqSourceA.SetCurrentPosition(intPositionA);
+
+         //add sequence - b
+         if(i_blnConcatFullSequences == hslTrue)
+         {
+            intStart = 1;
+            intEnd = intMaxB;
+            i_seqSourceB.SetCurrentPosition(1);
+         }
+         else
+         {
+            intStart = intPositionB;
+            if(intStart == 0)
+            {
+               intStart = 1;
+            }
+
+            intEnd = intCountB;
+            i_seqSourceB.SetCurrentPosition(intStart);
+         }
+
+         for(i=intStart; i<=intEnd; i++)
+         {
+            seqTarget.Add(i_seqSourceB.GetLabwareId(), i_seqSourceB.GetPositionId());
+            i_seqSourceB.Increment(1);
+         }
+
+         i_seqSourceB.SetCurrentPosition(intPositionB);
+
+         //set position
+         seqTarget.SetCurrentPosition(1);
+
+         //return
+         intMaxTarget = seqTarget.GetMax();
+         HSLExtensions::Framework::Trace::FunctionResultParameterTrace(strFunctionName, intMaxTarget);
+
+         return(seqTarget);
+      }
+
+      //---------------------------------------------------------
+      // Copy a sequence
+      // 
+      // Copy mode:
+      // - CopySubSequence: copy the sub sequence from current starting position to current end position
+      // - CopyFullSequence: copy the full sequence from 1 to max position, set start position to 1 and end position to max
+      // - CloneFullSequence: create clone by copy the full sequence from 1 to max position, set current position and end position according to source sequence
+      //
+      // [in] i_seqSource: source sequence
+      // [in] i_intSequenceCopyMode: sequence copy mode (see enum SequenceCopyMode)
+      // [returns] copy of sequence
+      //---------------------------------------------------------
+      function Copy(sequence& i_seqSource, 
+                      variable i_intSequenceCopyMode) sequence
+      {
+         variable strFunctionName(GetFunctionName());
+         
+         sequence seqTarget;
+         variable intMaxTarget;
+
+         variable intPosition;
+         variable intCount;
+         variable intMax;
+
+         variable i;
+
+         variable intRemoveCount;
+         variable intLength;
+
+         variable blnInputError(hslFalse);
+
+         //get sequence values
+         intPosition = i_seqSource.GetCurrentPosition();
+         intCount = i_seqSource.GetCount();
+         intMax = i_seqSource.GetMax();
+
+         //trace input         
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSource position", intPosition);
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSource count", intCount);
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSource max", intMax);
+
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_intSequenceCopyMode", i_intSequenceCopyMode);
+
+         //check input
+         blnInputError = hslFalse;
+
+         if(HSLExtensions::Framework::Types::IsInteger(i_intSequenceCopyMode) == hslFalse)
+         {
+            HSLExtensions::Framework::Trace::ParameterTypeErrorTrace(strFunctionName, HSLExtensions::Framework::Enumerators::Type::Integer, i_intSequenceCopyMode);
+            blnInputError = hslTrue;
+         }
+         else
+         {
+            if( (i_intSequenceCopyMode != HSLExtensions::Framework::Enumerators::SequenceCopyMode::CopySubSequence) && 
+                (i_intSequenceCopyMode != HSLExtensions::Framework::Enumerators::SequenceCopyMode::CopyFullSequence) &&
+                (i_intSequenceCopyMode != HSLExtensions::Framework::Enumerators::SequenceCopyMode::CloneFullSequence) )
+            {
+               HSLExtensions::Framework::Trace::ParameterOutOfRangeErrorTrace(strFunctionName, "i_intSequenceCopyMode", i_intSequenceCopyMode);
+               blnInputError = hslTrue;
+            }
+         }
+
+         if(blnInputError == hslTrue)
+         {
+            intMaxTarget = seqTarget.GetMax();
+            HSLExtensions::Framework::Trace::FunctionResultParameterTrace(strFunctionName, intMaxTarget);
+            return(seqTarget);
+         }
+
+         //CloneFullSequence
+         if(i_intSequenceCopyMode == HSLExtensions::Framework::Enumerators::SequenceCopyMode::CloneFullSequence)
+         {
+            seqTarget.CopySequence(i_seqSource);
+         }
+         //CopyFullSequence
+         else if(i_intSequenceCopyMode == HSLExtensions::Framework::Enumerators::SequenceCopyMode::CopyFullSequence)
+         {
+            seqTarget.CopySequence(i_seqSource);
+            seqTarget.SetCurrentPosition(1);
+            seqTarget.SetCount(intMax);
+            seqTarget.SetMax(intMax);
+         }
+         //CopySubSequence
+         else if(i_intSequenceCopyMode == HSLExtensions::Framework::Enumerators::SequenceCopyMode::CopySubSequence)
+         {
+            //copy
+            seqTarget.CopySequence(i_seqSource);
+
+            //remove from start
+            intRemoveCount = intPosition - 1;
+
+            if(intRemoveCount > 0)
+            {
+               for(i=0; i<intRemoveCount; i++)
+               {
+                  seqTarget.RemoveAt(1);
+               }
+            }
+
+            //remove from end
+            intRemoveCount = intMax - intCount;
+            intLength = intCount - intPosition + 1;
+
+            if(intRemoveCount > 0)
+            {
+               for(i=0; i<intRemoveCount; i++)
+               {
+                  seqTarget.RemoveAt(intLength+1);
+               }
+            }
+
+            //set positions
+            seqTarget.SetCurrentPosition(1);        
+         }
+         
+         //return
+         intMaxTarget = seqTarget.GetMax();
+         HSLExtensions::Framework::Trace::FunctionResultParameterTrace(strFunctionName, intMaxTarget);
+
+         return(seqTarget);
+      } 
+      
+      //---------------------------------------------------------
+      // Create a sequence by the given labware data
+      //
+      // [in] i_arrLabwareIdentifiers: array with labware ids
+      // [in] i_arrPositionIdentifiers: array with position ids
+      // [returns] sequence
+      //---------------------------------------------------------
+      function CreateByLabwareData(
+                  variable i_arrLabwareIdentifiers[],
+                  variable i_arrPositionIdentifiers[]) sequence
+      {
+         variable strFunctionName(GetFunctionName());
+         
+         sequence seqTarget;
+         variable intMaxTarget;
+
+         variable intSizeLabware;
+         variable intSizePositions;
+         variable i;
+
+         variable blnInputError(hslFalse);
+
+         //trace input
+         HSLExtensions::Framework::Trace::FunctionInputArrayTrace(strFunctionName, "i_arrLabwareIdentifiers", i_arrLabwareIdentifiers);
+         HSLExtensions::Framework::Trace::FunctionInputArrayTrace(strFunctionName, "i_arrPositionIdentifiers", i_arrPositionIdentifiers);
+
+         //check input
+         if(HSLExtensions::Framework::Types::IsStringArray(i_arrLabwareIdentifiers) == hslFalse)
+         {
+            HSLExtensions::Framework::Trace::ErrorTrace(strFunctionName, "the array 'i_arrLabwareIdentifiers' contains values with a wrong type");
+            blnInputError = hslTrue;
+         }
+
+         if(HSLExtensions::Framework::Types::IsStringArray(i_arrPositionIdentifiers) == hslFalse)
+         {
+            HSLExtensions::Framework::Trace::ErrorTrace(strFunctionName, "the array 'i_arrPositionIdentifiers' contains values with a wrong type");
+            blnInputError = hslTrue;
+         }
+
+         intSizeLabware = i_arrLabwareIdentifiers.GetSize();
+         intSizePositions = i_arrPositionIdentifiers.GetSize();
+
+         if(intSizeLabware != intSizePositions)
+         {
+            HSLExtensions::Framework::Trace::ErrorTrace(strFunctionName, "the input arrays have different sizes");
+            blnInputError = hslTrue;
+         }
+
+         if(blnInputError == hslTrue)
+         {
+            intMaxTarget = seqTarget.GetMax();
+            HSLExtensions::Framework::Trace::FunctionResultParameterTrace(strFunctionName, intMaxTarget);
+            return(seqTarget);
+         }
+
+         //loop over labware
+         for(i=0; i<intSizeLabware; i++)
+         {
+            seqTarget.Add(i_arrLabwareIdentifiers[i], i_arrPositionIdentifiers[i]);
+         }
+
+         //set position
+         seqTarget.SetCurrentPosition(1);
+
+         //return
+         intMaxTarget = seqTarget.GetMax();
+         HSLExtensions::Framework::Trace::FunctionResultParameterTrace(strFunctionName, intMaxTarget);
+
+         return(seqTarget);
+      }
+
+      //---------------------------------------------------------
+      // Get the sequence sorted by odd and even positions for use with 5ml channel
+      // - uses the sequence positions starting on the current position of the seuqnece
+      // - remaining positions of input sequence (from starting position to count) and the input array must have the same size
+      // - creates a new sequence with all odd positions on the beginning followed by all even positions
+      //
+      // [in] i_seqSource: source sequence (not sorted)
+      // [in] i_arrLabwarePositions: array with labware positions (integer)
+      // [return] sorted sequence
+      //---------------------------------------------------------
+      function GetOddEvenSequence(
+                  sequence i_seqSource,
+                  variable i_arrLabwarePositions[]) sequence
+      {
+         variable strFunctionName(GetFunctionName());
+         
+         sequence seqTarget;
+         variable intMaxTarget;
+
+         variable intSizeLabware;
+         variable i;
+         variable k;
+
+         variable intPosition;
+         variable intCount;
+         variable intMax;
+
+         variable intPositionModulo;
+         variable intStartOffset;
+
+         variable strLabwareID;
+         variable strPositionID;
+
+         variable blnInputError(hslFalse);
+
+         //get sequence values
+         intPosition = i_seqSource.GetCurrentPosition();
+         intCount = i_seqSource.GetCount();
+         intMax = i_seqSource.GetMax();
+
+         //init start offset
+         intStartOffset = intPosition;
+         if(intStartOffset < 1)
+         {
+            intStartOffset = 1;
+         }
+
+         //trace input         
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSource position", intPosition);
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSource count", intCount);
+         HSLExtensions::Framework::Trace::FunctionInputParameterTrace(strFunctionName, "i_seqSource max", intMax);
+
+         HSLExtensions::Framework::Trace::FunctionInputArrayTrace(strFunctionName, "i_arrLabwarePositions", i_arrLabwarePositions);
+
+         //check input
+         if(HSLExtensions::Framework::Types::IsIntegerArray(i_arrLabwarePositions) == hslFalse)
+         {
+            HSLExtensions::Framework::Trace::ErrorTrace(strFunctionName, "the array 'i_arrLabwarePositions' contains values with a wrong type");
+            blnInputError = hslTrue;
+         }
+
+         intSizeLabware = i_arrLabwarePositions.GetSize();
+
+         if(intSizeLabware != (intCount - intStartOffset + 1))
+         {
+            HSLExtensions::Framework::Trace::ErrorTrace(strFunctionName, "the input sequence and the input array have different sizes");
+            blnInputError = hslTrue;
+         }
+
+         if(blnInputError == hslTrue)
+         {
+            intMaxTarget = seqTarget.GetMax();
+            HSLExtensions::Framework::Trace::FunctionResultParameterTrace(strFunctionName, intMaxTarget);
+            return(seqTarget);
+         }
+         
+         //create sequence
+         for(k=1; k>=0; k--)   //k==0: odd, k==1: even
+         {
+            for(i=0; i<intSizeLabware; i++)
+            {
+               intPositionModulo = i_arrLabwarePositions[i];
+               intPositionModulo = intPositionModulo % 2;
+               
+               if(intPositionModulo == k)
+               {
+                  i_seqSource.SetCurrentPosition(i + intStartOffset);
+
+                  strLabwareID = i_seqSource.GetLabwareId();
+                  strPositionID = i_seqSource.GetPositionId();
+
+                  seqTarget.Add(strLabwareID, strPositionID);
+               }
+            }
+         }
+
+         //reset source
+         i_seqSource.SetCurrentPosition(intPosition);
+
+         //set sequence starting position
+         seqTarget.SetCurrentPosition(1);
+
+         //return
+         intMaxTarget = seqTarget.GetMax();
+         HSLExtensions::Framework::Trace::FunctionResultParameterTrace(strFunctionName, intMaxTarget);
+
+         return(seqTarget);
+      }
+               
+                    
+
+   } //end Sequence
+} //end HSLExtensions
+
+#endif //end __HSLEXTENSIONS_SEQUENCE__
+
+// $$author=ofunke$$valid=0$$time=2011-06-29 03:59$$checksum=f834f5c6$$length=083$$

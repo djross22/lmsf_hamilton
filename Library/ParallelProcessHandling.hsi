@@ -1,0 +1,111 @@
+// {{{ 2 "IncludeGuard" "PragmaOnce"
+#pragma once
+// }} ""
+#include "ASWStandard\\ASWGlobal\\ASWGlobal.hsl"
+#include "ASWStandard\\TraceLevel\\TraceLevel.hsl"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+#include "HSLMETEDLib.hs_"
+#include "HSLMECCLib.hs_"
+// }} ""
+// {{{ 2 "LibraryNamespace" "Begin"
+namespace PARALLELPROCESSHANDLING {
+// }} ""
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{{ 2 "SubmethodForwardDeclaration" ""
+function Start( variable i_SubmethodName, variable & o_Handle ) void ;
+function WaitFor( variable & i_HandleArray[] ) void ;
+function WaitForOne( variable & i_Handle ) void ;
+// }} ""
+function _InitLibrary() {
+// {{ 2 "AutoInitBlock" ""
+// }} ""
+}
+function _ExitLibrary() {
+// {{ 2 "AutoExitBlock" ""
+// }} ""
+}
+// {{{ 5 "Start" "Begin"
+function Start( variable i_SubmethodName, variable & o_Handle ) void {
+// }} ""
+// {{ 5 "Start" "InitLocals"
+o_Handle = 0;
+// }} ""
+// {{ 1 1 0 "2cd3091e_f7b4_48e5_9f766b3eb31dfb87" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 2 1 0 "6d1890cb_a3a5_44d8_b35258a718d83cc8" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+o_Handle = 0;
+// }} ""
+// Prozess starten
+o_Handle = Fork(i_SubmethodName);
+if (0 == o_Handle)
+{
+   err.Raise(0, "Failed to fork " + i_SubmethodName);
+}
+
+TRACELEVEL::Release_Trace2("FORK(" + i_SubmethodName + ") successful => Handle = " + IStr(o_Handle), "");
+// {{{ 5 "Start" "End"
+}
+// }} ""
+// {{{ 5 "WaitFor" "Begin"
+function WaitFor( variable & i_HandleArray[] ) void {
+// }} ""
+private variable rc;
+private variable i;
+// {{ 5 "WaitFor" "InitLocals"
+// }} ""
+// {{ 5 1 0 "fd024ed3_e84d_4a25_973516d4b26d9fa2" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 6 1 0 "ec5c7cdc_755f_4407_b6450e21f4e73f43" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+rc = 0;
+// }} ""
+// {{ 7 1 0 "45451c28_9b98_40fb_8f03713e9cc32599" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+i = 0;
+// }} ""
+for (i = 0; i < i_HandleArray.GetSize(); i++)
+{
+   TRACELEVEL::Release_Trace2("JOIN " + IStr(i_HandleArray.GetAt(i)), "");
+}
+
+// Auf die Prozesse warten
+rc = Join(i_HandleArray, hslInfinite);
+if (0 == rc)
+{
+   err.Raise(1, "Failed to join handles");
+}
+
+for (i = 0; i < i_HandleArray.GetSize(); i++)
+{
+   TRACELEVEL::Release_Trace2("JOIN " + IStr(i_HandleArray.GetAt(i)) + " successful", "");
+}
+// {{{ 5 "WaitFor" "End"
+}
+// }} ""
+// {{{ 5 "WaitForOne" "Begin"
+function WaitForOne( variable & i_Handle ) void {
+// }} ""
+private variable HandleArray[];
+// {{ 5 "WaitForOne" "InitLocals"
+// }} ""
+// {{ 10 1 0 "003c1ce5_5989_492e_91c4e8c2c67e7cc4" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 11 1 0 "964640c2_8706_4c82_9297ff743cac64e2" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+HandleArray.SetSize(0);
+// }} ""
+// {{ 12 1 0 "1601c172_b031_429c_b03a49e568047b06" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+HandleArray.AddAsLast(i_Handle);
+// }} ""
+// {{{ 13 1 0 "aa938160_9243_4546_8aa757dd2c4b75e4" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+WaitFor(HandleArray);
+// }} ""
+// {{{ 5 "WaitForOne" "End"
+}
+// }} ""
+/* {{ 2 "SubmethodInsertLine" "" */ // }} ""
+// {{{ 2 "LibraryNamespace" "End"
+} // library namespace
+// }} ""
+// $$author=Administrator$$valid=0$$time=2014-11-30 12:22$$checksum=71ad8872$$length=092$$

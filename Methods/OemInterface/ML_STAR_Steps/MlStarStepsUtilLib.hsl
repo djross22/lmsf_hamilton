@@ -1,0 +1,86 @@
+//  ------------------------------------------------------------------------------------
+//  Hamilton Company Software Product
+//  Copyright (c) 2004 by Hamilton Bonaduz AG.
+//  ------------------------------------------------------------------------------------
+//
+//  Util library included from all step files.
+//  Provides some (debug) functions.
+//
+//  Modification History
+//  --------------------
+//  1.00  2005-07-28/cjoerg    Library created.
+//  1.20  2008-02-12/cjoerg    Edited step with SW 4.2.
+//  ------------------------------------------------------------------------------------
+
+#ifndef __MlStarStepsUtilLib_hsl__
+#define __MlStarStepsUtilLib_hsl__	1
+
+namespace DEBUG
+{
+	// Helper function, returns the variable converted to a string
+	static function StrStr(variable& var) variable
+	{
+		variable type;
+		type = GetType(var);
+		if (hslInteger.Compare(type) == 0)
+		{
+			var = IStr(var);
+		}
+		else
+		{
+			if (hslFloat.Compare(type) == 0)
+			{
+				var = FStr(var);
+			}
+			else
+			{
+				if (hslString.Compare(type) != 0)
+				{
+					var = "";
+				}
+			}
+		}
+		return(var);
+	}
+
+	static function TraceStepParamVariable(variable& stepName, variable& key, variable& value) void
+	{
+		FormatTrace("DEBUG", stepName, 4, key, ": ", value);
+	}
+
+	static function TraceStepParamVariableArray(variable& stepName, variable& key, variable& value[]) void
+	{
+		variable values;
+		variable index, count;
+		count = value.GetSize();
+		FormatTrace("DEBUG", stepName, 4, key, "[] Size: ", count);
+		values = "";
+		for(index=0; index<count; index++)
+		{
+			values = values + DEBUG::StrStr(value[index]);
+			if ( index<(count-1) )
+			{
+				values = values + ", ";
+			}
+		}
+		FormatTrace("DEBUG", stepName, 4, key, "[] Values: ", values);
+	}
+
+	static function TraceStepParamSequence(variable& stepName, variable& key, sequence& value) void
+	{
+		FormatTrace("DEBUG", stepName, 4,
+						key, ": name = ", value.GetName(), 
+						", current = ", value.GetCurrentPosition(), 
+						", count = ",   value.GetCount(),
+						", maxPos = ",  value.GetMax());
+	}
+
+	static function TraceStepParamDevice(variable& stepName, variable& key, device& value) void
+	{
+		FormatTrace("DEBUG", stepName, 4, key, ": ", value.GetInstrumentName());
+	}
+}
+
+#endif //__MlStarStepsUtilLib_hsl__
+
+// $$author=wbarmettler$$valid=1$$time=2017-03-14 13:14$$checksum=4b1e460a$$length=088$$

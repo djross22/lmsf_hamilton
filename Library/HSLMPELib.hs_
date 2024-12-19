@@ -1,0 +1,1125 @@
+
+//*************************************************************************************************
+// Copyright (C) by HAMILTON USA
+// All rights reserved.
+//
+// Library: Hamilton MPE Library 
+//
+// Modification History: 
+//    
+// 2015-7-22 Miles Lugo
+//    - Initial file creation.
+//
+// 2015-10-08 Vladimir Mamaev
+//    - Added multi-device support
+//
+// 2016-5-10 Vladimir Mamaev
+//    - Added StartVacuum, StopVacuum, and GetVacuumStatus function
+//
+// 2017-05-23 Samuel Huff
+//    - ConnectUsingX now smart initializes the vacuum
+//    - Plate height values can now be simulated (CollectionPlatePlaced, FilterPlatePlaced)
+//
+// 2017-08-23 cuciak_c
+//    - Added support for evaporator, heater and dispenser. Improved documentation.
+//*************************************************************************************************
+#ifndef __HSLMPE_Impl__
+#define __HSLMPE_Impl__ 1
+
+#ifndef __HSLStrLib_hsl__
+#include "HSLStrLib.hsl"
+#endif
+
+
+namespace HSLMPELib
+{
+
+    // Exported return constants
+    const variable CMD_FAIL(0);
+    const variable CMD_START(1);
+    const variable CMD_COMPLETE(2);
+    const variable CMD_ERROR(3);
+    const variable CMD_PROGRESS(4);
+    const variable CMD_ERRCOMPLETE(5);
+
+    // global constants/variables
+    global object  g_objMPE;         
+      
+    global function g_objMPE_LogStatus(string s) void
+    {
+        Trace(s);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // The MPE abort handler. The handler is registered in the Connect
+    // function.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+    function OnAbortMPE()
+    {
+        FormatTrace(GetFunctionName(),"():",CMD_START,"Aborting...");
+
+        if ( !g_objMPE.IsNull() )
+        {            
+            g_objMPE.DisconnectAll();  
+            g_objMPE.ReleaseObject();                 
+        }
+
+        FormatTrace(GetFunctionName(),"():",CMD_COMPLETE,"Aborted.");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // Exported functions
+    //
+    ////////////////////////////////////////////////////////////////////////////
+ 
+    function ConnectUsingIP(  variable ipAddress, variable portNumber, variable simulationMode, 
+      variable& deviceId, variable mpeOptions ) variable
+    { 
+         
+        variable result(0);
+        string msg("");
+
+        FormatTrace(GetFunctionName(),"()",CMD_START, " ipAddress = ", ipAddress, ", Port Number = ", portNumber, 
+         ", Simulation Mode = ", simulationMode, ", Accessory Controller Options = ", mpeOptions);
+
+        RegisterAbortHandler("HSLMPELib::OnAbortMPE");
+
+		
+        // Get the object
+        if ( g_objMPE.IsNull() )   
+        {
+            g_objMPE.CreateObject("HamiltonMPE.HSLMPE", hslTrue);
+
+            if ( g_objMPE.IsNull() )
+            {
+                FormatTrace(GetFunctionName(),"()",CMD_ERROR, 
+                  "Failed to create the MPE interface. Is the interface DLL 'Hamilton.Drivers.MPE.dll' installed and registered?");
+
+                return(1);
+            }
+        }
+       
+         
+        result = g_objMPE.ConnectUsingIP( ipAddress, portNumber, simulationMode, deviceId, mpeOptions );
+        if(result == 0)
+        {            
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, "Connected. MPE Available, deviceId = ", deviceId, ".");
+            
+        }
+        else
+        {          
+            g_objMPE.GetLastError( 0, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Unable to Connect. ", msg);
+        } 
+
+        return(result); 
+    }
+
+    function ConnectUsingCOM(  variable comPort, variable baudRate, variable simulationMode, 
+      variable& deviceId, variable mpeOptions ) variable
+    { 
+         
+        variable result(0);
+        string msg("");
+
+        FormatTrace(GetFunctionName(),"()",CMD_START, " comPort = ", comPort, ", Baud Rate = ", baudRate, 
+         ", Simulation Mode = ", simulationMode, ", Accessory Controller Options = ", mpeOptions);
+
+        RegisterAbortHandler("HSLMPELib::OnAbortMPE");
+
+		
+        // Get the object
+        if ( g_objMPE.IsNull() )   
+        {
+            g_objMPE.CreateObject("HamiltonMPE.HSLMPE", hslTrue);
+
+            if ( g_objMPE.IsNull() )
+            {
+                FormatTrace(GetFunctionName(),"()",CMD_ERROR, 
+                  "Failed to create the MPE interface. Is the interface DLL 'Hamilton.Drivers.MPE.dll' installed and registered?");
+
+                return(1);
+            }
+        }
+       
+         
+        result = g_objMPE.ConnectUsingCOM( comPort, baudRate, simulationMode, deviceId, mpeOptions );
+        if(result == 0)
+        {            
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, "Connected. MPE Available, deviceId = ", deviceId, ".");
+            
+        }
+        else
+        {            
+            g_objMPE.GetLastError( 0, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Unable to Connect. ", msg);
+        } 
+
+        return(result); 
+    }
+    
+    function IsConnected( variable deviceId, variable& isConnected) variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+         result = g_objMPE.IsConnected( deviceId, isConnected );
+         
+         
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, " Is Connected = ", isConnected);
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to get the connected state of the MPE. ", msg);
+         }
+
+         return(result); 
+    }
+
+    function IsInitialized( variable deviceId, variable& isInitialized) variable   
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+         result = g_objMPE.IsInitialized( deviceId, isInitialized );
+         
+         
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, " Is Initialized = ", isInitialized);
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to get the initialized state of the MPE. ", msg);
+         }
+
+         return(result); 
+    }
+
+    function Disconnect(variable deviceId) variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+         result = g_objMPE.Disconnect(deviceId);           
+         
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+         }
+         else 
+         {
+            g_objMPE.GetLastError( 0, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to Disconnect. ", msg);
+         }
+         
+         return(result); 
+    }
+
+   
+    function Initialize( variable deviceId )  variable
+    {         
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+         result = g_objMPE.Initialize( deviceId );
+
+         if(result == 0)
+         {          
+	         FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg );
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to Initialize MPE. ", msg);
+         }
+
+         return(result); 
+        
+    }
+
+    function InitializeWithParameters( variable deviceId, variable smart, variable wasteContainerId, 
+      variable vacuumRunTime, variable disableVacuumCheck )  variable
+    {         
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Smart = ",
+           smart, ", Waste Container Id = ", wasteContainerId, ", Vacuum Run Time = ", vacuumRunTime,
+           ", Disable Vaccuum Check = ", disableVacuumCheck); 
+
+         result = g_objMPE.InitializeWithParameters( deviceId, smart, wasteContainerId, vacuumRunTime,
+            disableVacuumCheck );
+
+         if(result == 0)
+         {          
+	         FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg );
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to Initialize MPE. ", msg);
+         }
+
+         return(result); 
+        
+    }  
+   
+    function ClampFilterPlate( variable deviceId )  variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+         result = g_objMPE.ClampFilterPlate( deviceId );         
+
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+            
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg );
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to clamp the Filter Plate. ", msg);
+         }
+        
+
+         return(result);
+    }
+
+    function CollectionPlatePlaced( variable deviceId, variable collectionPlateHeight, 
+      variable offsetFromNozzles)  variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Collection Plate Height = ", 
+            collectionPlateHeight, ", Offset From Nozzles = ", offsetFromNozzles);
+
+         result = g_objMPE.CollectionPlatePlaced( deviceId, collectionPlateHeight, offsetFromNozzles );         
+
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+            
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg );
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to place the Collection Plate. ", msg);
+         }
+        
+
+         return(result);
+    }
+
+    function CollectionPlateRemoved( variable deviceId ) variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+         result = g_objMPE.CollectionPlateRemoved( deviceId );         
+
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+            
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg );
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to remove Collection Plate. ", msg);
+         }
+        
+
+         return(result);
+    }
+
+
+    function FilterPlatePlaced( variable deviceId, variable filterHeight, variable nozzleHeight) variable
+    {
+         variable result(0);
+         string msg("");
+         
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Filter Height = ", filterHeight, 
+            ", Nozzle Height = ", nozzleHeight);
+
+         result = g_objMPE.FilterPlatePlaced( deviceId, filterHeight, nozzleHeight);
+
+         if(result == 0)
+         {                    
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+            
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg );
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to place the Filter Plate. ", msg);
+         }
+
+         return(result);
+    }
+
+    function FilterPlateRemoved( variable deviceId ) variable
+    {
+         variable result(0);
+         string msg("");
+         
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+         result = g_objMPE.FilterPlateRemoved( deviceId );
+
+         if(result == 0)
+         {                    
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+            
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg );
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to remove the Filter Plate. ", msg);
+         }
+
+         return(result);
+    }
+
+    function ProcessFilterToCollectionPlate( variable deviceId, variable controlPoints, 
+      variable returnPlateToIntegrationArea) variable
+    {
+         variable result(0);
+         string msg("");
+         
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Control Points = ", controlPoints, 
+            ", Return Plate To Integration Area = ", returnPlateToIntegrationArea);
+
+         result = g_objMPE.ProcessFilterToCollectionPlate( deviceId, controlPoints, returnPlateToIntegrationArea);
+
+         if(result == 0)
+         {                    
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+            
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg );
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to process Filter to Collection Plate. ", msg);
+         }
+
+         return(result);
+    }
+
+    function ProcessFilterToWasteContainer( variable deviceId, variable controlPoints, 
+      variable returnPlateToIntegrationArea, variable wasteContainerId, 
+      variable disableVacuumCheck) variable
+    {
+         variable result(0);
+         string msg("");
+         
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Control Points = ", controlPoints, 
+            ", Return Plate To Integration Area = ", returnPlateToIntegrationArea,", Waste Container Id = ", wasteContainerId, 
+            ", Disable Vacuum Check = ", disableVacuumCheck);
+
+         result = g_objMPE.ProcessFilterToWasteContainer( deviceId, controlPoints, returnPlateToIntegrationArea, 
+            wasteContainerId, disableVacuumCheck);
+
+         if(result == 0)
+         {                    
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg );
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed to process Filter to Waste Container. ", msg);
+         }
+
+         return(result);
+    }
+
+    function RetrieveFilterPlate( variable deviceId) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+        result = g_objMPE.RetrieveFilterPlate( deviceId );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed to retrieve Filter Plate. ", msg);
+        }
+
+        return(result);
+    }
+
+    function StartMPEVacuum(variable deviceId, variable wasteContainerId, variable disableVacuumCheck) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Waste Container Id = ", 
+         wasteContainerId, ", Disable Vacuum Check = ", disableVacuumCheck);
+
+        result = g_objMPE.StartMPEVacuum( deviceId, wasteContainerId, disableVacuumCheck );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed to start MPE vacuum. ", msg);
+        }
+
+        return(result); 
+    }
+
+    function StartVacuum(variable deviceId, variable wasteContainerId, variable seconds, 
+      variable disableVacuumCheck) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Waste Container Id = ", 
+         wasteContainerId, ", Seconds = ", seconds, ", Disable Vacuum Check = ", disableVacuumCheck);
+
+        result = g_objMPE.StartVacuum( deviceId, wasteContainerId, seconds, disableVacuumCheck );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed to start vacuum. ", msg);
+        }
+
+        return(result); 
+    }
+
+    function StopVacuum(variable deviceId) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+        result = g_objMPE.StopVacuum( deviceId );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed to stop vacuum. ", msg);
+        }
+
+        return(result);
+    }
+
+    function GetVacuumStatus(variable deviceId, variable& vacuumActive) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+        result = g_objMPE.GetVacuumStatus( deviceId, vacuumActive );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, "Vacuum Active = ", vacuumActive, "." );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed to get vacuum status. ", msg);
+        }
+
+
+        return(0); 
+    }
+          
+    function GetLastError( variable deviceId, variable clearError, variable& errorMessage ) variable
+    {        
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", clearError = ", 
+           clearError);
+
+        result = g_objMPE.GetLastError( deviceId, clearError, errorMessage );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, " Last Error: ", errorMessage );      
+        }
+        else 
+        {  
+           g_objMPE.GetLastError( 0, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed to get the last error. ", msg);
+        }
+        
+        return(result);
+    }
+
+    function Dispense(variable deviceId, variable sourceId, variable wellVolume, variable flowRate,
+        variable needleOffset) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Source Id = ",
+           sourceId, ", Well Volume = ", wellVolume, ", Flow Rate = ", flowRate, ", Needle Offset = ",
+           needleOffset);
+
+        result = g_objMPE.Dispense( deviceId, sourceId, wellVolume, flowRate, needleOffset );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed Dispense. ", msg);
+        }
+
+        return(result); 
+    }
+
+     function DispenseNonStandard(variable deviceId, variable sourceId, variable wellVolume,
+        variable flowRate, variable needleOffset, variable edgeToWellOffset, 
+        variable wellToWellOffsets[]) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Source Id = ",
+           sourceId, ", Well Volume = ", wellVolume, ", Flow Rate = ", flowRate, ", Needle Offset = ",
+           needleOffset, ", Edge To Well Offset = ", edgeToWellOffset, ", Well To Well Offsets = array");
+
+        result = g_objMPE.DispenseNonStandard( deviceId, sourceId, wellVolume, flowRate, needleOffset,
+            edgeToWellOffset, wellToWellOffsets );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed Dispense NonStandard. ", msg);
+        }
+
+        return(result); 
+    }
+
+    function Prime(variable deviceId, variable sourceId, variable wellVolume, variable flowRate,
+        variable wasteContainerId) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Source Id = ",  
+               sourceId, ", Well Volume = ", wellVolume, ", Flow Rate = ", flowRate,
+               ", Waste Container Id = ", wasteContainerId);
+
+        result = g_objMPE.Prime( deviceId, sourceId, wellVolume, flowRate, wasteContainerId );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed Prime. ", msg);
+        }
+
+        return(result); 
+    }
+
+    function Flush(variable deviceId, variable wellVolume, variable flowRate,
+        variable wasteContainerId) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Well Volume = ", 
+           wellVolume, ", Flow Rate = ", flowRate, ", Waste Container Id = ", wasteContainerId);
+
+        result = g_objMPE.Flush( deviceId, wellVolume, flowRate, wasteContainerId );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed Flush. ", msg);
+        }
+
+        return(result); 
+    }
+
+    function Evaporate(variable deviceId, variable plateHeight, variable needleOffset, 
+      variable wellDepth, variable evaporateTime) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Plate Height = ",
+           plateHeight, ", Needle Offset = ", needleOffset, ", Well Depth = ", wellDepth, 
+           ", Evaporate Time = ", evaporateTime); 
+
+        result = g_objMPE.Evaporate( deviceId, plateHeight, needleOffset, wellDepth, evaporateTime );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed Evaporate. ", msg);
+        }
+
+        return(result); 
+    }
+
+    function EvaporateWithRate(variable deviceId, variable plateHeight, variable needleOffset, 
+       variable evaporatorTravelDistance, variable evaporateTime, variable followRate) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Plate Height = ",
+           plateHeight, ", Needle Offset = ", needleOffset, ", Evaporator Travel Distance = ", 
+           evaporatorTravelDistance, ", Evaporate Time = ", evaporateTime, ", Follow Rate = ", followRate); 
+
+        result = g_objMPE.EvaporateWithRate( deviceId, plateHeight, needleOffset, evaporatorTravelDistance, 
+            evaporateTime, followRate );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed EvaporateWithRate. ", msg);
+        }
+
+        return(result); 
+    }
+
+    function EvaporatePrepare(variable deviceId, variable temperature, variable pressure,
+      variable timeout) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Temperature (°C) = ", 
+           temperature, ", Pressure (PSIG) = ", pressure, ", Timeout (minutes) = ", timeout); 
+
+        result = g_objMPE.EvaporatePrepare( deviceId, temperature, pressure, timeout );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed EvaporatePrepare. ", msg);
+        }
+
+        return(result); 
+    }
+
+    function EvaporateEnd( variable deviceId, variable timeout) variable
+    {        
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Timeout (min) = ", timeout);
+
+        result = g_objMPE.EvaporateEnd( deviceId, timeout);
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE );      
+        }
+        else 
+        {  
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed EvaporateEnd. ", msg);
+        }
+        
+        return(result);
+    }
+
+    function GetTemperatureRange( variable deviceId, variable& minimumTemperature, 
+      variable& maximumTemperature)  variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+         result = g_objMPE.GetTemperatureRange( deviceId, minimumTemperature, maximumTemperature );
+         
+         
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, " Minimum Temperature = ", 
+               minimumTemperature, ", Maximum Temperature = ", maximumTemperature );
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed GetTemperatureRange. ", msg);
+         }
+
+         return(result); 
+    }
+
+    function GetCurrentHeaterStatus( variable deviceId, variable reset, variable& currentEvaporatorTemperature, 
+       variable& currentGasTemperature, variable& heating) variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Reset = ", reset);
+
+         result = g_objMPE.GetCurrentHeaterStatus( deviceId, reset, currentEvaporatorTemperature, 
+            currentGasTemperature, heating );
+         
+         
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, " Current Evaporator Temperature = ", 
+               currentEvaporatorTemperature, ", Current Gas Temperature = ", currentGasTemperature,
+               " Heating = ", heating );
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed GetCurrentHeaterStatus. ", msg);
+         }
+
+         return(result); 
+    }
+
+    function GetHeaterTemperatureRange( variable deviceId, variable reset, variable& minimumEvaporatorTemperature, 
+       variable& maximumEvaporatorTemperature, variable& minimumGasTemperature, variable& maximumGasTemperature, 
+       variable& targetTemperature, variable& heating) variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Reset = ", reset);
+
+         result = g_objMPE.GetHeaterTemperatureRange( deviceId, reset, minimumEvaporatorTemperature, 
+            maximumEvaporatorTemperature, minimumGasTemperature, maximumGasTemperature, targetTemperature,
+            heating );
+         
+         
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, " Minimum Evaporator Temperature = ", 
+               minimumEvaporatorTemperature, ", Maximum Evaporator Temperature = ", maximumEvaporatorTemperature,
+               ", Minimum Gas Temperature = ", minimumGasTemperature, ", Maximum Gas Temperature = ", 
+               maximumGasTemperature, ", Target Temperature = ", targetTemperature, " Heating = ", heating );
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed GetHeaterTemperatureRange. ", msg);
+         }
+
+         return(result); 
+    }
+
+    function SetSourceConfiguration( variable deviceId ) variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+         result = g_objMPE.SetSourceConfiguration( deviceId );
+                  
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed SetSourceConfiguration. ", msg);
+         }
+
+         return(result); 
+    }
+
+    function GetSourceConfiguration( variable deviceId ) variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId);
+
+         result = g_objMPE.GetSourceConfiguration( deviceId );
+                  
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed GetSourceConfiguration. ", msg);
+         }
+
+         return(result); 
+    }
+
+    function ClearSourceConfiguration( variable deviceId, variable reset) variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Reset = ", reset);
+
+         result = g_objMPE.ClearSourceConfiguration(deviceId, reset);
+                  
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed ClearSourceConfiguration. ", msg);
+         }
+
+         return(result); 
+    }
+
+    function StartContainerCalibration( variable deviceId, variable sourceId, variable volume) variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Source Id = ", sourceId,
+            ", Volume = ", volume);
+
+         result = g_objMPE.StartContainerCalibration( deviceId, sourceId, volume );
+                  
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed StartContainerCalibration. ", msg);
+         }
+
+         return(result);
+    }
+
+    function CancelContainerCalibration( variable deviceId, variable sourceId) variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Source Id = ", sourceId);
+
+         result = g_objMPE.CancelContainerCalibration( deviceId, sourceId );
+                  
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed CancelContainerCalibration. ", msg);
+         }
+
+         return(result);
+    }
+
+    function GetContainerCalibration( variable deviceId, variable sourceId, variable& volume,
+        variable& emptyReading, variable& fullReading, variable& calibrationDate) variable
+    {
+         variable result(0);
+         string msg("");
+
+         FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Source Id = ", sourceId);
+
+         result = g_objMPE.GetContainerCalibration( deviceId, sourceId, volume, emptyReading, fullReading,
+             calibrationDate );
+                  
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, " Container Volume = ", volume,
+                " Container Empty Reading = ", emptyReading, " Container Full Reading = ", fullReading,
+                " Calibration Date = ", calibrationDate);
+         }
+         else 
+         {
+            g_objMPE.GetLastError( deviceId, 0, msg ); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+               " Failed GetContainerCalibration. ", msg);
+         }
+
+         return(result);
+    }
+
+    function MeasureEmptyContainer(variable deviceId, variable sourceId, variable& emptyReading) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Source Id = ", 
+           sourceId); 
+
+        result = g_objMPE.MeasureEmptyContainer( deviceId, sourceId, emptyReading );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, " Container Empty Reading = ", emptyReading);
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed MeasureEmptyContainer. ", msg);
+        }
+
+        return(result); 
+    }
+
+    function MeasureFullContainer(variable deviceId, variable sourceId, variable& fullReading) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Source Id = ", 
+           sourceId); 
+
+        result = g_objMPE.MeasureFullContainer( deviceId, sourceId, fullReading );
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, " Container Full Reading = ", fullReading);
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed MeasureFullContainer. ", msg);
+        }
+
+        return(result); 
+    }
+
+    function SaveContainerCalibration(variable deviceId, variable sourceId) variable
+    {
+        variable result(0);
+        string msg("");
+         
+        FormatTrace(GetFunctionName(),"()",CMD_START, " deviceId = ", deviceId, ", Source Id = ", 
+           sourceId); 
+
+        result = g_objMPE.SaveContainerCalibration( deviceId, sourceId);
+
+        if(result == 0)
+        {                    
+           FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+        }
+        else 
+        {
+           g_objMPE.GetLastError( deviceId, 0, msg );
+           FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Return Code = ", result,
+              " Failed SaveContainerCalibration. ", msg);
+        }
+
+        return(result); 
+    }
+
+
+ 
+} // end of namespace HSLMPELib
+
+#endif
+// $$author=cuciak_c$$valid=0$$time=2018-03-02 16:49$$checksum=fc8a2a17$$length=087$$

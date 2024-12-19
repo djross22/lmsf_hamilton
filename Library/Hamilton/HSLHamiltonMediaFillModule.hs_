@@ -1,0 +1,248 @@
+
+//*************************************************************************************************
+// Copyright (C) by HAMILTON USA
+// All rights reserved.
+//
+// Library: Hamilton Carousel Library 
+//
+// Modification History: 
+//    
+// 2015-12-01 Vladimir Mamaev
+//    - Initial file creation.
+//     
+//*************************************************************************************************
+
+#ifndef __HSLStrLib_hsl__
+#include "HSLStrLib.hsl"
+#endif
+
+
+namespace HSLHamiltonMediaFillModule
+{
+   // Exported return constants
+   const variable CMD_FAIL(0);
+   const variable CMD_START(1);
+   const variable CMD_COMPLETE(2);
+   const variable CMD_ERROR(3);
+   const variable CMD_PROGRESS(4);
+   const variable CMD_ERRCOMPLETE(5);
+
+   // constants/variables
+   object HxMediaFillModule;         
+      
+   ////////////////////////////////////////////////////////////////////////////
+   //
+   // Media Fill Module abort handler.
+   //
+   ////////////////////////////////////////////////////////////////////////////
+   function OnAbortHxMediaFillModule() void
+   {
+       FormatTrace(GetFunctionName(),"()", CMD_START, "Aborting...");
+
+       if ( !HxMediaFillModule.IsNull() )
+       {            
+           HxMediaFillModule.AbortAll();  
+           //HxMediaFillModule.ReleaseObject();                 
+       }
+
+       FormatTrace(GetFunctionName(),"()", CMD_COMPLETE, "Aborted.");
+   }
+
+   ////////////////////////////////////////////////////////////////////////////
+   //
+   // Media Fill Module object instantiator 
+   //
+   ////////////////////////////////////////////////////////////////////////////
+   function InstantiateHxMediaFillModule()
+   {
+      onerror goto ErrorHandler; 
+      RegisterAbortHandler("HSLHamiltonMediaFillModule::OnAbortHxMediaFillModule");
+      HxMediaFillModule.CreateObject("Hamilton.HxMediaFillModule"); 
+      return(0);
+
+      ErrorHandler:
+      {
+         if(HxMediaFillModule.IsNull())
+         {
+            //failed to create HxMediaFillModule object
+            Trace("HxMediaFillModule Instance - Instantiation failed.");
+            return(1);
+         }
+         else
+         {
+            //Unknown error
+            Trace("HxMediaFillModule Instance - Unknown error.");
+            return(1);
+         }
+      }
+   }
+
+   ////////////////////////////////////////////////////////////////////////////
+   //
+   // Vector functions
+   //
+   ////////////////////////////////////////////////////////////////////////////
+   function Initialize(variable ComPortNumber, variable Simulation, variable& rInstrumentId) variable 
+   {
+      variable result(0);
+      string msg("");
+      variable firmwareVersion("");
+      onerror goto 0;
+
+      FormatTrace(GetFunctionName(),"()",CMD_START, " ComPortNumber = ", ComPortNumber, ", Simulation = ", Simulation);
+
+      if(HxMediaFillModule.IsNull()) { result = InstantiateHxMediaFillModule(); if(result != 0) { return(result); } }
+
+      result = HxMediaFillModule.Initialize( ComPortNumber, Simulation, rInstrumentId );
+         
+      if(result == 0)
+      {
+
+         result = HxMediaFillModule.GetFirmwareVersion( rInstrumentId, firmwareVersion);
+         
+         if(result == 0)
+         {
+            FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, " rInstrumentId = ", rInstrumentId);
+         }
+         else
+         {
+            msg = HxMediaFillModule.GetLastErrorMessage(); 
+            FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Failed to get firmware version while initializing. ", msg);
+         }         
+      }
+      else 
+      {
+         msg = HxMediaFillModule.GetLastErrorMessage(); 
+         FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Failed to initialize. ", msg);
+      }
+
+      return(result); 
+   }  
+   
+   function Disconnect(variable InstrumentId) variable 
+   { 
+      variable result(0);
+      string msg("");
+      onerror goto 0;
+
+      FormatTrace(GetFunctionName(),"()",CMD_START, " InstrumentId = ", InstrumentId);
+
+      if(HxMediaFillModule.IsNull()) { result = InstantiateHxMediaFillModule(); if(result != 0) { return(result); } }
+
+      result = HxMediaFillModule.Disconnect( InstrumentId );
+         
+      if(result == 0)
+      {
+         FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+      }
+      else 
+      {
+         msg = HxMediaFillModule.GetLastErrorMessage();  
+         FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Failed to disconnect. ", msg);
+      }
+
+      return(result); 
+   }
+
+   function GetPumpDirection(variable InstrumentId, variable PumpId, variable& rDirection) variable 
+   {
+      variable result(0);
+      string msg("");
+      onerror goto 0;
+
+      FormatTrace(GetFunctionName(),"()",CMD_START, " InstrumentId = ", InstrumentId, ", PumpId = ", PumpId);
+
+      if(HxMediaFillModule.IsNull()) { result = InstantiateHxMediaFillModule(); if(result != 0) { return(result); } }
+
+      result = HxMediaFillModule.GetPumpDirection( InstrumentId, PumpId, rDirection );
+         
+      if(result == 0)
+      {
+         FormatTrace(GetFunctionName(),"()",CMD_COMPLETE, " rDirection = ", rDirection);
+      }
+      else 
+      {
+         msg = HxMediaFillModule.GetLastErrorMessage();  
+         FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Failed to get pump directon. ", msg);
+      }
+
+      return(result); 
+   }
+  
+   function SetPumpDirection(variable InstrumentId, variable PumpId, variable Direction) variable 
+   {
+      variable result(0);
+      string msg("");
+      onerror goto 0;
+
+      FormatTrace(GetFunctionName(),"()",CMD_START, " InstrumentId = ", InstrumentId, ", PumpId = ", PumpId, ", Direction = ", Direction);
+
+      if(HxMediaFillModule.IsNull()) { result = InstantiateHxMediaFillModule(); if(result != 0) { return(result); } }
+
+      result = HxMediaFillModule.SetPumpDirection( InstrumentId, PumpId, Direction );
+         
+      if(result == 0)
+      {
+         FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+      }
+      else 
+      {
+         msg = HxMediaFillModule.GetLastErrorMessage(); 
+         FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Failed to fill trough. ", msg);
+      }
+
+      return(result);  
+   }
+
+   function FillTrough(variable InstrumentId, variable PumpId, variable Speed, variable Timeout) variable 
+   {
+      variable result(0);
+      string msg("");
+      onerror goto 0;
+
+      FormatTrace(GetFunctionName(),"()",CMD_START, " InstrumentId = ", InstrumentId, ", PumpId = ", PumpId, ", Speed = ", Speed, ", Timeout = ", Timeout);
+
+      if(HxMediaFillModule.IsNull()) { result = InstantiateHxMediaFillModule(); if(result != 0) { return(result); } }
+
+      result = HxMediaFillModule.FillTrough( InstrumentId, PumpId, Speed, Timeout );
+         
+      if(result == 0)
+      {
+         FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+      }
+      else 
+      {
+         msg = HxMediaFillModule.GetLastErrorMessage();  
+         FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Failed to fill trough. ", msg);
+      }
+
+      return(result); 
+   }
+ 
+   function WaitForPump(variable InstrumentId, variable PumpId) variable 
+   {
+      variable result(0);
+      string msg("");
+      onerror goto 0; 
+
+      FormatTrace(GetFunctionName(),"()",CMD_START, " InstrumentId = ", InstrumentId, ", PumpId = ", PumpId);
+
+      if(HxMediaFillModule.IsNull()) { result = InstantiateHxMediaFillModule(); if(result != 0) { return(result); } }
+
+      result = HxMediaFillModule.WaitForPump( InstrumentId, PumpId );
+         
+      if(result == 0)
+      {
+         FormatTrace(GetFunctionName(),"()",CMD_COMPLETE);
+      }
+      else 
+      {
+         msg = HxMediaFillModule.GetLastErrorMessage(); 
+         FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPLETE, "Failed to wait for pump. ", msg);
+      }
+
+      return(result);
+   } 
+
+} // end of namespace
+// $$author=Software$$valid=0$$time=2015-12-09 08:09$$checksum=b5bdb410$$length=085$$

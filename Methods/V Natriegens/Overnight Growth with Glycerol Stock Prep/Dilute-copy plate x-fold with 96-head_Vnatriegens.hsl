@@ -1,0 +1,276 @@
+ namespace _Method { #include "Common\\Common96HeadSubMethods.hs_" } 
+ namespace _Method { #include "HSLTipCountingLib.hsl" } 
+ namespace _Method { #include "HSLSeqLib.hsl" } 
+ namespace _Method { #include "HSLExtensions\\Directory.hsl" } 
+ namespace _Method { #include "HSLStrLib.hsl" } 
+ namespace _Method { #include "HSLTimLib.hsl" } 
+ namespace _Method { #include "Common\\LMSF_Utilities.hs_" } 
+ namespace _Method { #include "HSLTrcLib.hsl" } 
+ namespace _Method { #include "HSLExtensions\\Dictionary.hsl" } 
+ namespace _Method { #include "HSLExtensions\\String.hsl" } 
+ namespace _Method { #include "HSLExtensions\\File.hsl" } 
+ namespace _Method { #include "Common\\Tip Handling\\With 96-Head\\Tip Handling with 96-Head.hs_" } 
+ namespace _Method { #include "Common\\PlateAndLidMovement.hs_" } 
+#include "Overnight growth with glycerol stock prep_Vnatriegens.res"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+sequence tip_seq_arr[];
+variable tip_counter_array[];
+variable is_pipetting;
+variable culture_volume;
+variable mix_volume;
+variable pipette_volume;
+variable pipette_multiplier;
+variable is_debugging;
+variable dilution_factor;
+variable keep_old_GP;
+global device ML_STAR ("Overnight growth with glycerol stock prep_Vnatriegens.lay", "ML_STAR", hslTrue);
+variable prep_glycstock;
+variable pipette_volume_cellstoglycstock;
+dialog dialogHandleBAB25BBD6C7E469081E540CFDC24D53A;
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+ namespace _Method { #include "HSLMETEDLib.hs_" } 
+ namespace _Method { #include "HSLMECCLib.hs_" } 
+ namespace _Method { #include "HSLPTLLib.hsl" } 
+// }} ""
+// {{{ 2 "LocalSubmethodInclude" ""
+ namespace _Method {  #include __filename__ ".sub"  } 
+// }} ""
+/* {{ 2 "ProcessInsertLine" "" */ // }} ""
+// {{{ 5 "main" "Begin"
+namespace _Method { method main(  ) void {
+// }} ""
+// {{ 5 "main" "InitLocals"
+// }} ""
+// {{ 2 "AutoInitBlock" ""
+PTL::SetWashingStateDefault("RinseTime1", 5);
+PTL::SetWashingStateDefault("SoakTime1", 5);
+PTL::SetWashingStateDefault("FlowRate1", 11);
+PTL::SetWashingStateDefault("RinseTime2", 0);
+PTL::SetWashingStateDefault("SoakTime2", 0);
+PTL::SetWashingStateDefault("FlowRate2", 11);
+PTL::SetWashingStateDefault("DrainingTime", 10);
+PTL::SetWashingStateDefault("StartWashLiquid", 0);
+PTL::SetLoadingStateDefault("RecoveryOptionContinue", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionExclude", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionDefault", 0);
+PTL::SetLoadingStateDefault("KitLotCheckEnabled", hslFalse);
+COMMON96HEADSUBMETHODS::_InitLibrary();
+LMSF_UTILITIES::_InitLibrary();
+TIP_HANDLING_WITH_96_HEAD::_InitLibrary();
+PLATEANDLIDMOVEMENT::_InitLibrary();
+::RegisterAbortHandler( "OnAbort");
+// }} ""
+// {{ 1 1 0 "4d2269f8_102c_402f_af3dea03383339d1" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("***************************************************************************************************************\nThis method stamps cells from previous GP into new GP with 96Head and if applicable makes \n2 technical replicates of glycerol stock from previous GP\n\nTips used:\n     300 uL: 96 (1 rack) on handoff\n\nDuration:\n          6 min with glycerol stock prep\n***************************************************************************************************************"));
+// }} ""
+// {{{ 2 1 0 "80d11ca0_4156_4ddf_9fff1bd201b2eaeb" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+GetParams();
+// }} ""
+// {{{ 3 1 0 "13323e94_9ffc_4604_96e37fa2d9a0a85e" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+StartUp();
+// }} ""
+// {{{ 4 1 0 "cdb1f259_3dbf_48e2_a3724e778bb9afef" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace(Translate("prepGlycStock = "), prep_glycstock);
+// }} ""
+// {{{ 5 1 0 "4313cb9d_aeee_4193_b56d91650d438327" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace(Translate("isPipetting = "), is_pipetting);
+// }} ""
+// {{ 6 1 0 "cf446e85_eb05_4706_83c4258c3d677597" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 7 1 0 "2bac0d6f_8e76_4cc4_973fdd1aec9d351a" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (prep_glycstock == "true")
+{
+// }} ""
+// {{{ 8 1 0 "9a8ee7a4_2f6e_4e1b_9a0cf53bc3cd463e" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Growth_Plate_lid, ML_STAR.Lid_parking_Growth_Plate, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 1, 0, ML_STAR);
+// }} ""
+// {{{ 9 1 0 "1c7b040c_0e2f_4330_92706cfed632f847" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Glycerol_Plate_1_lid, ML_STAR.Lid_parking_GlycerolPlate_1, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{{ 10 1 0 "e0c6f2b0_7e3c_428d_824871a40d156444" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Glycerol_Plate_2_lid, ML_STAR.Lid_parking_GlycerolPlate_2, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 1, ML_STAR);
+// }} ""
+// {{ 11 1 0 "2bac0d6f_8e76_4cc4_973fdd1aec9d351a" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{{ 12 1 0 "abf5694b_f8a0_4ce2_8c561bd9098ef325" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Growth_Plate_lid, ML_STAR.Lid_parking_Growth_Plate, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 1, 1, ML_STAR);
+// }} ""
+// {{ 13 1 0 "2bac0d6f_8e76_4cc4_973fdd1aec9d351a" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 14 1 0 "cf446e85_eb05_4706_83c4258c3d677597" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 15 1 0 "5c8c2c3e_5868_4e91_84150f14004907b0" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (prep_glycstock == "true")
+{
+// }} ""
+// {{{ 16 1 0 "1b546153_c149_42c0_ac9d0494ba4b67b2" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+GlycerolStockPrep();
+// }} ""
+// {{ 17 1 0 "5c8c2c3e_5868_4e91_84150f14004907b0" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 18 1 0 "62ac31c8_503c_4bac_8cf79d00afb21f18" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 19 1 0 "6139128c_6adf_4baf_96a9f83ede47447d" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("==============================================================\nPipette cells from old growth plate (on handoff) to new growth plate\n=============================================================="));
+// }} ""
+// {{ 20 1 0 "cf3372bb_6456_4f1c_a8f43d8262b3e4a4" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+pipette_multiplier = culture_volume / (500 * 1.0);
+// }} ""
+// {{ 21 1 0 "0580d5fa_d4fa_4630_a13c7b62d9ba5f62" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+pipette_volume = culture_volume / (dilution_factor * 1.0);
+// }} ""
+// {{ 22 1 0 "8121b470_438f_4bae_bf2947bcfbf01b17" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+mix_volume = pipette_multiplier * 200;
+// }} ""
+// {{ 23 1 0 "7dac0e32_c81a_4c70_9ac19ace47c0fc7a" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_pipetting == "true")
+{
+// }} ""
+// {{ 24 1 0 "e6c0f002_8c14_454b_b965503919ddecf5" "ML_STAR:{BD0D210B-0816-4C86-A903-D6B2DF73F78B}"
+{
+	variable arrRetValues[];
+	arrRetValues = ML_STAR._BD0D210B_0816_4C86_A903_D6B2DF73F78B("e6c0f002_8c14_454b_b965503919ddecf5"); // Head96TipPickUp
+}
+// }} ""
+// {{ 25 1 0 "31f9f5b5_6b96_4615_84d15ae685b38593" "ML_STAR:{827392A0-B7E8-4472-9ED3-B45B71B5D27A}"
+{
+	variable arrRetValues[];
+	arrRetValues = ML_STAR._827392A0_B7E8_4472_9ED3_B45B71B5D27A("31f9f5b5_6b96_4615_84d15ae685b38593"); // Head96Aspirate
+}
+// }} ""
+// {{ 26 1 0 "65d1b4bb_7b03_4e69_a4bc84beb078a6d3" "ML_STAR:{A48573A5-62ED-4951-9EF9-03207EFE34FB}"
+{
+	variable arrRetValues[];
+	arrRetValues = ML_STAR._A48573A5_62ED_4951_9EF9_03207EFE34FB("65d1b4bb_7b03_4e69_a4bc84beb078a6d3"); // Head96Dispense
+}
+// }} ""
+// {{ 27 1 0 "b87ddd01_d136_4f27_8115beed5ce27ea3" "ML_STAR:{827392A0-B7E8-4472-9ED3-B45B71B5D27A}"
+{
+	variable arrRetValues[];
+	arrRetValues = ML_STAR._827392A0_B7E8_4472_9ED3_B45B71B5D27A("b87ddd01_d136_4f27_8115beed5ce27ea3"); // Head96Aspirate
+}
+// }} ""
+// {{ 28 1 0 "68c2fc2f_bebb_4ad1_98072904faa965c2" "ML_STAR:{A48573A5-62ED-4951-9EF9-03207EFE34FB}"
+{
+	variable arrRetValues[];
+	arrRetValues = ML_STAR._A48573A5_62ED_4951_9EF9_03207EFE34FB("68c2fc2f_bebb_4ad1_98072904faa965c2"); // Head96Dispense
+}
+// }} ""
+// {{{ 29 1 0 "757d8d35_1b68_476f_abcefe683b7f112a" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+COMMON96HEADSUBMETHODS::Eject96HeadTipsAndShake(ML_STAR, 10);
+// }} ""
+// {{ 30 1 0 "7dac0e32_c81a_4c70_9ac19ace47c0fc7a" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 31 1 0 "9e48bbea_574e_4155_8cf588593cff3875" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_debugging == "true")
+{
+// }} ""
+// {{ 32 1 0 "0f1b6ccd_d6db_49f8_839a78b4de44f937" "{21E07B31-8D2E-11d4-A3B8-002035848439}"
+dialogHandleBAB25BBD6C7E469081E540CFDC24D53A.SetOutput(Translate("Pipette cells from old growth plate (on handoff) to new growth plate"), "\n");
+dialogHandleBAB25BBD6C7E469081E540CFDC24D53A.ShowOutput(Translate("Pipetting"), hslOKOnly | hslInformation | hslDefButton1, hslInfinite);
+// }} ""
+// {{ 33 1 0 "9e48bbea_574e_4155_8cf588593cff3875" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 34 1 0 "7dac0e32_c81a_4c70_9ac19ace47c0fc7a" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 35 1 0 "62ac31c8_503c_4bac_8cf79d00afb21f18" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 36 1 0 "5c8c2c3e_5868_4e91_84150f14004907b0" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 37 1 0 "cb719234_e2b0_4777_867928c4b43858f5" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 38 1 0 "d06f9cf1_f3cc_443c_9ecc54df9758dc66" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (prep_glycstock == "true")
+{
+// }} ""
+// {{{ 39 1 0 "d142d3f9_1917_40df_83209237875c6c85" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Lid_parking_GlycerolPlate_1, ML_STAR.Glycerol_Plate_1_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 1, 0, ML_STAR);
+// }} ""
+// {{{ 40 1 0 "e9065af8_95d2_4c2d_9728b361666d8229" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Lid_parking_GlycerolPlate_2, ML_STAR.Glycerol_Plate_2_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{{ 41 1 0 "d466cbef_d190_490a_bcdcf82e243b6f96" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Lid_parking_Growth_Plate, ML_STAR.Growth_Plate_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{{ 42 1 0 "71800159_ee81_4103_9696fc81e1c8262e" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Lid_parking_Old_Growth_Plate, ML_STAR.Growth_Plate_Handoff_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{ 43 1 0 "d06f9cf1_f3cc_443c_9ecc54df9758dc66" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{{ 44 1 0 "0ad26b4c_4f40_47da_821da0f632b12546" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Lid_parking_Growth_Plate, ML_STAR.Growth_Plate_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 1, 0, ML_STAR);
+// }} ""
+// {{{ 45 1 0 "cb4a2669_408a_470a_8c8215893fc5ddf2" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Lid_parking_Old_Growth_Plate, ML_STAR.Growth_Plate_Handoff_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{ 46 1 0 "d06f9cf1_f3cc_443c_9ecc54df9758dc66" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 47 1 0 "cb719234_e2b0_4777_867928c4b43858f5" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 48 1 0 "a89198ab_d379_47bd_98fc1cd6f7905466" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 49 1 0 "42fb40e5_c212_4397_a07e16e9741c85c5" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (keep_old_GP == "true")
+{
+// }} ""
+// {{{ 50 1 0 "a4a317c3_ef2b_482c_af5111889297907b" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveGrowthPlateWithLid(ML_STAR.Move_Growth_Plate_Handoff, ML_STAR.Growth_Plate_Handoff_lid, ML_STAR.Move_Old_Growth_Plate_park, ML_STAR.Old_Growth_Plate_parking_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{ 51 1 0 "42fb40e5_c212_4397_a07e16e9741c85c5" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{{ 52 1 0 "feabc850_b286_44e3_81ccc615ee7c4b02" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveGrowthPlateWithLidNoTap(ML_STAR.Move_Growth_Plate_Handoff, ML_STAR.Growth_Plate_Handoff_lid, ML_STAR.Growth_Plate_waste, ML_STAR.Growth_Plate_waste_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{ 53 1 0 "42fb40e5_c212_4397_a07e16e9741c85c5" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 54 1 0 "9340aa37_6d26_43b2_8e7a357268ed552c" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveGrowthPlateWithLid(ML_STAR.Move_Growth_Plate, ML_STAR.Growth_Plate_lid, ML_STAR.Move_Growth_Plate_Handoff, ML_STAR.Growth_Plate_Handoff_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{{ 55 1 0 "79b75912_9d0b_42a9_b6c27c8fd8dff713" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Growth_Plate_Handoff_lid, ML_STAR.Lid_parking_Old_Growth_Plate, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 1, ML_STAR);
+// }} ""
+// {{ 56 1 0 "a89198ab_d379_47bd_98fc1cd6f7905466" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 57 1 0 "7d3f1e49_c54d_45ed_b5b3b8eaf0fb5eac" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+CleanUp();
+// }} ""
+// {{ 2 "AutoExitBlock" ""
+COMMON96HEADSUBMETHODS::_ExitLibrary();
+LMSF_UTILITIES::_ExitLibrary();
+TIP_HANDLING_WITH_96_HEAD::_ExitLibrary();
+PLATEANDLIDMOVEMENT::_ExitLibrary();
+// }} ""
+// {{{ 5 "main" "End"
+} }
+// }} ""
+// $$author=Hamilton$$valid=0$$time=2020-03-11 11:59$$checksum=c36648f6$$length=087$$

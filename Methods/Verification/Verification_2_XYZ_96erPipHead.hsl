@@ -1,0 +1,630 @@
+/***************************************************************************************************
+*  Method     : Verification_2_XYZ_96erPipHead.hsl
+*  Copyright by HAMILTON Bonaduz AG, CH-7402 Bonaduz
+****************************************************************************************************
+*
+*  Description : X-Y-Z-Positioning Verification of "96er Multi Pipetting Head"
+*
+* ==================================================================================================
+*  ATTENTION: Change this HSL only with HSL Editor of SW Version 3.2!
+*              (Note: This library must run from SW-version 3.2 on)
+* ==================================================================================================
+*  Modification History:
+* ----------------------
+* Rev 1.1 2011-08-16  Erich Caflisch   / Module Version : 02
+*                ECO 12'600 : New display of measured values, not measured values marked as "-x-"
+* --------------------------------------------------------------------------------------------------
+* Rev 1.0 2010-07-19 Erich Caflisch   / Module Version : 01
+*                First released version for software version >=3.2.0 
+* --------------------------------------------------------------------------------------------------
+* Rev 0.1 2007-11-08	Erich Caflisch: 
+*
+****************************************************************************************************/
+
+//device ML_STAR("TestDeck_1.lay");
+//device ML_STAR("Verification_Starlet.lay");
+	// -----------------------------------------------------------------------------
+	// Debug switch for this file
+	// -----------------------------------------------------------------------------
+	//		#define _DEBUG_VolVer 1
+
+	// -----------------------------------------------------------------------------
+	// Included libraries
+	// -----------------------------------------------------------------------------
+
+	#ifndef __HslVerToolsLib_hsl__
+	#include "HslVerToolsLib.hs_"
+	#endif
+
+	#ifndef __HSLStrLib_hsl__
+	#include "HSLStrLib.hsl"
+	#endif
+
+	#ifndef __HSLTrcLib_hsl__
+	#include "HSLTrcLib.hsl"
+	#endif
+
+	//==============================================================================
+	// local functions
+	//==============================================================================
+namespace XYZ_96	
+{	
+	variable moduleVersion("02");				// verification subversion of this library
+
+	const variable miliMeterPerZ_Step (0.005); // Z-movement step motor resolution 
+
+	variable arrAddtionalLabID[];
+	variable detectionChannelisA6(hslFalse); // level detection on channel "A6", else on "A1"
+	variable tipType(-1);	
+	sequence seq_CheckPositions;
+
+	//------------------------------------------------------------------------------
+	private function OnRun_Abort() //variable
+	//------------------------------------------------------------------------------
+	{
+		variable channelPatern(VerDef::channelPattern);	
+		variable cmd, prm;
+		device ML_STAR(VerDef::layoutFileName);	
+				
+      // set LLD serach speed to default value (zl07000)
+		cmd = "H0AA";
+		prm = "zl07000";
+		if(!VerDef::SimulationMode) VerTool::FwCommand( cmd, prm, hslFalse, ML_STAR );
+
+		// eject tips back into rack
+		if(tipType ==TipType::_300ulStandardVolumeTip) 
+		{
+	 		Trace("Test: Run abort: Tips will be eject into tip rack");
+			ML_STAR.Head96TipEject( "3d570186_f1b0_4fd6_aba6927abf09dcfd" );
+		}
+	}  // -- end of function "OnRun_Abort"
+
+	//------------------------------------------------------------------------------
+	private function Load_TipPlateCarrier(device& ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable prop2, prop3, sn, date(""),lcd(""),lcb(""); // dummy place holder 
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable returnValue;
+		variable inputDescription, remarks(""), warning("");
+		variable trackNo, track(0);
+		variable dialogTitle("");			//	dialog titel information
+
+		sequence seq_DummyDef;  			// place holder sequence definition
+
+		dialogTitle 		= LdT("Start of the CO-RE 96-Probe Head Position Verification:");
+
+		VerTool::InitializeDataVariables();		
+
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");
+		Trace(" ");
+		Trace("           ",dialogTitle);
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");	
+		Trace(" ");
+
+		// unlock front cover
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+		
+		// --- Check machine configuration, from response of command "H0QT"  // 96er multi Pipetting Head Type 186400/00
+		// check if version "P/N186400/00" of 96er pipHead is installed :: LLD signal at channel "A6", else channel "A1"
+		if(!VerDef::SimulationMode)
+		{
+			returnValue = VerTool::FwCommand( "H0QT", "", hslFalse, ML_STAR );
+//			Trace("Test: Response machineConfig H0QT =>",returnValue,"<==");
+			if(StrFind(returnValue,"186400/00")>0 ) detectionChannelisA6 = hslTrue;
+		}
+		trackNo 				= IStr(VerDef::tipPlateCarrierTrackPos);
+
+		inputDescription 	= LdT("Place the loaded the Plate-Tip Carrier on Track:");
+		warning = LdT("ATTENTION:") + " " + LdT("Only define a reachable position!");
+
+
+		VerTool::GetVerificationInformation(VerDef::KeyTipPlateCarTrack, trackNo, prop2 , prop3 ,sn, date,lcd,lcb);
+
+		VerTool::NewTextLine(1, LdT("Load the following Labware onto the Tip-Plate Carrier:"));
+		VerTool::NewTextLine(0,"--------------------------------------------------------------");
+		VerTool::NewTextLine(0," ");
+		if (detectionChannelisA6)
+		{
+			pictureFile 		= "Load_1TeachingNeedle_AtA6.jpg";
+			VerTool::NewTextLine(0,"- " + LdT("on Carrier Pos.") + " 2: " + LdT("1 Teaching Needle at the 96 Tip Rack position 'A6'"));
+		}	
+		else
+		{
+			pictureFile 		= "Load_1TeachingNeedle_AtA1.jpg";
+			VerTool::NewTextLine(0,"- " + LdT("on Carrier Pos.") + " 2: " + LdT("1 Teaching Needle at the 96 Tip Rack position 'A1'"));
+		}
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,"- " + LdT("on Carrier Pos.") + " 4: " + LdT("Place Pyramide Block"));
+	
+		while(hslTrue)
+		{// show load dialog	
+			returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,warning, hslOKOnly,  1, 
+																	inputDescription, remarks, trackNo);
+			if(VerTool::checkInputValue(trackNo, 100,-5, track)) break;
+			remarks = LdT("Define correct number!");
+		}
+
+		VerTool::UpdateVerificationInformation(1, VerDef::KeyTipPlateCarTrack, trackNo, prop2, prop3,sn, GetDate("%Y-%m-%d"));	// date = today);
+		VerDef::tipPlateCarrierTrackPos = track;
+
+		VerTool::AddRackOnCarrier(VerDef::site_ResetAll,"","",seq_DummyDef); 
+
+		VerTool::AddRackOnCarrier(VerDef::site_2, VerDef::TipRack_96TeachingNeedles,	"TeachingNeedle",	PS::seq_TeachingNeedles);
+		VerTool::AddRackOnCarrier(VerDef::site_Pyramid_4, VerDef::Pyramid,"Pyr_4",				PS::seq_baseCheckPositions);
+
+		PS::seq_TeachingNeedles.SetCurrentPosition( 1 );
+//		TrcTraceSequence(PS::seq_TeachingNeedles);
+
+		PS::seq_baseCheckPositions.SetCurrentPosition( 1 );
+//		TrcTraceSequence(PS::seq_baseCheckPositions);
+
+		// load above pre-defined rack on carrier
+		VerTool::Load_Carrier(ML_STAR, VerDef::carrierName_TipPlate,VerDef::tipPlateCarrierTrackPos, hslFalse);
+
+	}  // -- end of function "Load_TipPlateCarrier"
+
+	//------------------------------------------------------------------------------
+	private function Unload_Consumables(device& ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable sizeOfLabIDs,index;
+
+		if (VerDef::tipPlateCarrierLoadable > 0) ML_STAR.UnloadCarrier( "4bd5eb91_b79d_4750_bc6a0a745bb2c59d" );
+		// remove additional defined labware
+		sizeOfLabIDs= arrAddtionalLabID.GetSize();
+
+		for (index = 0 ; index < sizeOfLabIDs; index++) VerTool::RemovePresentLabware(ML_STAR, arrAddtionalLabID.GetAt( index ));
+
+		// unlock front cover
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+	}  // -- end of function "Unload_Consumables"
+
+	//------------------------------------------------------------------------------
+	private function AddAllPyramidFaces(device& ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable labID(""), posID(""), rackID(""), templateConfigFile;
+		variable xWellOffset(0.0),yWellOffset(0.0),zWellOffset(0.0);
+		variable i,wellPos, xPosOffset(0.0),yPosOffset(0.0),zPosOffset(5.0);
+		variable arrLabPosition[];
+		
+		// well offset with level detection channel
+		xWellOffset = 0.0;	// well "A1" X offset 
+		yWellOffset = 0.0;	// well "A1" and "A6" Y offset 
+		zWellOffset = 0.0;	// well "A1" and "A6" Z offset 
+
+		if (detectionChannelisA6)			xWellOffset = -45.0;	// well "A6" X offset of  -45mm
+
+		templateConfigFile =  VerDef::labwareSubDirName + "VER_Plate_96.rck";
+		arrAddtionalLabID.SetSize(0);
+
+		 // positions for pyramid #4 
+		PS::seq_baseCheckPositions.SetCurrentPosition( 1 );
+		labID = PS::seq_baseCheckPositions.GetLabwareId();
+		posID = PS::seq_baseCheckPositions.GetPositionId();
+		ML_STAR.GetLabwarePosition(labID, arrLabPosition,posID );
+		xWellOffset = arrLabPosition.GetAt(0) + xWellOffset;
+		yWellOffset = arrLabPosition.GetAt(1) + yWellOffset;
+		zWellOffset = arrLabPosition.GetAt(2) + zWellOffset;
+
+		for (i = 1; i <= 5; i++)
+		{ // add virtual position for all 5 check positions of pyramids
+			zPosOffset = -10.0;        // lowest check position 10mm below top of pyramid, except z check position(i=5)
+			if (i == 1) {xPosOffset = -5.0; yPosOffset = 0.0;} 							// -5mm to the left (= middle of left side)
+			if (i == 2) {xPosOffset = 0.0	; yPosOffset = -5.0;} 							// -5mm to the front (= middle of front side)
+			if (i == 3) {xPosOffset = 5.0	; yPosOffset = 0.0;} 							// +5mm to the right (= middle of right side)
+			if (i == 4) {xPosOffset = 0.0	; yPosOffset = 5.0;} 							// +5mm to the rear (= middle of rear side)
+			if (i == 5) {xPosOffset = 0.0	; yPosOffset = 0.0; zPosOffset = -5.0;}	// middle , top of pyramid
+
+			rackID = StrConcat4(labID,"__",i,"");
+			arrAddtionalLabID.AddAsLast( rackID );
+			arrLabPosition.SetAt(0, xWellOffset + xPosOffset );
+			arrLabPosition.SetAt(1, yWellOffset + yPosOffset );
+			arrLabPosition.SetAt(2, zWellOffset + zPosOffset );
+
+//Trace(" Pyramid ID=>",rackID,"<  X position => ",arrLabPosition.GetAt(0),
+//									 	"<  y position => ",arrLabPosition.GetAt(1),
+//										"<  z position => ",arrLabPosition.GetAt(2),
+//										"<  angle => ",arrLabPosition.GetAt(3),"<==");
+
+				// Add new rack to deck plus corresponding sequence definitions
+				ML_STAR.AddLabware( rackID, templateConfigFile, arrLabPosition, "" );	
+//Trace("ML_STAR.AddLabware: rackID =>",rackID,"<  templateConfigFile =>", templateConfigFile	,"<==");	
+			
+				for (wellPos = 1; wellPos <= 96; wellPos++) seq_CheckPositions.Add( rackID, IStr(wellPos) );
+			
+		}
+		seq_CheckPositions.SetCurrentPosition( 1 );
+//		TrcTraceSequence(seq_CheckPositions);
+
+	}  // -- end of function "AddAllPyramidFaces"
+
+	//------------------------------------------------------------------------------
+	private function Check_Free_Access(device& ML_STAR) 
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable returnValue;
+		variable dialogTitle("");			//	dialog titel information
+		variable labID(""), posID("");
+		variable arrLabPosition[];
+		sequence seq_ckeckPos;  			// check position over pyramid
+
+		 // move to position of pyramid #4 
+		seq_CheckPositions.SetCurrentPosition( seq_CheckPositions.GetCount()-95);
+
+		if(!VerTool::MoveToPosition( ML_STAR, VerDef::multi96PipHead_300ul, "", seq_CheckPositions, 30.0))
+		{ // not reachable position
+			VerTool::VerificationFailedDialog(LdT("Pyramid Position") , "m");
+			ML_STAR.Head96TipEject( "1144e45f_a479_4861_948d2c118db0a258" );
+			abort;
+		}
+		// unlock front cover
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+		dialogTitle 		= LdT("Check free access of CO-RE 96-Probe Head.");
+		pictureFile 		= "FreeAccess_96Head.jpg";
+
+		VerTool::NewTextLine(1, LdT("Examine free access of CO-RE 96-Probe Head over pyramid:"));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,LdT("Look for obstacles, which hinder access to pyramid!"));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,LdT("Press 'OK' to continue the Position Verification!"));
+		VerTool::NewTextLine(0,LdT("Press 'Cancel' to stop the Position Verification."));
+		
+		returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,"", hslOKCancel, 1,"","","");
+
+		// lock front cover
+		VerTool::CoverLock(ML_STAR , VerDef::coverLock);
+
+		if (returnValue == hslCancel) 
+		{ // eject tips and abort run
+			ML_STAR.Head96TipEject( "1144e45f_a479_4861_948d2c118db0a258" );
+			abort;
+		}
+
+	}  // -- end of function "Check_Free_Access"
+
+	//------------------------------------------------------------------------------
+	private function searchLLD(device ML_STAR, 
+										variable searchDistance) variable
+	//------------------------------------------------------------------------------
+	{
+		variable cmd;
+		variable prm;
+		
+		variable zaParam, zcParam, zhParam;
+		variable zStartPos ,zEndPos ;
+		variable levelValue, returnValue(0);
+		string 	returnData;
+
+		// start position in z-diection
+		cmd = "H0RZ";
+		prm = "";
+		returnData 	= VerTool::FwCommand( cmd, prm, hslFalse, ML_STAR );
+		if(VerDef::SimulationMode) returnData  = "H0RZid1234rz+50000 +50000";
+
+      zStartPos 	= IVal(StrMid(returnData, StrReverseFind(returnData,"rz") +2, 6)); 
+		zEndPos		= zStartPos 	- (searchDistance / miliMeterPerZ_Step); 
+		zcParam = StrFillLeft(IStr(zStartPos), "0", 5);
+		// lowest position in z-diection
+		zhParam = StrFillLeft(IStr(Ceiling(zEndPos)), "0", 5);
+
+		// cLLD detection of pyramid surface (if present) : H0ZLid0263zh52359zc54539zi0000zj0zl00300
+
+		cmd = "H0ZL";
+		prm = StrConcat2("zh", zhParam);
+		prm = StrConcat4(prm, "zc", zcParam,"zi0000zj0zl00300");
+		returnData = VerTool::FwCommand( cmd, prm, hslFalse, ML_STAR );
+		if(StrFind(returnData, "er00") < 0) return(0.0);
+
+		// request cLLD level
+		cmd = "H0RH";
+		prm = "";
+		if(VerDef::SimulationMode) levelValue  =  200.0;
+		else 	
+		{
+			returnValue = VerTool::FwCommand( cmd, prm, hslFalse, ML_STAR );
+			levelValue = IVal(StrMid(returnValue, StrReverseFind(returnValue,"rh")+2, 6));
+			levelValue = miliMeterPerZ_Step * levelValue; // z-drive step resolution 0.005mm per step
+		}
+	
+		return( levelValue );	
+      
+	}   // -- end of function "searchLLD"	
+
+	//------------------------------------------------------------------------------
+	private function MeasurePyramidSurface(device& ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable dataOffset, sideNo, index;
+		variable searchDistance(15.0);
+		variable returnValue, levelValue;
+		variable cmd, prm;
+
+		variable labID(""), posID("");
+		variable arrLabPosition[];
+
+		PS::dataArray.SetSize(0);
+		loop(288) PS::dataArray.AddAsLast( 0.0 );
+
+		PS::seq_TeachingNeedles.SetCurrentPosition( 1 );
+
+
+		// pick up teaching needle
+			tipType = TipType::_300ulStandardVolumeTip;
+			ML_STAR.Head96TipPickUp( "0ac27e89_0713_4456_9af00336556c7cd7" );
+
+//			onerror goto EjectTeachingNeedles;
+
+		// ask user to check for free access of head to pyramid
+			Check_Free_Access(ML_STAR);
+
+		// set LLD search speed to lower value ) H0AAid0216zl00300
+			cmd = "H0AA";
+			prm = "zl00300";
+			if(!VerDef::SimulationMode) VerTool::FwCommand( cmd, prm, hslFalse, ML_STAR );
+
+		// 3 measurement loops 
+			dataOffset = 0;
+			loop (3) 	
+			{
+				seq_CheckPositions.SetCurrentPosition( 1 );
+				sideNo = 0;
+				loop (5) // LLD on id surfaces
+				{
+					// move to corresponding pyramide side
+					if(!VerTool::MoveToPosition( ML_STAR, VerDef::multi96PipHead_300ul, "", seq_CheckPositions, 15.0))
+					{ // not reachable position
+						VerTool::VerificationFailedDialog(LdT("Pyramid Position") , "m");
+						ML_STAR.Head96TipEject( "3c574d54_2ab7_46a3_9fa083f3418fbe09" );
+						return(hslFalse);
+					}
+
+					// search LLD
+					levelValue  = searchLLD(ML_STAR, searchDistance);
+					if(VerDef::SimulationMode) levelValue  =  100.0 + sideNo + dataOffset/960.0;
+					if(levelValue  < 100.0)
+					{					
+						VerTool::VerificationFailedDialog(LdT("CO-RE 96-Probe Head Position Verification"), "s");
+						ML_STAR.Head96TipEject( "3c574d54_2ab7_46a3_9fa083f3418fbe09" );
+						return(hslFalse);
+					}
+					PS::dataArray.SetAt(dataOffset + sideNo, levelValue );
+
+//Trace(" Level data  at data offset= >", dataOffset,"< sideNo =>",sideNo,"<   levelValue=>",levelValue,"<==");
+
+					sideNo++;
+					seq_CheckPositions.Increment( 96 ); // next pyramid side
+				}
+				dataOffset = dataOffset + 96;
+			}			
+         // set LLD serach speed to default value (zl07000)
+			cmd = "H0AA";
+			prm = "zl07000";
+			if(!VerDef::SimulationMode) VerTool::FwCommand( cmd, prm, hslFalse, ML_STAR );
+
+			// eject teaching needles back to tip rack
+			ML_STAR.Head96TipEject( "3c574d54_2ab7_46a3_9fa083f3418fbe09" );
+			tipType = TipType::noTip;
+
+// 	VerTool::TraceArray(" Data array for positioning data ", PS::dataArray);
+
+		return(hslTrue);
+
+		///////////////////////////////////////////////////
+		DetectionError : 
+		{
+			// If error occurs during mesurement validation will be  stopped
+			variable arrayMainError[], arraySlaveError[];
+			if (VerTool::GetErrorCodes("1", arrayMainError, arraySlaveError)> 0)
+			{
+	         // set LLD serach speed to default value (zl07000)
+				cmd = "H0AA";
+				prm = "zl07000";
+				if(!VerDef::SimulationMode) VerTool::FwCommand( cmd, prm, hslFalse, ML_STAR );
+	
+				ML_STAR.Head96TipEject( "1c5364ae_ee9e_4b1d_993b1cb523eee6ba" );
+				tipType = TipType::noTip;
+				if (VerDef::tipPlateCarrierLoadable > 0) ML_STAR.UnloadCarrier( "dcc75720_2521_4836_89bbfd3af30d05a4" );
+
+				VerTool::VerificationFailedDialog(LdT("CO-RE 96-Probe Head Position Verification"), "s");
+				return(hslFalse);
+			}
+			resume next;
+		}
+
+		// error handling; eject teaching needles back to rack
+		EjectTeachingNeedles:
+		{
+		Trace("Test: Error in step execution: Tips will be eject into tip rack");
+			onerror goto 0;
+			if (err.GetId() != 0)   // skip handler if no error 
+			{
+	      // set LLD serach speed to default value (zl07000)
+			cmd = "H0AA";
+			prm = "zl07000";
+			if(!VerDef::SimulationMode) VerTool::FwCommand( cmd, prm, hslFalse, ML_STAR );
+
+			ML_STAR.Head96TipEject( "1144e45f_a479_4861_948d2c118db0a258" );
+			tipType = TipType::noTip;
+			resume next;
+			}
+		}
+
+	}  // -- end of function "MeasurePyramidSurface"
+
+	//------------------------------------------------------------------------------
+	private function checkData(variable posNo1, variable posNo2,  variable pyramidTiltFactor, variable  criteria, 
+																	variable& devString, variable& overallStatus)
+	{
+		variable measurement(3);
+		variable arrMeanData[], arrMinData[], arrMaxData[],arrCV_Data[];
+		variable deviation, minDev, maxDev;
+		variable posNo;
+
+		VerTool::statisticCalculation(PS::dataArray, 8, 12, 1, 8 ,1, 1, measurement, arrMeanData, arrMinData, arrMaxData,arrCV_Data);
+
+		posNo 		= posNo1;
+		deviation	= 0;
+		loop(2)
+		{
+			// calculate extreme deviation
+			minDev 	= arrMinData.GetAt( posNo ) - arrMeanData.GetAt( posNo );
+			if(deviation < minDev) minDev = deviation;
+
+			maxDev 	= arrMaxData.GetAt(posNo) - arrMeanData.GetAt( posNo );
+			if(deviation > maxDev) maxDev = deviation;
+
+			if(maxDev > (-1.0*minDev))	deviation = maxDev;
+			else								deviation = minDev;	
+			if(arrMinData.GetAt( posNo ) == 0) deviation = -9999.9 * pyramidTiltFactor; // not measured position marked
+			// next check area (if present)
+			if(posNo2 <= 0) break;
+			posNo = posNo2;
+		}
+		deviation = deviation / pyramidTiltFactor;
+
+		// evaluate status
+		if((deviation > -0.05) && (deviation < 0.05)) deviation = 0.0;
+
+		if(deviation < -9000) 
+		{ // not measured position
+			devString 	= VerDef::notDefined;
+			deviation 	= 2 * criteria;
+		}
+		else
+		{
+			devString 	= VerTool::FormatNumber_PointAsDecimal(deviation, 1);
+			deviation	= FVal(devString);
+		}
+		if(deviation < 0) deviation = -1.0 * deviation; 
+
+		if(deviation > criteria)
+		{
+			overallStatus 	= VerDef::failed;
+		}
+
+//Trace("Test: Check data of column =>",posNo,"<  delta =>",arrMaxData.GetAt( posNo ) - arrMinData.GetAt( posNo ),
+//				"< devString =>",devString, "< overall status =>", overallStatus);		
+	} // end of function "checkData"
+
+	//------------------------------------------------------------------------------
+	private function EvaluateData()  // return value  processedState == PS::successful / PS:
+	// data are arranged in data array in 96er pattern at following index
+	// top side:	column 1 ,row 1
+	// left side:	column 1 ,row 2
+	// front side:	column 1 ,row 3
+	// right side:	column 1 ,row 4
+	// rear side:	column 1 ,row 5
+	// measurement loops: 3 times
+	//------------------------------------------------------------------------------
+	{
+		variable criteria(0.3); 				//	<= +/- 0.3mm 
+		variable pyramidTiltFactor(8.0/4.6);  // tilt of pyramid side face: 8mm height, 4.6mm base
+
+		variable overallStatus;
+		variable deviation, devCriteria;
+		// simulated data are displayed
+		VerTool::displayArrayData(" Positioning Data over pyramids", PS::dataArray);
+
+		overallStatus	= VerDef::passed;
+	
+		devCriteria = StrConcat2("<= +/- ", VerTool::FormatNumber_PointAsDecimal(criteria, 1));
+		VerTool::WriteCell( 2, 18, devCriteria); 	// cell B18 criteria
+		// evaluate X-direction
+		checkData(1, 3, pyramidTiltFactor, criteria, deviation, overallStatus);
+		VerTool::WriteCell( 3, 18, deviation); 	// cell C18 on X-Diection
+		// evaluate Y-direction
+		checkData(2, 4, pyramidTiltFactor, criteria, deviation, overallStatus);
+		VerTool::WriteCell( 4, 18, deviation); 	// cell D18 on Y-Diection
+		// evaluate Z-direction
+		checkData(5, 0, 1.0, criteria, deviation, overallStatus);
+		VerTool::WriteCell( 5, 18, deviation); 	// cell E18 on Z-Diection
+
+		// write status to report file
+		VerTool::WriteCell( 6, 18, overallStatus); // cell F18: overall status 
+		VerTool::WriteCell( 4, 13, overallStatus); // cell D13: overall status 
+
+		// ---  add pdf file information close to "header"
+		VerTool::WriteCell(4, 10, 	RPD::pdfReportFileName);	// cell D10: on first page 
+
+		if (overallStatus == VerDef::passed) return(PS::successful);
+		else	
+		{ 
+			VerTool::VerificationFailedDialog(LdT("CO-RE 96-Probe Head Position Verification"), "x");
+			return(PS::failed);
+		}
+	}  // -- end of function "EvaluateData"
+
+} // end of namespace
+
+//==============================================================================
+// main functions
+//==============================================================================
+
+//------------------------------------------------------------------------------
+function XYZ_Verification_96erPipHead(device ML_STAR)
+//------------------------------------------------------------------------------
+{
+	variable returnCode(0);
+	variable arrRetValues[];
+	variable processState;
+	variable SW_version("");
+	
+	RPD::reportTemplateFileName ="Report_XYZ_Ver_96erPipHead";		// Report_XYZ_Ver_96erPipHeadEnu.xls
+
+	// Initialization of ML_STAR
+	// --------------------------------------------------------------------------
+	//	Trace("Test: instrumentNo =>",instrumentNo,"<   layoutFileName =>",VerDef::layoutFileName,"<  ML-STAR instrument serial number =>", VerDef::InstrumentSerialNo);
+		arrRetValues = ML_STAR.Initialize( "b3d4abb0_7e4b_4ad0_94ffdc8b13a2aab9" );
+		VerTool::MoveToEndPositions(ML_STAR);
+
+	// activate abort handler
+		XYZ_96::tipType = TipType::noTip;
+		RegisterAbortHandler("XYZ_96::OnRun_Abort");
+
+	// Start dialog and load consumables
+	//------------------------------------------------------------------------------
+		XYZ_96::Load_TipPlateCarrier(ML_STAR);
+		XYZ_96::AddAllPyramidFaces(ML_STAR);   
+
+	// Perform verification
+	//------------------------------------------------------------------------------
+		if (!XYZ_96::MeasurePyramidSurface(ML_STAR)) return; // verification will be stopped due to processing error
+	
+	// Unload consumables
+	//------------------------------------------------------------------------------
+		XYZ_96::Unload_Consumables(ML_STAR);
+
+	// Generate report 
+	//------------------------------------------------------------------------------
+		VerTool::CreateReportFile(RPD::reportTemplateFileName);
+
+		// ---  add general data
+		VerTool::WriteCell(4, 4,	VerDef::InstrumentName); 	 			// cell D4: instrument name 
+		VerTool::WriteCell(4, 5,	VerDef::InstrumentSerialNo); 			// cell D5: instrument serial no	
+		SW_version = VerDef::SWReleaseVersion + VerDef::FVK2_ReleaseVersion;
+		StrReplace(SW_version ,"%s1",XYZ_96::moduleVersion);
+		VerTool::WriteCell(4, 6, 	SW_version);								// cell D6: user software version
+		VerTool::WriteCell(4, 7,	RPD::laboratoryName); 					// cell D7: laboratory name / location
+		VerTool::WriteCell(4, 8,	RPD::operatorName); 						// cell D8: operator name
+		VerTool::WriteCell(4, 9,	RPD::verifcationReason); 				// cell D9: reason for verification
+		VerTool::WriteCell(8, 4, 	GetDate("%Y-%m-%d"));					// cell H4: processed date
+		VerTool::WriteCell(8, 5, 	GetTime("%H:%M"));						// cell H5: processed time
+
+		processState = XYZ_96::EvaluateData();
+		VerTool::StoreProcessDataOnInstrument(PID::XYZ_multi96PipHead, processState, ML_STAR );
+
+		VerTool::GeneratePDF_File();
+
+}  // -- end of function "XYZ_Verification_96erPipHead"
+
+//==============================================================================
+// $$author=Administrator$$valid=1$$time=2011-08-16 15:32$$checksum=2f3e7860$$length=090$$

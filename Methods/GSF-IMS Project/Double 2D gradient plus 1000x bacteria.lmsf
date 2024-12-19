@@ -1,0 +1,77 @@
+StartPrompt(Double 2DGradient Plate Prep, C:\Program Files (x86)\HAMILTON\Methods\GSF-IMS Project\Double 2D gradient plus 1000x bacteria-list.txt)
+
+NewXML(growth plate prep)
+
+Get(user, user)
+
+Get(media, media)
+
+Get(strain, strain1, Select the bacteria strain used for the protocol:)
+Get(plasmid, plasmid1, Select the plasmid used for the protocol:)
+
+Get(additive, inducer)
+Get(concentration, inducerStock, Enter the concentration of the {inducer} starting stock:)
+
+Get(additive, leftAdditive, Select the additive for the left-side gradient)
+Get(concentration, leftAdditiveStock, Enter the concentration of the {leftAdditive} starting stock:)
+
+Get(additive, rightAdditive, Select the additive for the right-side gradient)
+Get(concentration, rightAdditiveStock, Enter the concentration of the {rightAdditive} starting stock:)
+
+Get(note, note)
+
+GetExpID({startDateTime}_{inducer}_{leftAdditive}_{rightAdditive}_2DGradients)
+
+Set(worklistFile, {dataDirectory}\{experimentId}_growth plate.csv)
+
+//review experiment ok/abort dialog
+Set(msg1, Review the following, then click 'OK' to accept or 'Abort' to abort and start over:\n\n)
+Set(msg2, \tMedia: \t\t\t{media}\n\n \tBacteria: \t\t\t{strain1}, with {plasmid1}\n\n)
+Set(msg3, \tInducer: \t\t\t{inducer}, stock concentration: {inducerStock}\n \tLeft-side additive:  \t{leftAdditive}, stock concentration: {leftAdditiveStock}\n)
+Set(msg4, \tRight-side additive:  \t{rightAdditive}, stock concentration: {rightAdditiveStock}\n  \n)
+Set(msg5, \tExperiment ID: \n\t\t{experimentId}\n \tData directory: \n\t\t{dataDirectory}\n\n \tNotes:\n\t\t{note})
+UserPrompt(Review Protocol Details: {experimentId}, {msg1} {msg2} {msg3} {msg4} {msg5})
+
+
+//Tip counter check
+UserPrompt(1000 uL Tips, This protocol requires at least 66 high-volume tips in these two racks:, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\tips1000.loc.PNG)
+UserPrompt(300 uL Tips, This protocol requires at least 32 standard-volume tips in these two racks:, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\tips300.loc.PNG)
+GetUserYesNo(isEnoughOffsetTips, Offset Pickup Tips, Is there at least one row (12 tips) of high-volume tips in the offset pickup block?)
+//UserPrompt(Offset Pickup Tips) 
+Set(msg1, Click 'OK', then verify and, if necessary, reset or update the Hamilton tip counters.)
+UserPrompt(Tip Counters, {msg1})
+
+Hamilton(C:\Program Files (x86)\HAMILTON\Methods\Common\Tip Handling\Edit Tip Counters_300-1000.hsl)
+WaitFor(Hamilton) 
+If({isEnoughOffsetTips} == Yes, Hamilton(C:\Program Files (x86)\HAMILTON\Methods\Common\Tip Handling\Edit Tip Counter Offset_1000.hsl) )
+If({isEnoughOffsetTips} == No, Hamilton(C:\Program Files (x86)\HAMILTON\Methods\Common\Tip Handling\Manual Offset Tip Refresh_1000.hsl) )
+WaitFor(Hamilton) 
+
+Set(msg1, Put a media trough on the STAR deck as indicated with at least 120 mL of {media} media.)
+UserPrompt(Media Trough, {msg1}, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\Double 2D Gradient\Media.PNG)
+
+UserPrompt(Abgene Plates,Put 2 Abgene plates on the STAR deck as indicated., C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\Double 2D Gradient\Abgene plates.PNG)
+
+UserPrompt(Growth Plate, Put one empty 4titude growth plate on the STAR deck as indicated:, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\Double 2D Gradient\Growth plate.PNG)
+
+Set(msg1, Put 3 mL of {inducer} stock in position 21, \n2 mL of {leftAdditive} stock in position 23,)
+Set(msg2, \nand 2 mL of {rightAdditive} stock in position 24 of the left tube rack \n(in 14 mL cuture tubes).)
+UserPrompt(Abgene Plate, {msg1} {msg2}, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\Double 2D Gradient\Additives.PNG)
+
+Set(msg1, Put 1 mL of bacteria stock in position 24 of the right tube rack (in a 14 mL cuture tube).)
+UserPrompt(Abgene Plate, {msg1}, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\Double 2D Gradient\Bacteria.PNG)
+
+Set(msg1, Close the front cover on the STAR, then click 'OK' to start the method.)
+UserPrompt(Close Cover and Start, {msg1}, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\dialog-warning.png)
+
+//bacteriaNow is a flag to tell Hamilton whether the bacteria will be loaded now or later
+//    now: bacteriaNow=Yes; later: bacteriaNow=No
+Set(bacteriaNow, Yes)
+
+Hamilton(C:\Program Files (x86)\HAMILTON\Methods\GSF-IMS Project\Double 2D gradient plus 1000x bacteria.lmsf.hsl)
+
+WaitFor(Hamilton) 
+
+AddXML(hamiltonMethod, outputWorklistFile, {worklistFile})
+
+SaveXML()

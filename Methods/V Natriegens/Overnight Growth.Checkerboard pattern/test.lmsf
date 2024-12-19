@@ -1,0 +1,192 @@
+//isPipetting is a variable passed to the Hamilton Venus method; if isPipetting is true, the STAR will pipette liquids; otherwise the STAR just moves plates around
+Set(isPipetting, true)
+//isDebugging controls whether or not user debugging prompts/messages are displayed (both in LMSF and Hamilton)
+Set(isDebugging, false)
+
+//manualSeal controls whether sealing is manual or automatic
+//Set(manualSeal, Yes)
+Set(manualSeal, No)
+
+//Read in commonly used directories
+ReadScript(C:\Users\PAA\Documents\LMSF Scheduler\Common protocol scripts\Set Common Directories.lmsf)
+
+//Set directories for  .hsl, .opv, and .prt files that are specifc to this experiment
+//Set(protocolName, Integrated Inducer Gradient and Cytometry)
+//Set(ovpDirectory, C:\Program Files (x86)\PAA\Overlord3\Procedures\GSF-IMS\E. coli\{protocolName})
+//Set(hamiltonMethodDir, C:\Program Files (x86)\Hamilton\Methods\GSF-IMS Project\E. coli Methods\{protocolName})
+//Set(protocolDir, C:\Users\PAA\Documents\LMSF Scheduler\GSF-IMS Project\E. coli\{protocolName})
+Set(protocolName, Overnight Growth.Checkerboard pattern)
+Set(ovpDirectory, C:\Program Files (x86)\PAA\Overlord3\Procedures\V Natriegens\{protocolName})
+Set(hamiltonMethodDir, C:\Program Files (x86)\Hamilton\Methods\V Natriegens\{protocolName})
+Set(protocolDir, C:\Users\PAA\Documents\LMSF Scheduler\V Natriegens\{protocolName})
+
+//Gen5 protcols to be run:
+//Set(growthProtocol, {gen5ProtDir}\GSF-IMS-E-Coli\Growth Plate w Membrane 3.5h.37C.1C.prt)
+Set(growthProtocol, {gen5ProtDir}\V Natriegens\Growth Plate w Membrane 12h.37C.1C.V Natriegens.prt)
+//growthWait = nominal run time
+//Set(growthWait, 12600)
+
+//Sub scripts for this experiment
+Set(growthPlatePrepScript, Inducer gradient.two strains-two gradients.1000x bacteria.lmsf)
+Set(growthPlatePrepScript, Uniform non-selective plate prep plus starting bacteria_Vnatriegens.lmsf)
+//Set(cytometryPlatePrepScript, Prep cytometer plate from Inducer gradient plate.lmsf)
+
+//spacingTime is time between starts of growth plates; needs to be matched to cytometry plate run time (~1:20)
+//Set(spacingTime, 4800)
+
+//For testing readers at beginning of run to give consistent starting state
+Set(initProtocol, {gen5ProtDir}\Growth Plate w Membrane short test.prt)
+
+//Set readers to be used
+Set(reader1, Epoch1)
+//Set(reader2, Epoch2)
+//Set(reader3, Epoch3)
+//Set(reader4, Epoch4)
+
+/////////////////////////////////////
+//This section sets shorter Gen5 protocols for testing, set isTesting to false or No for actual experiment
+Set(isTesting, false)
+GetUserYesNo(isTesting, Testing?, Is this a test run (short Gen5 protocols)?)
+
+If({isTesting}==Yes, Set(growthProtocol, {initProtocol}))
+If({isTesting}==Yes, Set(growthWait, 5))
+
+/////////////////////////////////////////
+
+//Set any other short-hand dictionary keys that will be used repeatedly
+Set(getNewGrowthPlate, {ovpCommDirectory}\Labware\Move Tips and New Growth Plate to STAR.ovp)
+//Set(getNewCytometryPlate, {ovpCommDirectory}\Labware\Move Cytometry Plate to STAR.ovp)
+
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+//Initial user input, tip check, and Overlord initialization section
+
+Overlord({ovpCommDirectory}\Initialize Robot Carousel Sealer and Pealer.ovp)
+
+StartPrompt(Itegrated Inducer Gradient and Cytometry Plate Prep, {protocolDir}\Integrated Inducer Gradient and Cytometry.4 plates-list.txt)
+
+//Set(msg1, Make sure there are at least three new racks of 1000 uL tips in the PAA Carousel (hotel no. 1).)
+//Set(tips1000Index, 3)
+//UserPrompt(Tips, {msg1}, {lmsfImageDirectory}\Tip Hotel 1.png)
+Set(msg1, Make sure there is at least one new rack of 1000 uL tips in the PAA Carousel (hotel no. 1).)
+Set(tips1000Index, 1)
+UserPrompt(Tips, {msg1}, {lmsfImageDirectory}\Tip Hotel 1.png)
+
+//Set(msg1, Make sure there are at least four new racks of 300 uL tips in the PAA Carousel (hotel no. 2).)
+//Set(tips300Index, 4)
+//UserPrompt(Tips, {msg1}, {lmsfImageDirectory}\Tip Hotel 2.png)
+Set(msg1, Make sure there are at least eight new racks of 300 uL tips in the PAA Carousel (hotel no. 2).)
+Set(tips300Index, 8)
+UserPrompt(Tips, {msg1}, {lmsfImageDirectory}\Tip Hotel 2.png)
+
+//this experiment does not use 50 uL tips
+Set(tips50Index, 0)
+
+Set(cultureVolume, 500)
+
+//Get(antibiotic, antibiotic, Select the antibiotic used in the buffer for the cytometry plates (antibiotic added to buffer to stop transcription and growth for cytometry measurement): )
+//Get(concentration, bufferAntibiotic, Enter the concentration of the {antibiotic} in the buffer:)
+
+
+//Set(msg1, Make sure there are at least 5 mL of inducer 1 starting stock inducer 1 in column 1 of the reagent plate, )
+//Set(msg2, and at least 5 mL of inducer 2 starting stock in column 2 of the reagent plate.)
+//Set(msg3, Make sure there is at least 15 mL of focusing fluid in column 4 of the reagent plate.)
+//Set(msg4, Make sure there is at least 35 mL of PBS in column 5 of the reagent plate.)
+//Set(msg5, and at least 35 mL of PBS in column 6 of the reagent plate.)
+//Set(msg6, Insert bacteria stocks into positions 23 and 24 of the right tube rack (in 14 mL cuture tubes).)
+//Set(msg7, Set up the STAR deck as shown, then click 'OK' to continue.)
+//UserPrompt(Deck Layout, {msg1}\n{msg2}\n{msg3}\n{msg4}\n{msg5}\n{msg6}\n{msg7}, {protocolDir}\Full Deck Layout.PNG, 1000)
+
+Set(msg6, Insert bacteria stock into positions 24 of the right tube rack (in 14 mL cuture tubes).)
+Set(msg7, Set up the STAR deck as shown, then click 'OK' to continue.)
+UserPrompt(Deck Layout, {msg1}\n{msg2}\n{msg3}\n{msg4}\n{msg5}\n{msg6}\n{msg7}, {protocolDir}\Full Deck Layout.PNG, 1000)
+
+Set(msg0, Make sure that the Hamilton Run Control program on the STAR computer is NOT in simulation mode.\n)
+Set(msg1, Close the front cover on the STAR.\n)
+Set(msg2, Ensure that the Robot arm is in a safe position and that the Guard Override key is in the 'Off' position.\n)
+Set(msg3, Check that all the doors of the S-Cell system are closed.\n)
+Set(msg4, Then clisk 'OK' to start the protocol.\n)
+UserPrompt(Ready to Start, {msg0}{msg1}{msg2}{msg3}{msg4}, {lmsfImageDirectory}\dialog-warning.png)
+
+//Lid movement test
+UserPrompt(Lid Movement Test, Switch to the STAR computer and observe the lid movement test.)
+RemoteHam(S-Cell-STAR, RunMethod, {hamiltonMethodDir}\Pre-run lid test_Vnatriegens.hsl)
+Timer(70)
+WaitFor(Timer)
+WaitFor(S-Cell-STAR)
+UserPrompt(Lid Movement Test, If the STAR sucessfully moved the lids click 'OK' to start the protocol.)
+// end lid movement test
+
+
+WaitFor(Overlord)
+//End tip check and Overlord initialization section
+//////////////////////////////////////////////////////////////////////////////////////
+
+//-- 0 -------------------------------------------------------------------------------
+//Set(gradPlateNumber, 0)
+Set(growthPlatesInStack, 4)
+//Set(cytometryPlatesInStack, 4)
+
+//Test readers
+Gen5({reader1}, CarrierOut)
+Gen5({reader2}, CarrierOut)
+Gen5({reader3}, CarrierOut)
+Gen5({reader4}, CarrierOut)
+WaitFor({reader1}, false)
+WaitFor({reader2}, false)
+WaitFor({reader3}, false)
+WaitFor({reader4}, false)
+Set(msg, Readers {reader1}, {reader2}, {reader3}, and {reader4} should have their carriers out. \nVerify that the carriers are out and empty, then Click 'OK' to continue.)
+UserPrompt(Check Readers, {msg})
+Gen5({reader1}, RunExp, {initProtocol}, pre-run-test, C:\Users\Public\Documents\Experiments)
+Gen5({reader2}, RunExp, {initProtocol}, pre-run-test, C:\Users\Public\Documents\Experiments)
+Gen5({reader3}, RunExp, {initProtocol}, pre-run-test, C:\Users\Public\Documents\Experiments)
+Gen5({reader4}, RunExp, {initProtocol}, pre-run-test, C:\Users\Public\Documents\Experiments)
+
+
+//Growth Plates
+
+//-- GP 1 -------------------------------------------------------------------------------
+GetTimeNow(startLastPlate)
+
+ReadScript(C:\Users\PAA\Documents\LMSF Scheduler\GSF-IMS Project\E. coli\Integrated Inducer Gradient and Cytometry\Inducer gradient.two strains-two gradients.1000x bacteria.lmsf, thisReader={reader1}, gradPlateNumber=1, isUser=true)
+
+Set(startReader1, {startThisReader})
+Set(directory1, {dataDirectory})
+
+//-- GP 2 -------------------------------------------------------------------------------
+ReadScript(C:\Users\PAA\Documents\LMSF Scheduler\GSF-IMS Project\E. coli\Integrated Inducer Gradient and Cytometry\Inducer gradient.two strains-two gradients.1000x bacteria.lmsf, thisReader={reader2}, gradPlateNumber=2, waitTime={spacingTime})
+
+Set(startReader2, {startThisReader})
+Set(directory2, {dataDirectory})
+
+//-- GP 3 -------------------------------------------------------------------------------
+ReadScript(C:\Users\PAA\Documents\LMSF Scheduler\GSF-IMS Project\E. coli\Integrated Inducer Gradient and Cytometry\Inducer gradient.two strains-two gradients.1000x bacteria.lmsf, thisReader={reader3}, gradPlateNumber=3, waitTime={spacingTime})
+
+Set(startReader3, {startThisReader})
+Set(directory3, {dataDirectory})
+
+//-- GP 4 -------------------------------------------------------------------------------
+ReadScript(C:\Users\PAA\Documents\LMSF Scheduler\GSF-IMS Project\E. coli\Integrated Inducer Gradient and Cytometry\Inducer gradient.two strains-two gradients.1000x bacteria.lmsf, thisReader={reader4}, gradPlateNumber=4, waitTime={spacingTime})
+
+Set(startReader4, {startThisReader})
+Set(directory4, {dataDirectory})
+
+
+//Cytometry Plates
+
+//-- CP 1 -------------------------------------------------------------------------------
+//ReadScript(C:\Users\PAA\Documents\LMSF Scheduler\GSF-IMS Project\E. coli\Integrated Inducer Gradient and Cytometry\Prep cytometer plate from Inducer gradient plate.lmsf, defaultDirectory={directory1}, thisReader={reader1}, readStarted={startReader1}, gradPlateNumber=1)
+
+//-- CP 2 -------------------------------------------------------------------------------
+//ReadScript(C:\Users\PAA\Documents\LMSF Scheduler\GSF-IMS Project\E. coli\Integrated Inducer Gradient and Cytometry\Prep cytometer plate from Inducer gradient plate.lmsf, defaultDirectory={directory2}, thisReader={reader2}, readStarted={startReader2}, gradPlateNumber=2)
+
+//-- CP 3 -------------------------------------------------------------------------------
+//ReadScript(C:\Users\PAA\Documents\LMSF Scheduler\GSF-IMS Project\E. coli\Integrated Inducer Gradient and Cytometry\Prep cytometer plate from Inducer gradient plate.lmsf, defaultDirectory={directory3}, thisReader={reader3}, readStarted={startReader3}, gradPlateNumber=3)
+
+//-- CP 4 -------------------------------------------------------------------------------
+//ReadScript(C:\Users\PAA\Documents\LMSF Scheduler\GSF-IMS Project\E. coli\Integrated Inducer Gradient and Cytometry\Prep cytometer plate from Inducer gradient plate.lmsf, defaultDirectory={directory4}, thisReader={reader4}, readStarted={startReader4}, gradPlateNumber=4)
+

@@ -1,0 +1,2605 @@
+#ifndef __HamiltonHeaterCooler__
+  #define __HamiltonHeaterCooler__ 1
+
+  #ifndef __HAMILTON_HEATERCOOLER_DRIVER_DEPENDENCIES_hsl__
+    #include "Dependencies\\Dependencies.hsl"
+  #endif
+
+namespace HamiltonHeaterCooler
+{
+    // --------------------------------------------------------------------------------------
+    // public constant declarations
+    // --------------------------------------------------------------------------------------
+    const variable _TRUE(HAMILTON_HEATERCOOLER_DEPENDENCIES::BOOL::TRUE);
+    const variable _FALSE(HAMILTON_HEATERCOOLER_DEPENDENCIES::BOOL::FALSE);
+
+    const variable SUCCESS(0);
+    const variable ERROR(1);
+	
+    const variable TRACE_LEVEL_RELEASE(HAMILTON_HEATERCOOLER_DEPENDENCIES::TRACE_LEVEL::RELEASE);
+    const variable TRACE_LEVEL_DEBUG(HAMILTON_HEATERCOOLER_DEPENDENCIES::TRACE_LEVEL::DEBUG);
+
+    // --------------------------------------------------------------------------------------
+    // private constant declarations
+    // --------------------------------------------------------------------------------------
+    private const variable INVALID_PARAM_TYPE_RET_CODE(1);
+    private const variable EXTRACT_FUNC_NAME_FAIL_RET_CODE(1);
+    private const variable INIT_LIBRARY_FAIL_RET_CODE(1);
+    private const variable CREATE_OBJECT_FAIL_RET_CODE(1);
+    private const variable DLL_ERROR_RET_CODE(1);
+
+    // --------------------------------------------------------------------------------------
+    // global constant/variable declarations
+    // --------------------------------------------------------------------------------------
+    static global variable  gHamiltonHeaterCooler_blnInitialized               (_FALSE);
+    static global variable  gHamiltonHeaterCooler_intTraceLevel                (TRACE_LEVEL_DEBUG);
+    static global variable  gHamiltonHeaterCooler_strModuleName                ("Hamilton HEATERCOOLER");
+    static global variable  gHamiltonHeaterCooler_bOverrideSimulation          (_FALSE);
+    static global variable  gHamiltonHeaterCooler_bSimulated                   (_FALSE);
+    static global object    gHamiltonHeaterCooler_hdlCommunication;
+
+    static global variable gHamiltonHeaterCooler_intLastReturnCode             (0);
+
+
+    // --------------------------------------------------------------------------------------
+    // public function declarations
+    // --------------------------------------------------------------------------------------
+
+    function Connect(variable i_stringAddress, variable i_intKeepAlive, variable& o_intDaisyChainID, variable& o_arraySerialNumbers[]) variable;
+
+    function ConnectWithShakers(variable i_stringAddress, variable i_intKeepAlive, variable& o_intDaisyChainID, variable& o_arrayHhcSerialNumbers[], variable& o_arrayHhsSerialNumbers[]) variable;
+
+    function Disconnect(variable i_intChainID) variable;
+
+    function GetVerificationDate(variable i_stringSerialNumber, variable& o_stringCalibrationDate) variable;
+
+    function SetVerificationDate(variable i_stringSerialNumber, variable i_stringCalibrationData) variable;
+
+    function GetFirmware(variable i_stringSerialNumber, variable& o_stringFirmware) variable;
+
+    function GetTempTimeRemaining(variable i_stringSerialNumber, variable& o_stringTimeRemaining) variable;
+
+    function GetTemperature(variable i_stringSerialNumber, variable& o_floatTemperature) variable;
+
+    function SetTempForTime(variable i_stringSerialNumber, variable i_floatMinTemperature, variable i_floatMaxTemperature, variable i_floatTargetTemperature, variable i_floatMinutesToHeatFor) variable;
+
+    function Identify(variable i_stringSerialNumber) variable;
+
+    function SetDisplayBrightness(variable i_stringSerialNumber, variable i_intPercentage) variable;
+
+    function SetTemperature(variable i_stringSerialNumber, variable i_floatMinTemperature, variable i_floatMaxTemperature, variable i_floatTargetTemperature, variable i_boolWaitToComplete, variable i_intWaitTimeout) variable;
+
+    function StopTemperatureControl(variable i_stringSerialNumber) variable;
+
+    function TurnOnOffDisplay(variable i_stringSerialNumber, variable i_boolOnOrOffFlag) variable;
+
+    function WaitForTempComplete(variable i_stringSerialNumber, variable i_floatWaitTimeout) variable;
+
+    function GetSelfDiagnostic(variable i_stringSerialNumber, variable& o_intToggle) variable;
+
+    function SetSelfDiagnostic(variable i_stringSerialNumber, variable i_intToggle) variable;
+
+    function StartShaker(variable i_stringSerialNumber, variable i_intShakeSpeed) variable;
+
+    function StopShaker(variable i_stringSerialNumber) variable;
+
+    function StartShakerTimed(variable i_stringSerialNumber, variable i_intShakeSpeed, variable i_floatShakeTime) variable;
+
+    function WaitForShaker(variable i_stringSerialNumber, variable i_floatWaitTimeout) variable;
+
+    function SetShakeParameter(variable i_stringSerialNumber, variable i_intShakeDirection, variable i_intShakeRamp) variable;
+
+    function GetShakerSpeed(variable i_stringSerialNumber, variable& o_intShakeSpeed) variable;
+
+    function GetShakeTimeRemaining(variable i_stringSerialNumber, variable& o_stringTimeRemaining) variable;
+
+    function GetPlateLock(variable i_stringSerialNumber, variable& o_intPlateLockPosition) variable;
+
+    function SetPlateLock(variable i_stringSerialNumber, variable i_intPlateLockPosition) variable;
+
+
+    // --------------------------------------------------------------------------------------
+    // HSL public function declarations
+    // --------------------------------------------------------------------------------------  
+
+    function OverrideSimulation(variable i_boolSimulated) variable;
+
+    function SetTraceLevel(variable i_intTraceLevel) variable;
+
+    function EnableExtendedLog() void;
+
+    function GetLastErrorCode() variable;
+
+    // --------------------------------------------------------------------------------------
+    // HSL private function declarations
+    // --------------------------------------------------------------------------------------
+
+    private function SetLastReturnCodeAndReturn(variable i_intReturnCode) variable;
+
+    private function _CleanUp() void;
+
+    private function _InitializeLibrary(variable i_strCallingFunctionName) variable;
+
+    private function _CreateObject(variable i_strCallingFunctionName) variable; 
+
+    //##############################################################################################
+    // CONNECT FUNCTION IMPLEMENTATIONS
+    //##############################################################################################
+
+    //----------------------------------------------------------------------------------------------
+    // Connect
+    //----------------------------------------------------------------------------------------------
+    function Connect(variable i_stringAddress, variable i_intKeepAlive, variable& o_intDaisyChainID, variable& o_arraySerialNumbers[]) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringAddress, "i_stringAddress", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intKeepAlive, "i_intKeepAlive", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringAddress = '" + i_stringAddress + "'" + 
+                                        ", i_intKeepAlive = " + IStr(i_intKeepAlive),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.Connect(i_stringAddress, i_intKeepAlive, o_intDaisyChainID, o_arraySerialNumbers);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+        
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_intDaisyChainID = " + IStr(o_intDaisyChainID),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTraceArray(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        o_arraySerialNumbers,
+                                        "o_arraySerialNumbers",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // Connect
+
+    //----------------------------------------------------------------------------------------------
+    // ConnectWithShakers
+    //----------------------------------------------------------------------------------------------
+    function ConnectWithShakers(variable i_stringAddress, variable i_intKeepAlive, variable& o_intDaisyChainID, variable& o_arrayHhcSerialNumbers[], variable& o_arrayHhsSerialNumbers[]) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringAddress, "i_stringAddress", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intKeepAlive, "i_intKeepAlive", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringAddress = '" + i_stringAddress + "'" + 
+                                        ", i_intKeepAlive = " + IStr(i_intKeepAlive),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.ConnectWithShakers(i_stringAddress, i_intKeepAlive, o_intDaisyChainID, o_arrayHhcSerialNumbers, o_arrayHhsSerialNumbers);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+        
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_intDaisyChainID = " + IStr(o_intDaisyChainID),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTraceArray(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        o_arrayHhcSerialNumbers,
+                                        "o_arrayHhcSerialNumbers",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTraceArray(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        o_arrayHhsSerialNumbers,
+                                        "o_arrayHhsSerialNumbers",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // ConnectWithShakers
+	
+    //##############################################################################################
+    // DEVICE SPECIFIC FUNCTION IMPLEMENTATIONS
+    //##############################################################################################
+
+    //----------------------------------------------------------------------------------------------
+    // Disconnect
+    //----------------------------------------------------------------------------------------------
+    function Disconnect(variable i_intChainID) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intChainID, "i_intChainID", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_intChainID = " + IStr(i_intChainID),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.Disconnect(i_intChainID);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // Disconnect
+
+    //----------------------------------------------------------------------------------------------
+    // GetVerificationDate
+    //----------------------------------------------------------------------------------------------
+    function GetVerificationDate(variable i_stringSerialNumber, variable& o_stringCalibrationDate) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.GetVerificationDate(i_stringSerialNumber, o_stringCalibrationDate);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_stringCalibrationDate = '" + o_stringCalibrationDate + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // GetVerificationDate
+
+    //----------------------------------------------------------------------------------------------
+    // SetVerificationDate
+    //----------------------------------------------------------------------------------------------
+    function SetVerificationDate(variable i_stringSerialNumber, variable i_stringCalibrationData) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringCalibrationData, "i_stringCalibrationData", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_stringCalibrationData = '" + i_stringCalibrationData + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.SetVerificationDate(i_stringSerialNumber, i_stringCalibrationData);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // SetVerificationDate
+
+    //----------------------------------------------------------------------------------------------
+    // GetFirmware
+    //----------------------------------------------------------------------------------------------
+    function GetFirmware(variable i_stringSerialNumber, variable& o_stringFirmware) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.GetFirmware(i_stringSerialNumber, o_stringFirmware);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_stringFirmware = '" + o_stringFirmware + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // GetFirmware
+
+    //----------------------------------------------------------------------------------------------
+    // GetTempTimeRemaining
+    //----------------------------------------------------------------------------------------------
+    function GetTempTimeRemaining(variable i_stringSerialNumber, variable& o_stringTimeRemaining) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.GetTempTimeRemaining(i_stringSerialNumber, o_stringTimeRemaining);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_stringTimeRemaining = '" + o_stringTimeRemaining + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // GetTempTimeRemaining
+
+    //----------------------------------------------------------------------------------------------
+    // GetTemperature
+    //----------------------------------------------------------------------------------------------
+    function GetTemperature(variable i_stringSerialNumber, variable& o_floatTemperature) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.GetTemperature(i_stringSerialNumber, o_floatTemperature);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_floatTemperature = " + FStr(o_floatTemperature),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // GetTemperature
+
+    //----------------------------------------------------------------------------------------------
+    // SetTempForTime
+    //----------------------------------------------------------------------------------------------
+    function SetTempForTime(variable i_stringSerialNumber, variable i_floatMinTemperature, variable i_floatMaxTemperature, variable i_floatTargetTemperature, variable i_floatMinutesToHeatFor) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckFloat(i_floatMinTemperature, "i_floatMinTemperature", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckFloat(i_floatMaxTemperature, "i_floatMaxTemperature", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckFloat(i_floatTargetTemperature, "i_floatTargetTemperature", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckFloat(i_floatMinutesToHeatFor, "i_floatMinutesToHeatFor", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_floatMinTemperature = " + FStr(i_floatMinTemperature) + 
+                                        ", i_floatMaxTemperature = " + FStr(i_floatMaxTemperature) + 
+                                        ", i_floatTargetTemperature = " + FStr(i_floatTargetTemperature) + 
+                                        ", i_floatMinutesToHeatFor = " + FStr(i_floatMinutesToHeatFor),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.SetTempForTime(i_stringSerialNumber, i_floatMinTemperature, i_floatMaxTemperature, i_floatTargetTemperature, i_floatMinutesToHeatFor);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // SetTempForTime
+
+    //----------------------------------------------------------------------------------------------
+    // Identify
+    //----------------------------------------------------------------------------------------------
+    function Identify(variable i_stringSerialNumber) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.Identify(i_stringSerialNumber);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // Identify
+
+    //----------------------------------------------------------------------------------------------
+    // SetDisplayBrightness
+    //----------------------------------------------------------------------------------------------
+    function SetDisplayBrightness(variable i_stringSerialNumber, variable i_intPercentage) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intPercentage, "i_intPercentage", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_intPercentage = " + IStr(i_intPercentage),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.SetDisplayBrightness(i_stringSerialNumber, i_intPercentage);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // SetDisplayBrightness
+
+    //----------------------------------------------------------------------------------------------
+    // SetTemperature
+    //----------------------------------------------------------------------------------------------
+    function SetTemperature(variable i_stringSerialNumber, variable i_floatMinTemperature, variable i_floatMaxTemperature, variable i_floatTargetTemperature, variable i_boolWaitToComplete, variable i_intWaitTimeout) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckFloat(i_floatMinTemperature, "i_floatMinTemperature", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckFloat(i_floatMaxTemperature, "i_floatMaxTemperature", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckFloat(i_floatTargetTemperature, "i_floatTargetTemperature", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckBool(i_boolWaitToComplete, "i_boolWaitToComplete", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intWaitTimeout, "i_intWaitTimeout", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_floatMinTemperature = " + FStr(i_floatMinTemperature) + 
+                                        ", i_floatMaxTemperature = " + FStr(i_floatMaxTemperature) + 
+                                        ", i_floatTargetTemperature = " + FStr(i_floatTargetTemperature) + 
+                                        ", i_boolWaitToComplete = " + IStr(i_boolWaitToComplete) + 
+                                        ", i_intWaitTimeout = " + IStr(i_intWaitTimeout),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.SetTemperature(i_stringSerialNumber, i_floatMinTemperature, i_floatMaxTemperature, i_floatTargetTemperature, i_boolWaitToComplete, i_intWaitTimeout);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // SetTemperature
+
+    //----------------------------------------------------------------------------------------------
+    // StopTemperatureControl
+    //----------------------------------------------------------------------------------------------
+    function StopTemperatureControl(variable i_stringSerialNumber) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.StopTemperatureControl(i_stringSerialNumber);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // StopTemperatureControl
+
+    //----------------------------------------------------------------------------------------------
+    // TurnOnOffDisplay
+    //----------------------------------------------------------------------------------------------
+    function TurnOnOffDisplay(variable i_stringSerialNumber, variable i_boolOnOrOffFlag) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckBool(i_boolOnOrOffFlag, "i_boolOnOrOffFlag", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_boolOnOrOffFlag = " + IStr(i_boolOnOrOffFlag),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.TurnOnOffDisplay(i_stringSerialNumber, i_boolOnOrOffFlag);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // TurnOnOffDisplay
+
+    //----------------------------------------------------------------------------------------------
+    // WaitForTempComplete
+    //----------------------------------------------------------------------------------------------
+    function WaitForTempComplete(variable i_stringSerialNumber, variable i_floatWaitTimeout) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckFloat(i_floatWaitTimeout, "i_floatWaitTimeout", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_floatWaitTimeout = " + FStr(i_floatWaitTimeout),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.WaitForTempComplete(i_stringSerialNumber, i_floatWaitTimeout);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // WaitForTempComplete
+
+    //----------------------------------------------------------------------------------------------
+    // GetSelfDiagnostic
+    //----------------------------------------------------------------------------------------------
+    function GetSelfDiagnostic(variable i_stringSerialNumber, variable& o_intToggle) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.GetSelfDiagnostic(i_stringSerialNumber, o_intToggle);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_intToggle = " + IStr(o_intToggle),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // GetSelfDiagnostic
+
+    //----------------------------------------------------------------------------------------------
+    // SetSelfDiagnostic
+    //----------------------------------------------------------------------------------------------
+    function SetSelfDiagnostic(variable i_stringSerialNumber, variable i_intToggle) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intToggle, "i_intToggle", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_intToggle = " + IStr(i_intToggle),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.SetSelfDiagnostic(i_stringSerialNumber, i_intToggle);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // SetSelfDiagnostic
+
+    //----------------------------------------------------------------------------------------------
+    // StartShaker
+    //----------------------------------------------------------------------------------------------
+    function StartShaker(variable i_stringSerialNumber, variable i_intShakeSpeed) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intShakeSpeed, "i_intShakeSpeed", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_intShakeSpeed = " + IStr(i_intShakeSpeed),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.StartShaker(i_stringSerialNumber, i_intShakeSpeed);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // StartShaker
+
+    //----------------------------------------------------------------------------------------------
+    // StopShaker
+    //----------------------------------------------------------------------------------------------
+    function StopShaker(variable i_stringSerialNumber) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.StopShaker(i_stringSerialNumber);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // StopShaker
+
+    //----------------------------------------------------------------------------------------------
+    // StartShakerTimed
+    //----------------------------------------------------------------------------------------------
+    function StartShakerTimed(variable i_stringSerialNumber, variable i_intShakeSpeed, variable i_floatShakeTime) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intShakeSpeed, "i_intShakeSpeed", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckFloat(i_floatShakeTime, "i_floatShakeTime", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_intShakeSpeed = " + IStr(i_intShakeSpeed) + 
+                                        ", i_floatShakeTime = " + FStr(i_floatShakeTime),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.StartShakerTimed(i_stringSerialNumber, i_intShakeSpeed, i_floatShakeTime);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // StartShakerTimed
+
+    //----------------------------------------------------------------------------------------------
+    // WaitForShaker
+    //----------------------------------------------------------------------------------------------
+    function WaitForShaker(variable i_stringSerialNumber, variable i_floatWaitTimeout) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckFloat(i_floatWaitTimeout, "i_floatWaitTimeout", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_floatWaitTimeout = " + FStr(i_floatWaitTimeout),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.WaitForShaker(i_stringSerialNumber, i_floatWaitTimeout);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // WaitForShaker
+
+    //----------------------------------------------------------------------------------------------
+    // SetShakeParameter
+    //----------------------------------------------------------------------------------------------
+    function SetShakeParameter(variable i_stringSerialNumber, variable i_intShakeDirection, variable i_intShakeRamp) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intShakeDirection, "i_intShakeDirection", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intShakeRamp, "i_intShakeRamp", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_intShakeDirection = " + IStr(i_intShakeDirection) + 
+                                        ", i_intShakeRamp = " + IStr(i_intShakeRamp),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.SetShakeParameter(i_stringSerialNumber, i_intShakeDirection, i_intShakeRamp);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // SetShakeParameter
+
+    //----------------------------------------------------------------------------------------------
+    // GetShakerSpeed
+    //----------------------------------------------------------------------------------------------
+    function GetShakerSpeed(variable i_stringSerialNumber, variable& o_intShakeSpeed) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.GetShakerSpeed(i_stringSerialNumber, o_intShakeSpeed);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_intShakeSpeed = " + IStr(o_intShakeSpeed),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // GetShakerSpeed
+
+    //----------------------------------------------------------------------------------------------
+    // GetShakeTimeRemaining
+    //----------------------------------------------------------------------------------------------
+    function GetShakeTimeRemaining(variable i_stringSerialNumber, variable& o_stringTimeRemaining) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.GetShakeTimeRemaining(i_stringSerialNumber, o_stringTimeRemaining);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_stringTimeRemaining = '" + o_stringTimeRemaining + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // GetShakeTimeRemaining
+
+    //----------------------------------------------------------------------------------------------
+    // GetPlateLock
+    //----------------------------------------------------------------------------------------------
+    function GetPlateLock(variable i_stringSerialNumber, variable& o_intPlateLockPosition) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.GetPlateLock(i_stringSerialNumber, o_intPlateLockPosition);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "o_intPlateLockPosition = " + IStr(o_intPlateLockPosition),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // GetPlateLock
+
+    //----------------------------------------------------------------------------------------------
+    // SetPlateLock
+    //----------------------------------------------------------------------------------------------
+    function SetPlateLock(variable i_stringSerialNumber, variable i_intPlateLockPosition) variable
+    {
+      variable intReturnCode(0);
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckString(i_stringSerialNumber, "i_stringSerialNumber", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+	   if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intPlateLockPosition, "i_intPlateLockPosition", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_stringSerialNumber = '" + i_stringSerialNumber + "'" + 
+                                        ", i_intPlateLockPosition = " + IStr(i_intPlateLockPosition),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      if(!_InitializeLibrary(strFunctionName)) return(SetLastReturnCodeAndReturn(INIT_LIBRARY_FAIL_RET_CODE));
+
+      if((gHamiltonHeaterCooler_bOverrideSimulation && gHamiltonHeaterCooler_bSimulated) ||
+         (!gHamiltonHeaterCooler_bOverrideSimulation && (GetSimulationMode() == 1)))
+      {
+        return(SUCCESS);
+      }
+      else
+      {
+        onerror goto DLL_ERROR;
+
+        if (gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          if (_CreateObject(strFunctionName) == _FALSE) return(SetLastReturnCodeAndReturn(CREATE_OBJECT_FAIL_RET_CODE));
+        }
+        
+        if (!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+        {
+          intReturnCode = gHamiltonHeaterCooler_hdlCommunication.SetPlateLock(i_stringSerialNumber, i_intPlateLockPosition);
+        }
+
+        gHamiltonHeaterCooler_intLastReturnCode = intReturnCode;
+
+        if(intReturnCode != 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Failed to execute, return code: " + IStr(intReturnCode) + "!",
+                                            strFunctionName,
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+
+          return(gHamiltonHeaterCooler_intLastReturnCode);
+        }
+
+        onerror goto 0;
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+
+      return(SUCCESS);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          strFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        gHamiltonHeaterCooler_intLastReturnCode = DLL_ERROR_RET_CODE;
+
+        return(gHamiltonHeaterCooler_intLastReturnCode);
+      }
+    } // SetPlateLock
+
+    //##############################################################################################
+    // PUBLIC HSL FUNCTION IMPLEMENTATIONS
+    //##############################################################################################
+
+    //----------------------------------------------------------------------------------------------
+    // function OverrideSimulation
+    //----------------------------------------------------------------------------------------------
+    function OverrideSimulation(variable i_boolSimulated) variable
+    {
+      variable strFunctionName("");
+
+      if (HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+      if (HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckBool(i_boolSimulated, "i_boolSimulated", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      gHamiltonHeaterCooler_bOverrideSimulation = _TRUE;
+
+      gHamiltonHeaterCooler_bSimulated = i_boolSimulated;
+
+      return(SUCCESS);
+    } // OverrideSimulation
+
+    //----------------------------------------------------------------------------------------------
+    // function SetTraceLevel
+    //----------------------------------------------------------------------------------------------
+    function SetTraceLevel(variable i_intTraceLevel) variable
+    {
+      variable strFunctionName("");
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(EXTRACT_FUNC_NAME_FAIL_RET_CODE));
+
+      if(HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckIntegerRange(i_intTraceLevel,
+                                                 "i_intTraceLevel",
+                                                 TRACE_LEVEL_RELEASE,
+                                                 TRACE_LEVEL_DEBUG,
+                                                 strFunctionName,
+                                                 gHamiltonHeaterCooler_strModuleName) == _FALSE) return(SetLastReturnCodeAndReturn(INVALID_PARAM_TYPE_RET_CODE));
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::START,
+                                        TRACE_LEVEL_DEBUG,
+                                        "i_intTraceLevel = " + IStr(i_intTraceLevel),
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      gHamiltonHeaterCooler_intTraceLevel = i_intTraceLevel;
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_DEBUG,
+                                        "",
+                                        strFunctionName,
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+
+      return(SUCCESS);
+    } // SetTraceLevel
+
+    //----------------------------------------------------------------------------------------------
+    // public function GetLastErrorCode
+    //----------------------------------------------------------------------------------------------
+    function GetLastErrorCode() variable
+    {
+      return(gHamiltonHeaterCooler_intLastReturnCode);
+    } // GetLastErrorCode
+
+
+    //##############################################################################################
+    // PRIVATE HSL FUNCTION IMPLEMENTATIONS
+    //##############################################################################################
+
+	//----------------------------------------------------------------------------------------------
+    // private function TraceEvent, subscribes the trace to the COM objects trace event.
+    //----------------------------------------------------------------------------------------------
+    global private function gHamiltonHeaterCooler_hdlCommunication_TraceEvent(variable message, variable traceLevel) void
+    {
+	  HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::PROGRESS,
+                                        traceLevel,
+                                        message,
+                                        "COM Interop",
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+    } // gHamiltonHeaterCooler_hdlCommunication_TraceEvent
+
+	//----------------------------------------------------------------------------------------------
+    // private function SetLastReturnCodeAndReturn
+    //----------------------------------------------------------------------------------------------
+    private function SetLastReturnCodeAndReturn(variable i_intReturnCode) variable
+    {
+	  variable strFunctionName("");
+	  
+	  if(HAMILTON_HEATERCOOLER_DEPENDENCIES::ExtractFunctionName(GetFunctionName(),
+                                                   strFunctionName,
+                                                   gHamiltonHeaterCooler_strModuleName) == _FALSE)
+      {
+        gHamiltonHeaterCooler_intLastReturnCode = EXTRACT_FUNC_NAME_FAIL_RET_CODE;
+      }
+	  else if (HAMILTON_HEATERCOOLER_DEPENDENCIES::CheckInteger(i_intReturnCode, "i_intReturnCode", strFunctionName, gHamiltonHeaterCooler_strModuleName) == _FALSE)
+      {
+        gHamiltonHeaterCooler_intLastReturnCode = INVALID_PARAM_TYPE_RET_CODE;
+      }
+      else
+      {
+        gHamiltonHeaterCooler_intLastReturnCode = i_intReturnCode;
+      }
+
+      return(gHamiltonHeaterCooler_intLastReturnCode);
+    }
+
+    //----------------------------------------------------------------------------------------------
+    // private function _InitializeLibrary
+    //----------------------------------------------------------------------------------------------
+    private function _InitializeLibrary(variable i_strCallingFunctionName) variable
+    {
+      if(gHamiltonHeaterCooler_blnInitialized) return(_TRUE);
+
+      RegisterAbortHandler("_CleanUp");
+
+      gHamiltonHeaterCooler_blnInitialized = _TRUE;
+
+      return(_TRUE);
+    } // _InitializeLibrary
+
+    //----------------------------------------------------------------------------------------------
+    // private function _CreateObject
+    //----------------------------------------------------------------------------------------------
+    private function _CreateObject(variable i_strCallingFunctionName) variable
+    {
+      onerror goto DLL_ERROR;
+      
+      if(gHamiltonHeaterCooler_hdlCommunication.CreateObject("HamiltonHeaterCoolerCOM.HamiltonHeaterCoolerHSLCOM", _TRUE) == 0)
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unable to create object!",
+                                          i_strCallingFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+        return(_FALSE);
+      }
+
+      onerror goto 0;
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::PROGRESS,
+                                          TRACE_LEVEL_DEBUG,
+                                          "Object created",
+                                          i_strCallingFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+
+      return(_TRUE);
+
+      DLL_ERROR:
+      {
+        HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                          TRACE_LEVEL_RELEASE,
+                                          "Unhandled exception in dll or dll missing!",
+                                          i_strCallingFunctionName,
+                                          gHamiltonHeaterCooler_intTraceLevel,
+                                          gHamiltonHeaterCooler_strModuleName);
+        return(_FALSE);
+      }
+    } // _CreateObject
+
+    //----------------------------------------------------------------------------------------------
+    // private function _CleanUp
+    //----------------------------------------------------------------------------------------------
+    private function _CleanUp() void
+    {
+      if(!gHamiltonHeaterCooler_hdlCommunication.IsNull())
+      {
+        gHamiltonHeaterCooler_hdlCommunication.Abort();
+
+        if(gHamiltonHeaterCooler_hdlCommunication.ReleaseObject() == 0)
+        {
+          HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE_WITH_ERROR,
+                                            TRACE_LEVEL_RELEASE,
+                                            "Unable to release object!",
+                                            "_CleanUp (OnAbort)",
+                                            gHamiltonHeaterCooler_intTraceLevel,
+                                            gHamiltonHeaterCooler_strModuleName);
+        }
+      }
+
+      HAMILTON_HEATERCOOLER_DEPENDENCIES::StatusTrace(HAMILTON_HEATERCOOLER_DEPENDENCIES::ACTION::COMPLETE,
+                                        TRACE_LEVEL_RELEASE,
+                                        "",
+                                        "_CleanUp (OnAbort)",
+                                        gHamiltonHeaterCooler_intTraceLevel,
+                                        gHamiltonHeaterCooler_strModuleName);
+    }
+}  // HamiltonHeaterCooler 
+#endif
+// $$author=Williams_R2$$valid=0$$time=2020-07-22 09:54$$checksum=256b33f3$$length=088$$

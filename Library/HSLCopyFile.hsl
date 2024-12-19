@@ -1,0 +1,80 @@
+//************************************************************************
+// HSL Library for Utility functions
+// 
+// by Tracey Macias
+//
+#ifndef _HSL_CopyFile_hsl_
+#define _HSL_CopyFile_hsl_ 1
+
+
+// Note. to enable low level steps for a particular instrument/device that is installed
+// on your computer add a device statement - this is only used during library development
+// and is commented out in the final version of the library
+//device ML_STAR;
+
+// the following section should declare your (public) methods 
+// these are the methods the user will have access to via the Method Editor
+//
+#ifndef HSL_RUNTIME
+namespace CopyFile
+{
+	function CreateDirectory(variable path) variable { return(0); }
+	function CopyFile(variable& fromPath, variable& toPath) variable { return(0); }
+}
+#endif
+
+
+
+// the following section is the runtime implementation of your library
+// this section includes the public and any private methods, variables etc.
+//
+#ifdef HSL_RUNTIME
+
+#include "HSLStrLib.hsl"
+#include "HSLDevLib.hsl"
+#include "HSLMthLib.hsl"
+
+namespace CopyFile
+{
+
+// public functions
+//	
+
+	// Scripting FileSystemObject
+	//
+	function CreateDirectory(variable path)
+	{
+		variable retVal(0);
+		object fso;
+
+		fso.CreateObject("Scripting.FileSystemObject");
+
+      if (!fso.FolderExists(path))
+      {
+          fso.CreateFolder(path);
+      }
+
+		if (fso.FolderExists(path))
+			retVal = 1;	// created!
+
+		return(retVal);
+	}
+
+	function CopyFile(variable& fromPath, variable& toPath)
+	{
+		variable retVal(0);
+		object fso;
+
+		Trace("Copying file ", fromPath, " to ", toPath);
+
+		fso.CreateObject("Scripting.FileSystemObject");
+		fso.CopyFile(fromPath, toPath, hslTrue);
+		return (1);
+	}
+
+
+} 	// end namespace CopyFile
+
+#endif	// HSL_RUNTIME
+#endif	// _HSL_CopyFile_hsl_
+// $$author=griffin_s$$valid=0$$time=2007-03-26 14:11$$checksum=179e33ac$$length=088$$

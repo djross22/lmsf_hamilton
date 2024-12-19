@@ -1,0 +1,639 @@
+// {{{ 2 "IncludeGuard" "PragmaOnce"
+#pragma once
+// }} ""
+#include "STAR Tools\\STAR Tip Tools.hs_"
+#include "..\\HSLTrcLib.hsl"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+#include "HSLMETEDLib.hs_"
+#include "HSLMECCLib.hs_"
+#include "HSLPTLLib.hsl"
+// }} ""
+// {{{ 2 "LibraryNamespace" "Begin"
+namespace GSF_IMS_SHARED_SUBMETHODS {
+// }} ""
+variable channel_pattern;
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{{ 2 "SubmethodForwardDeclaration" ""
+function add_reagent_replace_tips( sequence & asp_seq, sequence & disp_seq, variable p_vol, variable mix_cycles, variable mix_volume, sequence & tips, variable number_channels, device & STAR ) void ;
+function add_reagent_reuse_tips( sequence & asp_seq, sequence & disp_seq, variable p_vol, variable pre_wet_tips, sequence & tips, variable number_channels, device & STAR ) void ;
+function aspirate_w_err_handling( sequence & asp_seq, variable asp_seq_counting, variable & p_vol_arr[], sequence tips, variable number_channels, device & STAR ) void ;
+function dispense_w_err_handling( sequence & disp_seq, variable disp_seq_counting, variable disp_to_liquid, variable & p_vol_arr[], variable mix_cycles, variable mix_volume, variable number_channels, device & STAR ) void ;
+function pipette_cells_from_tubes( sequence & asp_seq, sequence & disp_seq, variable p_vol, variable mix_cycles, variable mix_volume, sequence & tips, variable number_channels, device & STAR ) void ;
+function pipette_dil_series( sequence & from_seq, sequence & to_seq, variable p_vol, variable mix_cycles, variable mix_volume, sequence & tips, variable number_channels, device & STAR ) void ;
+function pipette_inducer_delete( sequence & asp_seq, sequence & disp_seq, variable p_vol, sequence & tips, variable number_channels, device & STAR ) void ;
+function pipette_media( sequence & asp_seq, sequence & disp_seq, variable p_vol, variable pre_wet_tips, sequence & tips, variable number_channels, device & STAR ) void ;
+function pipette_selector_delete( sequence & asp_seq, sequence & disp_seq, variable p_vol, variable pre_wet_tips, sequence & tips, variable number_channels, device & STAR ) void ;
+private function set_channel_pattern( variable number_channels ) void ;
+function simple_aspirate( sequence & asp_seq, variable asp_seq_counting, variable p_vol, sequence tips, variable number_channels, device & STAR ) void ;
+function simple_dispense( sequence & disp_seq, variable disp_seq_counting, variable disp_to_liquid, variable p_vol, variable mix_cycles, variable mix_volume, variable number_channels, device & STAR ) void ;
+function tip_eject( variable number_channels, device & STAR ) void ;
+function tip_pickup( sequence & tips, variable number_channels, device & STAR ) void ;
+// }} ""
+function _InitLibrary() {
+// {{ 2 "AutoInitBlock" ""
+PTL::SetWashingStateDefault("RinseTime1", 5);
+PTL::SetWashingStateDefault("SoakTime1", 5);
+PTL::SetWashingStateDefault("FlowRate1", 11);
+PTL::SetWashingStateDefault("RinseTime2", 0);
+PTL::SetWashingStateDefault("SoakTime2", 0);
+PTL::SetWashingStateDefault("FlowRate2", 11);
+PTL::SetWashingStateDefault("DrainingTime", 10);
+PTL::SetWashingStateDefault("StartWashLiquid", 0);
+PTL::SetLoadingStateDefault("RecoveryOptionContinue", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionExclude", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionDefault", 0);
+PTL::SetLoadingStateDefault("KitLotCheckEnabled", hslFalse);
+STAR_TIP_TOOLS::_InitLibrary();
+// }} ""
+}
+function _ExitLibrary() {
+// {{ 2 "AutoExitBlock" ""
+STAR_TIP_TOOLS::_ExitLibrary();
+// }} ""
+}
+// {{{ 5 "pipette_media" "Begin"
+function pipette_media( sequence & asp_seq, sequence & disp_seq, variable p_vol, variable pre_wet_tips, sequence & tips, variable number_channels, device & STAR ) void {
+// }} ""
+private variable pipette_loop;
+// {{ 5 "pipette_media" "InitLocals"
+// }} ""
+// {{ 66 1 0 "2cc44b74_2bfb_4cbb_bae8c2e1b3422e2d" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** start pipette_media shared sub-method ****"));
+// }} ""
+// {{{ 67 1 0 "021297fc_6e2e_46ee_b471c3163e76c678" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace(Translate("p_vol: "), p_vol);
+// }} ""
+// {{ 68 1 0 "3fae873b_dd26_475c_ae04e4c53d081ead" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 69 1 0 "2b2efdd0_9d75_41d5_a9ee8027c4676620" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (pre_wet_tips == 1)
+{
+// }} ""
+// {{{ 70 1 0 "fe9ca302_b005_4771_8e3a236a60f66f16" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+simple_aspirate(asp_seq, 0, p_vol, tips, number_channels, STAR);
+// }} ""
+// {{{ 71 1 0 "d7e7b647_caeb_43bb_89b563ce3e5a88a3" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+simple_dispense(asp_seq, 0, 1, p_vol, 0, 0, number_channels, STAR);
+// }} ""
+// {{ 72 1 0 "2b2efdd0_9d75_41d5_a9ee8027c4676620" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 73 1 0 "782e7cba_7e60_4751_89e305dc060a524f" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+pipette_loop = 0;
+disp_seq.SetCurrentPosition(1);
+while (
+   (disp_seq.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, disp_seq, 1);
+pipette_loop = pipette_loop + 1;
+// }} ""
+// {{{ 74 1 0 "42c34d53_35ef_4ca2_a2f5da2701280ce9" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+simple_aspirate(asp_seq, 0, p_vol, tips, number_channels, STAR);
+// }} ""
+// {{{ 75 1 0 "f3772016_d849_4c08_a99a440ebbdf9273" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+simple_dispense(disp_seq, 1, 0, p_vol, 0, 0, number_channels, STAR);
+// }} ""
+// {{ 76 1 0 "782e7cba_7e60_4751_89e305dc060a524f" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (disp_seq.GetCurrentPosition() > 0 && disp_seq.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+disp_seq.SetMax(disp_seq.GetTotal());
+disp_seq.SetCurrentPosition(1);
+}
+// }} ""
+// {{ 77 1 0 "965c7df3_0f81_4eb5_a0b3c6059afee706" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** end pipette_media shard sub-method ****"));
+// }} ""
+// {{{ 5 "pipette_media" "End"
+}
+// }} ""
+// {{{ 5 "pipette_inducer_delete" "Begin"
+function pipette_inducer_delete( sequence & asp_seq, sequence & disp_seq, variable p_vol, sequence & tips, variable number_channels, device & STAR ) void {
+// }} ""
+// {{ 5 "pipette_inducer_delete" "InitLocals"
+// }} ""
+// {{ 63 1 0 "27fb6e97_9df4_49c6_b54c624c155e8aef" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 64 1 0 "969dd652_237f_4e83_97d0e4d614f1d95e" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+add_reagent_replace_tips(asp_seq, disp_seq, p_vol, 0, 0, tips, number_channels, STAR);
+// }} ""
+// {{{ 5 "pipette_inducer_delete" "End"
+}
+// }} ""
+// {{{ 5 "pipette_dil_series" "Begin"
+function pipette_dil_series( sequence & from_seq, sequence & to_seq, variable p_vol, variable mix_cycles, variable mix_volume, sequence & tips, variable number_channels, device & STAR ) void {
+// }} ""
+private variable pipette_counter;
+// {{ 5 "pipette_dil_series" "InitLocals"
+// }} ""
+// {{ 52 1 0 "cd492a49_4c64_4f8e_8775c7994ffe07be" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** start pipette_dil_series shared sub-method ****"));
+// }} ""
+// {{{ 53 1 0 "4d87510f_ce14_4488_a6626f0d82b26620" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace(Translate("p_vol: "), p_vol);
+// }} ""
+// {{ 54 1 0 "e7fc9370_d21e_4c1c_83df03646a60038d" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 55 1 0 "ba6d5662_c5f7_4165_b38446bd4ee20f5b" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+tip_pickup(tips, number_channels, STAR);
+// }} ""
+// {{ 56 1 0 "274359d7_c646_4c3e_a4a5aab006ebdfe0" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+pipette_counter = 0;
+from_seq.SetCurrentPosition(1);
+to_seq.SetCurrentPosition(1);
+while (
+   (from_seq.GetCurrentPosition() > 0)
+&& (to_seq.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, from_seq, 1, to_seq, 1);
+pipette_counter = pipette_counter + 1;
+// }} ""
+// {{ 57 1 0 "05a6e94c_b11e_4718_9ec6578a7bf10f02" "STAR:{541143F5-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = STAR._541143F5_7FA2_11D3_AD85_0004ACB1DCB2("05a6e94c_b11e_4718_9ec6578a7bf10f02"); // Aspirate
+}
+// }} ""
+// {{{ 58 1 0 "ee3026b3_d2b7_4213_ab4c1036a4bdd4b0" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+simple_dispense(to_seq, 1, 1, p_vol, 0, 0, number_channels, STAR);
+// }} ""
+// {{ 59 1 0 "274359d7_c646_4c3e_a4a5aab006ebdfe0" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (from_seq.GetCurrentPosition() > 0 && from_seq.GetMax() == 0 )
+&& (to_seq.GetCurrentPosition() > 0 && to_seq.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+from_seq.SetMax(from_seq.GetTotal());
+to_seq.SetMax(to_seq.GetTotal());
+from_seq.SetCurrentPosition(1);
+to_seq.SetCurrentPosition(1);
+}
+// }} ""
+// {{{ 60 1 0 "ba911f1e_02c4_4d06_a54bab7082e178cf" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+tip_eject(number_channels, STAR);
+// }} ""
+// {{ 61 1 0 "7c042aa2_448e_4336_8cf0eb6f9419577b" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** end pipette_dil_series shard sub-method ****"));
+// }} ""
+// {{{ 5 "pipette_dil_series" "End"
+}
+// }} ""
+// {{{ 5 "pipette_selector_delete" "Begin"
+function pipette_selector_delete( sequence & asp_seq, sequence & disp_seq, variable p_vol, variable pre_wet_tips, sequence & tips, variable number_channels, device & STAR ) void {
+// }} ""
+// {{ 5 "pipette_selector_delete" "InitLocals"
+// }} ""
+// {{ 79 1 0 "01bd150a_7a50_4545_bde1bfe6173b1bda" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 80 1 0 "4bd6d95f_2abe_4a7a_9069a8a88b88ef05" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+add_reagent_reuse_tips(asp_seq, disp_seq, p_vol, pre_wet_tips, tips, number_channels, STAR);
+// }} ""
+// {{{ 5 "pipette_selector_delete" "End"
+}
+// }} ""
+// {{{ 5 "tip_pickup" "Begin"
+function tip_pickup( sequence & tips, variable number_channels, device & STAR ) void {
+// }} ""
+// {{ 5 "tip_pickup" "InitLocals"
+// }} ""
+// {{{ 119 1 0 "c83a0fc9_290d_4c8c_9f5466f0796a3015" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+set_channel_pattern(number_channels);
+// }} ""
+// {{ 120 1 0 "a511000a_8a13_4a12_83095aaca3842552" "STAR:{541143FA-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = STAR._541143FA_7FA2_11D3_AD85_0004ACB1DCB2("a511000a_8a13_4a12_83095aaca3842552"); // TipPickUp
+}
+// }} ""
+// {{{ 5 "tip_pickup" "End"
+}
+// }} ""
+// {{{ 5 "set_channel_pattern" "Begin"
+private function set_channel_pattern( variable number_channels ) void {
+// }} ""
+private variable channel_pattern_2;
+private variable channel_pattern_3;
+private variable channel_pattern_4;
+private variable channel_pattern_6;
+private variable channel_pattern_7;
+private variable channel_pattern_8;
+private variable channel_pattern_1;
+private variable channel_pattern_5;
+private variable chann_patt_arr[];
+// {{ 5 "set_channel_pattern" "InitLocals"
+// }} ""
+// {{ 82 1 0 "ef92cf2f_0745_4b91_8cb414a064758d3d" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+channel_pattern_1 = "10000000";
+// }} ""
+// {{ 83 1 0 "e35cddc1_393e_470c_a85bd7c96bb52816" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+channel_pattern_2 = "11000000";
+// }} ""
+// {{ 84 1 0 "4d0a1ece_d6c1_4a1e_9420bd5dbd1fcc80" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+channel_pattern_3 = "11100000";
+// }} ""
+// {{ 85 1 0 "47143f33_a9d6_4eb1_ab3bffe0f7cd1d8c" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+channel_pattern_4 = "11110000";
+// }} ""
+// {{ 86 1 0 "3174f023_deb3_4edc_9610092301a0690a" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+channel_pattern_5 = "11111000";
+// }} ""
+// {{ 87 1 0 "a0e376cf_7292_4bdb_b7c86888d42c96ed" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+channel_pattern_6 = "11111100";
+// }} ""
+// {{ 88 1 0 "a25681c0_b852_4258_92bf8ecc7babb1b0" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+channel_pattern_7 = "11111110";
+// }} ""
+// {{ 89 1 0 "6ed239de_62fe_4454_8084e14bc8b3b243" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+channel_pattern_8 = "11111111";
+// }} ""
+// {{ 90 1 0 "f0a82e4d_622c_4c53_b356eb7d052005a8" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 91 1 0 "d26b2518_b3c3_457f_ab5d5a68f1da2dd0" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+chann_patt_arr.SetSize(0);
+// }} ""
+// {{ 92 1 0 "4efcdf67_d08a_4584_9e494d522d7913c0" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+chann_patt_arr.AddAsLast(channel_pattern_1);
+// }} ""
+// {{ 93 1 0 "1c69765c_2df3_4634_89b6219e907094d2" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+chann_patt_arr.AddAsLast(channel_pattern_2);
+// }} ""
+// {{ 94 1 0 "1e6b16c1_472f_45bf_92d3c7dc9afa87c4" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+chann_patt_arr.AddAsLast(channel_pattern_3);
+// }} ""
+// {{ 95 1 0 "5d243a1c_2e74_4584_baebe996509c8d86" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+chann_patt_arr.AddAsLast(channel_pattern_4);
+// }} ""
+// {{ 96 1 0 "7dc7a86a_500b_4206_a95442b2cd154652" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+chann_patt_arr.AddAsLast(channel_pattern_5);
+// }} ""
+// {{ 97 1 0 "4f0997e4_3e3b_4dcb_b578d43b820cc4f7" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+chann_patt_arr.AddAsLast(channel_pattern_6);
+// }} ""
+// {{ 98 1 0 "8148fe5b_fbda_4341_b47649c14aa4ea2c" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+chann_patt_arr.AddAsLast(channel_pattern_7);
+// }} ""
+// {{ 99 1 0 "e7d96a85_3bc0_46f8_9ce9358be503a6b4" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+chann_patt_arr.AddAsLast(channel_pattern_8);
+// }} ""
+// {{ 100 1 0 "f0a82e4d_622c_4c53_b356eb7d052005a8" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 101 1 0 "2290f70a_42e8_483f_b16053187d0dbfe3" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 102 1 0 "7d3bc48d_bad0_4108_b66de9fa81b0f982" "{67A8F1C9-6546-41e9-AD2F-3C54F7818853}"
+channel_pattern=chann_patt_arr.GetAt(number_channels-1);
+// }} ""
+// {{{ 5 "set_channel_pattern" "End"
+}
+// }} ""
+// {{{ 5 "tip_eject" "Begin"
+function tip_eject( variable number_channels, device & STAR ) void {
+// }} ""
+// {{ 5 "tip_eject" "InitLocals"
+// }} ""
+// {{{ 116 1 0 "69a8cf98_5b67_40dc_bea5aa3dac5c0246" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+set_channel_pattern(number_channels);
+// }} ""
+// {{ 117 1 0 "7468c27e_ccae_4f9d_a5cf5eeb0fd97793" "STAR:{541143FC-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = STAR._541143FC_7FA2_11D3_AD85_0004ACB1DCB2("7468c27e_ccae_4f9d_a5cf5eeb0fd97793"); // TipEject
+}
+// }} ""
+// {{{ 5 "tip_eject" "End"
+}
+// }} ""
+// {{{ 5 "pipette_cells_from_tubes" "Begin"
+function pipette_cells_from_tubes( sequence & asp_seq, sequence & disp_seq, variable p_vol, variable mix_cycles, variable mix_volume, sequence & tips, variable number_channels, device & STAR ) void {
+// }} ""
+private variable loopCounter1;
+// {{ 5 "pipette_cells_from_tubes" "InitLocals"
+// }} ""
+// {{ 41 1 0 "56c01984_43c7_4ed9_94105539360dfcc3" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** start pipette_cells_from_tubes shared sub-method ****"));
+// }} ""
+// {{ 42 1 0 "b5e638e9_25d6_4990_b2eb9129b4703435" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 43 1 0 "f030d304_7f46_412d_9f04db36c39a8df9" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace(Translate("p_vol: "), p_vol);
+// }} ""
+// {{{ 44 1 0 "3affbbd5_cc71_435a_958a9d6dca89fde3" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+tip_pickup(tips, number_channels, STAR);
+// }} ""
+// {{ 45 1 0 "3933f1c9_b49a_4d69_be6a25ddd93c3953" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter1 = 0;
+disp_seq.SetCurrentPosition(1);
+asp_seq.SetCurrentPosition(1);
+while (
+   (disp_seq.GetCurrentPosition() > 0)
+&& (asp_seq.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, disp_seq, 1, asp_seq, 1);
+loopCounter1 = loopCounter1 + 1;
+// }} ""
+// {{ 46 1 0 "c83f5294_c504_4316_b5620cec1327af1e" "STAR:{541143F5-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = STAR._541143F5_7FA2_11D3_AD85_0004ACB1DCB2("c83f5294_c504_4316_b5620cec1327af1e"); // Aspirate
+}
+// }} ""
+// {{{ 47 1 0 "05a97ffb_b995_469f_86bf8f1049e7ea10" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+simple_dispense(disp_seq, 1, 1, p_vol, 0, 0, number_channels, STAR);
+// }} ""
+// {{ 48 1 0 "3933f1c9_b49a_4d69_be6a25ddd93c3953" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (disp_seq.GetCurrentPosition() > 0 && disp_seq.GetMax() == 0 )
+&& (asp_seq.GetCurrentPosition() > 0 && asp_seq.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+disp_seq.SetMax(disp_seq.GetTotal());
+asp_seq.SetMax(asp_seq.GetTotal());
+disp_seq.SetCurrentPosition(1);
+asp_seq.SetCurrentPosition(1);
+}
+// }} ""
+// {{{ 49 1 0 "b43d016f_46d1_4a27_ade32a5f80f43937" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+tip_eject(number_channels, STAR);
+// }} ""
+// {{ 50 1 0 "6b4002fe_2379_460f_814a8e44be3fadaf" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** end pipette_cells_from_tubes shard sub-method ****"));
+// }} ""
+// {{{ 5 "pipette_cells_from_tubes" "End"
+}
+// }} ""
+// {{{ 5 "add_reagent_reuse_tips" "Begin"
+function add_reagent_reuse_tips( sequence & asp_seq, sequence & disp_seq, variable p_vol, variable pre_wet_tips, sequence & tips, variable number_channels, device & STAR ) void {
+// }} ""
+private variable pipette_loop;
+// {{ 5 "add_reagent_reuse_tips" "InitLocals"
+// }} ""
+// {{ 11 1 0 "e0d0760b_ad76_4a78_83e42c6aab70eaec" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** start add_reagent_reuse_tips shared sub-method ****"));
+// }} ""
+// {{{ 12 1 0 "c13f8c48_d360_4c10_9aca6c5fda7e5218" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace(Translate("p_vol: "), p_vol);
+// }} ""
+// {{{ 13 1 0 "f351fd13_3a6c_4743_9e4b89afee4bfa8d" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+tip_pickup(tips, number_channels, STAR);
+// }} ""
+// {{ 14 1 0 "c2631cd4_2754_4670_9def0162dd93babc" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+pipette_loop = 0;
+disp_seq.SetCurrentPosition(1);
+while (
+   (disp_seq.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, disp_seq, 1);
+pipette_loop = pipette_loop + 1;
+// }} ""
+// {{{ 15 1 0 "8519957d_51ab_4e0a_974e4e6225006e67" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+simple_aspirate(asp_seq, 0, p_vol, tips, number_channels, STAR);
+// }} ""
+// {{{ 16 1 0 "7ac475e5_e215_4acd_832feaf22488beea" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+simple_dispense(disp_seq, 1, 1, p_vol, 0, 0, number_channels, STAR);
+// }} ""
+// {{ 17 1 0 "c2631cd4_2754_4670_9def0162dd93babc" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (disp_seq.GetCurrentPosition() > 0 && disp_seq.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+disp_seq.SetMax(disp_seq.GetTotal());
+disp_seq.SetCurrentPosition(1);
+}
+// }} ""
+// {{{ 18 1 0 "de223c2d_4463_475c_aec197853f2ce043" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+tip_eject(number_channels, STAR);
+// }} ""
+// {{ 19 1 0 "19d2890e_e64a_4f6a_aff69257d5b24ec0" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** end add_reagent_reuse_tips shard sub-method ****"));
+// }} ""
+// {{{ 5 "add_reagent_reuse_tips" "End"
+}
+// }} ""
+// {{{ 5 "add_reagent_replace_tips" "Begin"
+function add_reagent_replace_tips( sequence & asp_seq, sequence & disp_seq, variable p_vol, variable mix_cycles, variable mix_volume, sequence & tips, variable number_channels, device & STAR ) void {
+// }} ""
+private variable pipette_loop;
+// {{ 5 "add_reagent_replace_tips" "InitLocals"
+// }} ""
+// {{ 1 1 0 "90fe4c9f_4b74_47dd_801932f57ef071e0" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** start add_reagent_replace_tips shared sub-method ****"));
+// }} ""
+// {{{ 2 1 0 "909d2bed_d655_4acb_b8edf52686338346" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace(Translate("p_vol: "), p_vol);
+// }} ""
+// {{ 3 1 0 "bacf3270_c9a1_4859_8fe1e7902741ffcf" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+pipette_loop = 0;
+disp_seq.SetCurrentPosition(1);
+while (
+   (disp_seq.GetCurrentPosition() > 0)
+)
+{
+AlignSequences(hslTrue, disp_seq, 1);
+pipette_loop = pipette_loop + 1;
+// }} ""
+// {{{ 4 1 0 "d3076d15_1e81_4fa0_b5c6b706a6e94575" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+tip_pickup(tips, number_channels, STAR);
+// }} ""
+// {{{ 5 1 0 "edefc8d0_3a7c_44c3_af6bd81f911a85db" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+simple_aspirate(asp_seq, 0, p_vol, tips, number_channels, STAR);
+// }} ""
+// {{{ 6 1 0 "084d7ed1_d060_4ffa_919113e2cdb78cdc" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+simple_dispense(disp_seq, 1, 1, p_vol, mix_cycles, mix_volume, number_channels, STAR);
+// }} ""
+// {{{ 7 1 0 "a41f54e0_9f54_451a_97873b4351858666" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+tip_eject(number_channels, STAR);
+// }} ""
+// {{ 8 1 0 "bacf3270_c9a1_4859_8fe1e7902741ffcf" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+if (
+   (disp_seq.GetCurrentPosition() > 0 && disp_seq.GetMax() == 0 )
+)
+{ MECC::EndlessSequenceLoopWarning(GetFileName()); }
+
+}
+disp_seq.SetMax(disp_seq.GetTotal());
+disp_seq.SetCurrentPosition(1);
+}
+// }} ""
+// {{ 9 1 0 "bc45395f_1468_4cdf_907a71e92b6a93da" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("**** end add_reagent_replace_tips shard sub-method ****"));
+// }} ""
+// {{{ 5 "add_reagent_replace_tips" "End"
+}
+// }} ""
+// {{{ 5 "aspirate_w_err_handling" "Begin"
+function aspirate_w_err_handling( sequence & asp_seq, variable asp_seq_counting, variable & p_vol_arr[], sequence tips, variable number_channels, device & STAR ) void {
+// }} ""
+private variable int_tip_type;
+private variable liquid_class;
+// {{ 5 "aspirate_w_err_handling" "InitLocals"
+// }} ""
+// {{{ 21 1 0 "e88e6303_e139_4727_94673fb903ef98c0" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+set_channel_pattern(number_channels);
+// }} ""
+// {{{ 22 1 0 "4f8d216f_b0d0_4745_a7b1cbb1cf97208d" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+STAR_TIP_TOOLS::GetTipType(STAR, tips, int_tip_type);
+// }} ""
+// {{ 23 1 0 "77b9309c_5d74_483f_b29f5ccc92d8fbbd" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (int_tip_type == 1)
+{
+// }} ""
+// {{ 24 1 0 "ebef17fa_cbbf_4081_821de13505eb8e55" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 25 1 0 "3b15e2a3_b614_4523_b70f445aecfdb22e" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+liquid_class = "StandardVolumeFilter_Water_FastMixing_DispenseSurface_Empty";
+// }} ""
+// {{ 26 1 0 "77b9309c_5d74_483f_b29f5ccc92d8fbbd" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 27 1 0 "12aac913_b688_412e_80f7fc78219dec9e" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (int_tip_type == 5)
+{
+// }} ""
+// {{ 28 1 0 "2268d574_cc9e_47a0_a1f956252664ac45" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 29 1 0 "4c7c8461_1ee7_4ed1_b34c1a434bc2f92b" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+liquid_class = "HighVolumeFilter_Water_FastMixing_DispenseSurface_Empty";
+// }} ""
+// {{ 30 1 0 "12aac913_b688_412e_80f7fc78219dec9e" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 31 1 0 "77b9309c_5d74_483f_b29f5ccc92d8fbbd" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 32 1 0 "33da8612_de0e_44b6_9f3330af1b17571f" "STAR:{541143F5-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = STAR._541143F5_7FA2_11D3_AD85_0004ACB1DCB2("33da8612_de0e_44b6_9f3330af1b17571f"); // Aspirate
+}
+// }} ""
+// {{{ 5 "aspirate_w_err_handling" "End"
+}
+// }} ""
+// {{{ 5 "dispense_w_err_handling" "Begin"
+function dispense_w_err_handling( sequence & disp_seq, variable disp_seq_counting, variable disp_to_liquid, variable & p_vol_arr[], variable mix_cycles, variable mix_volume, variable number_channels, device & STAR ) void {
+// }} ""
+// {{ 5 "dispense_w_err_handling" "InitLocals"
+// }} ""
+// {{{ 34 1 0 "f049bb49_017a_4f91_bac7f51c4c319649" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+set_channel_pattern(number_channels);
+// }} ""
+// {{ 35 1 0 "8c508718_3cda_4c15_b360066510f6d107" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (disp_to_liquid == 1)
+{
+// }} ""
+// {{ 36 1 0 "68beb8be_0d09_4c76_8def0bf3ed5f0892" "STAR:{541143F8-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = STAR._541143F8_7FA2_11D3_AD85_0004ACB1DCB2("68beb8be_0d09_4c76_8def0bf3ed5f0892"); // Dispense
+}
+// }} ""
+// {{ 37 1 0 "8c508718_3cda_4c15_b360066510f6d107" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 38 1 0 "fb45c82b_bf1c_48e6_88190921e7430dce" "STAR:{541143F8-7FA2-11D3-AD85-0004ACB1DCB2}"
+{
+	variable arrRetValues[];
+	arrRetValues = STAR._541143F8_7FA2_11D3_AD85_0004ACB1DCB2("fb45c82b_bf1c_48e6_88190921e7430dce"); // Dispense
+}
+// }} ""
+// {{ 39 1 0 "8c508718_3cda_4c15_b360066510f6d107" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 5 "dispense_w_err_handling" "End"
+}
+// }} ""
+// {{{ 5 "simple_aspirate" "Begin"
+function simple_aspirate( sequence & asp_seq, variable asp_seq_counting, variable p_vol, sequence tips, variable number_channels, device & STAR ) void {
+// }} ""
+private variable p_vol_arr[];
+private variable chann_loop;
+// {{ 5 "simple_aspirate" "InitLocals"
+// }} ""
+// {{ 104 1 0 "089787ed_c492_4eaa_b7211ebb7a45ec17" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+p_vol_arr.SetSize(0);
+// }} ""
+// {{ 105 1 0 "ae539b9a_32e5_41ca_a7b5c1cc0a18dbc9" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(chann_loop = 0; chann_loop < number_channels;)
+{
+chann_loop = chann_loop + 1;
+// }} ""
+// {{ 106 1 0 "558ddda6_e294_4181_9072c2f2707c5207" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+p_vol_arr.AddAsLast(p_vol);
+// }} ""
+// {{ 107 1 0 "ae539b9a_32e5_41ca_a7b5c1cc0a18dbc9" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{{ 108 1 0 "7de6254c_570c_43d3_9f46d93b03cafde9" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+aspirate_w_err_handling(asp_seq, asp_seq_counting, p_vol_arr, tips, number_channels, STAR);
+// }} ""
+// {{{ 5 "simple_aspirate" "End"
+}
+// }} ""
+// {{{ 5 "simple_dispense" "Begin"
+function simple_dispense( sequence & disp_seq, variable disp_seq_counting, variable disp_to_liquid, variable p_vol, variable mix_cycles, variable mix_volume, variable number_channels, device & STAR ) void {
+// }} ""
+private variable chann_loop;
+private variable p_vol_arr[];
+// {{ 5 "simple_dispense" "InitLocals"
+// }} ""
+// {{ 110 1 0 "46629050_e868_490a_b78895f807a92e49" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+p_vol_arr.SetSize(0);
+// }} ""
+// {{ 111 1 0 "a339d36e_4ffb_43a6_8bd1f7ac5dde9da5" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(chann_loop = 0; chann_loop < number_channels;)
+{
+chann_loop = chann_loop + 1;
+// }} ""
+// {{ 112 1 0 "f015e6dc_5941_471a_a7632144b9f57301" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+p_vol_arr.AddAsLast(p_vol);
+// }} ""
+// {{ 113 1 0 "a339d36e_4ffb_43a6_8bd1f7ac5dde9da5" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{{ 114 1 0 "882e87e0_20c9_4c10_a6d775408381abf0" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+dispense_w_err_handling(disp_seq, disp_seq_counting, disp_to_liquid, p_vol_arr, mix_cycles, mix_volume, number_channels, STAR);
+// }} ""
+// {{{ 5 "simple_dispense" "End"
+}
+// }} ""
+/* {{ 2 "SubmethodInsertLine" "" */ // }} ""
+// {{{ 2 "LibraryNamespace" "End"
+} // library namespace
+// }} ""
+// $$author=djross$$valid=0$$time=2024-12-16 18:54$$checksum=dc76bef7$$length=085$$

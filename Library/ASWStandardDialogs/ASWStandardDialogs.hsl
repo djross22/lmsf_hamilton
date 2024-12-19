@@ -1,0 +1,3425 @@
+//----------------------------------------------------------------------------------------
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+//
+// Project              : AswStandardDialogs
+// Description          : This library contains the base communication functions for the hamilton dialogs
+//
+// Software Version     : 
+//
+// Revision history:
+// - 1.0    2011.07.24    dbä    library created
+// - 1.1    2011.08.01    dbä    worklist added
+// - 1.2    2011.08.24    dbä    worklist updated
+// - 1.3    2011.08.29    dbä    worklist modified (functions splitted)
+// - 1.4    2011.09.06    dbä    path initialization removed
+// - 1.5    2011.10.24    dbä    FileBrowserDialog, DirectoryBrowserDialog, CheckboxDialog, RadioButtonDialog, ListSelectDialog
+// - 1.6    2012.01.18    dwi    LoginDialog, ImageRadioButtonDialog
+// - 1.7    2012.02.10    dwi    Bugfix output variable o_strBlindEntry in DoubleInputDialog
+// - 1.8    2012.08.14    dho    Added parameter check and function SetDialogItemsToDefaultLanguage
+// - 1.9    2012.11.13    dwi    SetDialogItemsToDefaultLanguage removed, new function SetDefaultLanguage added. Translation new in C#.
+//                               ActivateSoundForNextDialog added
+// - 1.10   2013.05.17    dwi    Bugfix misspelling ChackBoolean
+//
+//----------------------------------------------------------------------------------------
+
+#ifndef __ASWSTANDARDDIALOGS_hsl__
+  #define __ASWSTANDARDDIALOGS_hsl__ 1
+
+  #ifndef __HSLStrLib_hsl__
+    #include "HSLStrLib.hsl"
+  #endif
+
+  #ifndef __TraceLevel_hsl__
+    #include "ASWStandard\\TraceLevel\\TraceLevel.hsl"
+  #endif
+
+  #ifndef __ASWGLOBAL_hsl__
+    #include "ASWStandard\\ASWGlobal\\ASWGlobal.hsl"
+  #endif
+
+  #ifndef __HSLSynLib_hsl__
+    #include "HSLSynLib.hsl"
+  #endif
+
+  namespace AswStandardDialogs
+  {
+
+    // part of error handling of worklist view
+    namespace ErrorCode
+    {
+       const variable strNoError("");
+       const variable NotInitialized(-10);
+       const variable BadParameter(-11);
+    }
+
+    // icon enum (ImageHelper)
+    namespace IconType 
+    {
+       const variable Error                                (0);
+       const variable Information                          (1);
+       const variable Question                             (2);
+       const variable Warning                              (3);
+    } 
+
+    // button classes / types
+    namespace ButtonType 
+    {
+       const variable Ok                                   (0);
+       const variable OkCancel                             (1);
+       const variable YesNo                                (2);
+       const variable YesNoCancel                          (3);
+       const variable AbortRetryCancel                     (4);
+       const variable RetryCancel                          (5);
+       const variable AcceptCancel                         (6);
+       const variable AbortRetryIgnore                     (7);
+    }
+
+    // data types for input dialog
+    namespace ValueType
+    {            
+       const variable Integer                              (1);
+       const variable String                               (2);
+       const variable Float                                (3);
+       const variable Boolean                              (4);
+       const variable Date                                 (5);
+       const variable Time                                 (6);
+    }
+
+    namespace RadioButtonDialog
+    {
+      namespace WrapOrientation
+      {
+       const variable Vertical                             (0);
+       const variable Horizontal                           (1);
+      }
+
+      namespace SortDirection
+      {
+       const variable Unsorted                             (0);
+       const variable Ascending                            (1);
+       const variable Descending                           (2);
+      }
+    }
+
+    namespace FileBrowserDialog
+    {
+      namespace DialogType
+      {
+       const variable Open                                 (0);
+       const variable Save                                 (1);
+      }
+    }
+
+    namespace WorklistDialog
+    {
+       namespace WorklistStatus
+       {
+          const variable Ok                                   (1);
+          const variable Warning                              (2);
+          const variable Error                                (3);
+       }
+
+       namespace WorklistEditMode
+       {
+          const variable ProcessExcludeRemove                  (1);
+          const variable ProcessExclude                        (2);
+          const variable ProcessRemove                         (3);
+       }
+
+       namespace ProcessingMode
+       {
+          const variable Process        (1);    //samples werden beladen und pipettiert
+          const variable Exclude        (2);    //samples werden beladen aber nicht pipettiert
+          const variable Remove         (3);     //samples werden nicht beladen
+       }
+    }
+  
+    namespace Encoding
+    {
+      const variable ASCII(1);
+      const variable UTF7(2);
+      const variable UTF8(3);
+      const variable UTF16(4);
+      const variable UTF16BigEndian(5);
+      const variable UTF32(6);
+      const variable Default(7);
+      const variable User(8);
+
+    }
+
+    namespace Encryption
+    {
+      const variable None(1);
+      const variable MD5(2);
+      const variable SHA1(3);
+      const variable SHA256(4);
+      const variable SHA384(5);
+      const variable SHA512(6);
+
+    }
+   
+       
+    // Dialog Language 
+    namespace DialogLanguage 
+    {
+       const variable English (0);
+       const variable German  (1);
+       const variable Italian (2);
+       const variable Spanish (3);
+    }   
+
+    // this module is named:
+    const static variable _strLibraryModuleName                        ("AswStandardDialogs");
+    // c# progid
+    const static variable _strLibraryClassName                         ("Hamilton.ASWGUIDialogs");
+
+    // static global variables
+    static global variable gAswStandardDialogs_blnIsLibraryInitialized  (ASWGLOBAL::BOOL::FALSE);
+    static global variable gAswStandardDialogs_intLibraryTraceLevel     (TRACE_LEVEL_DEBUG);
+    static global object   gAswStandardDialogs_objInterface;
+
+    static global variable gAswStandardDialogs_varCriticalSection (0);
+
+    // dialog design like splash screen
+    const static variable _intWindowType                          (1);
+    // is layout of dialog fixed (no resize possible)
+    const static variable _intFixedSize                           (0);
+    // how many dialogs can be displayed at once
+    const static variable _intNumberOfParallelDialogs             (1);
+
+    // button caption classes
+    static global variable gAswStandardDialogs_arrButtonOk[];               // array with name for ButtonOk
+    static global variable gAswStandardDialogs_arrButtonOkCancel[];         // array with name for ButtonOkCancel
+    static global variable gAswStandardDialogs_arrButtonYesNo[];            // array with name for ButtonYesNo
+    static global variable gAswStandardDialogs_arrButtonYesNoCancel[];      // array with name for ButtonYesNoCancel
+    static global variable gAswStandardDialogs_arrButtonAbortRetryCancel[]; // array with name for ButtonAbortRetryCancel
+    static global variable gAswStandardDialogs_arrButtonRetryCancel[];      // array with name for ButtonRetryCancel
+    static global variable gAswStandardDialogs_arrButtonAcceptCancel[];     // array with name for ButtonAcceptCancel
+    static global variable gAswStandardDialogs_arrButtonAbortRetryIgnore[]; // array with name for ButtonAbortRetryIgnore
+
+    //declaration of functions
+    function Initialize() variable;
+
+    function MessageDialog(
+             variable i_strDialogTitle, 
+             variable i_intIconType, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_intTimeOut, 
+             variable i_strMessage ) variable;
+
+    function ErrorDialog(
+             variable i_strDialogTitle, 
+             variable i_intIconType, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_intTimeOut, 
+             variable i_strMainMessage,
+             variable i_strSupplementMessage ) variable;             
+
+    function MessageDialogWithImage(
+             variable i_strDialogTitle, 
+             variable i_intIconType, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_intTimeOut, 
+             variable i_strMessage, 
+             variable i_strImage, 
+             variable i_intMaxImageWidth ) variable;
+
+    function LoadingDialog(
+             variable i_strDialogTitle, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_intTimeOut, 
+             variable i_strTopText, 
+             variable i_strBottomText,
+             variable i_strTopImage, 
+             variable i_strBottomImage, 
+             variable i_intMaxImageWidth, 
+             variable i_arrLabwarePositions[], 
+             variable i_arrLabwareQuantities[], 
+             variable i_arrLabwareDescriptions[] ) variable;
+
+    function ListDialog(
+             variable i_strDialogTitle, 
+             variable i_intIconType     , 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_intTimeOut, 
+             variable i_strTopText, 
+             variable i_strBottomText, 
+             variable i_arrList[] ) variable;   
+
+    function ListSelectDialog(
+             variable i_strDialogTitle, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_strTopText, 
+             variable i_strBottomText, 
+             variable i_arrListValues[], 
+             variable &o_strSelection) variable;
+
+    function InputDialog(
+             variable i_strDialogTitle, 
+             variable i_intButtonType,
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_strTopText, 
+             variable i_strBottomText,
+             variable i_arrInputListLabels[], 
+             variable i_arrInputListValues[], 
+             variable i_arrInputListUnits[], 
+             variable i_arrDataTypes[], 
+             variable i_arrRanges[],
+             variable i_arrCustomToolTip[], 
+             variable & o_arrResult[]) variable;
+
+    function DoubleInputDialog(
+             variable i_strDialogTitle, 
+             variable i_intButtonType,
+             variable i_intDialogHeight,
+             variable i_intDialogWidth, 
+             variable i_strMessage, 
+             variable i_strErrorMessage,
+             variable &o_strBlindEntry) variable;
+
+    function CheckBoxDialog(
+             variable i_strDialogTitle, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_strTextTop, 
+             variable i_strTextBottom, 
+             variable i_arrLabels[], 
+             variable i_arrTooltips[], 
+             variable i_arrIsEditable[], 
+             variable & io_arrIsSelected[]) variable;
+
+    function RadioButtonDialog(
+             variable i_strDialogTitle, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_strTextTop, 
+             variable i_strTextBottom, 
+             variable i_arrLabels[], 
+             variable i_arrTooltips[], 
+             variable i_arrIsEditable[], 
+             variable & io_arrIsSelected[], 
+             variable i_arrGroupName[], 
+             variable i_intWrapOrientation, 
+             variable i_intSortDirection) variable;
+
+    function DirectoryBrowserDialog(
+             variable i_strDialogTitle,
+             variable i_intButtonType,
+             variable i_intDialogHeight,
+             variable i_intDialogWidth,
+             variable i_strMessage,
+             variable i_strInitialDirectory,
+             variable & o_strSelectedFolder)variable;
+
+    function FileBrowserDialog(
+             variable i_strDialogTitle, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_strMessage, 
+             variable i_intFileDialogType,
+             variable i_strFileFilter, 
+             variable i_intFilterIndex, 
+             variable i_strInitialFile, 
+             variable & o_strSelectedFile) variable;
+
+    function ImageRadioButtonDialog(
+             variable i_strDialogTitle, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_strTextTop, 
+             variable i_strTextBottom, 
+             variable i_arrLabels[], 
+             variable i_arrTooltips[], 
+             variable i_arrIsEditable[], 
+             variable i_arrImageSource[], 
+             variable i_arrImageHeight[], 
+             variable i_arrImageWidth[], 
+             variable & io_arrIsSelected[], 
+             variable i_arrGroupName[], 
+             variable i_intWrapOrientation, 
+             variable i_intSortDirection) variable;
+
+    function LoginDialog(
+             variable i_strDialogTitle, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_strMessage, 
+             variable i_intEncryption, 
+             variable i_intEncoding, 
+             variable i_intEncodingCodepage, 
+             variable& o_strUserName, 
+             variable& o_strUserPassword, 
+             variable& o_arrUserPasswordBytes[]) variable;
+
+             
+    function LoadingDialogSetResources(variable i_arrColumnHeaders[]) variable;
+
+    function CheckBoxDialogSetResources(variable i_arrColumnHeaders[]) variable;
+
+    function InputDialogSetResources(variable i_arrInputListHeaderLocalization[]) variable;
+
+    function DoubleInputDialogSetResources(variable i_arrLabels[] ) variable;
+
+    function FileBrowserDialogSetResources(variable i_strCaptionBrowseButton, variable i_strFileDialogTitle) variable;
+
+    function DirectoryBrowserDialogSetResources(variable i_strCaptionBrowseButton,variable i_strDirectoryDialogTitle) variable;
+
+    function LoginDialogSetResources(variable i_arrLabels[]) variable;
+
+    function WorklistDialogSetResources(
+             variable i_strDialogTitle, 
+             variable i_strSaveAndCloseCaption, 
+             variable i_strResetCaption, 
+             variable i_strCaptionSelectedRows, 
+             variable i_strSampleModeProcessText,
+             variable i_strSampleModeExcludeText,
+             variable i_strSampleModeRemoveText,
+             variable i_strSetAllToProcessButtonText,
+             variable i_strSetAllToExcludeButtonText,
+             variable i_strSetAllToRemoveButtonText,
+             variable i_strLegendRowStatusOKText,
+             variable i_strLegendRowStatusWarningText,
+             variable i_strLegendRowStatusErrorText,
+             variable i_strLegendProcessingModeProcessText,
+             variable i_strLegendProcessingModeExcludeText,
+             variable i_strLegendProcessingModeRemoveText) variable;
+
+    function WorklistDialogSetColumns(
+             variable i_arrColumnNames[]) variable;
+
+    function WorklistDialogAddRow(
+             variable i_intID, 
+             variable i_intStatus, 
+             variable i_blnIsEditable, 
+             variable i_intProcessingMode,
+             variable i_arrValueColumns[]) variable;
+
+    function WorklistDialogSetTextField(
+             variable i_strTextField) variable;
+
+    function WorklistDialogSetStatusColumn(
+             variable i_blnIsColumnVisibility, 
+             variable i_strStatusColumnName) variable;
+
+    function WorklistDialogSetSelectedColumn(
+             variable i_blnIsColumnVisibility, 
+             variable i_strSelectedColumnName) variable;
+
+    function WorklistDialogSetLegendVisibility(
+             variable i_blnIsVisible) variable;
+
+    function WorklistDialogSetEditMode(variable i_intEditMode);
+
+    function WorklistDialogShow(
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth,
+             variable & o_arrIDsToProcess[],
+             variable & o_arrIDsToExclude[],
+             variable & o_arrIDsToRemove[]) variable;
+
+    private function WorklistDialogGetErrorMessage(
+             variable i_strExceptionID) variable;
+
+    function SetButtonResources(
+             variable i_strOk, 
+             variable i_strCancel, 
+             variable i_strYes, 
+             variable i_strNo, 
+             variable i_strAbort, 
+             variable i_strRetry, 
+             variable i_strAccept, 
+             variable i_strIgnore) variable;
+
+    
+    function SetDefaultLanguage(variable i_intDefaultLanguage) variable;
+    function ActivateSoundForNextDialog(variable i_strWaveFileFullName,variable i_blnSoundIsLooping) variable;
+
+    // -------------------------------------------------------------------------
+    // helper
+    // -------------------------------------------------------------------------
+    private function GetButtonResourcesWithButtonType(variable i_intButtonType) variable[];
+    private function StatusTrace(variable iTraceLevel, variable iFunctionName, variable iTraceString1,variable iTraceString2) void;
+    private function TraceInputs(variable i_arrInputs[], variable i_strDescription) void;
+
+    // maps the c# return values to global asw values
+    private function MapReturnValuesToGlobalAswDialogValues(variable i_intRetValue) variable;  
+
+    private function CheckBool(variable iVariable, variable i_strVariableName) variable;
+    private function CheckInteger(variable iVariable, variable i_strVariableName) variable;
+    private function CheckIntegerRange(variable iVariable, variable i_strVariableName, variable iMin, variable iMax) variable;
+    private function CheckIntegerRangeArray(variable i_arrValues[], variable i_strVariableName, variable iMin, variable iMax) variable;
+    private function CheckFloat(variable iVariable, variable i_strVariableName) variable;
+    private function CheckString(variable iVariable, variable i_strVariableName) variable;
+
+    private function IsIntegerArray(variable i_arrValues[], variable i_strVariableName) variable;
+    private function IsBoolArray(variable i_arrValues[], variable i_strVariableName) variable;
+    private function IsStringArray(variable i_arrValues[], variable i_strVariableName) variable;
+    private function IsFloatArray(variable i_arrValues[], variable i_strVariableName) variable;
+
+    //********************************************************************************
+    //* functions
+    //********************************************************************************
+
+    //------------------------------------------------------
+    // Initializes the library.
+    // params 
+    //         none
+    //
+    // return ASWGLOBAL::BOOL::FALSE, ASWGLOBAL::BOOL::TRUE
+    //------------------------------------------------------
+    function Initialize() variable
+    {
+      variable strFunctionName(GetFunctionName());
+      variable retValue (0);
+      variable intHWnd(GetHWnd());
+
+      StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "load comvisible library");
+
+      if(0 == gAswStandardDialogs_varCriticalSection)
+         gAswStandardDialogs_varCriticalSection = SynInitializeCriticalSection();
+
+      //if not already initialized
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+         onerror goto DLL_NOT_FOUND;
+
+           SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+           if(!gAswStandardDialogs_objInterface.IsNull()) return (ASWGLOBAL::BOOL::TRUE);
+             gAswStandardDialogs_objInterface.CreateObject(_strLibraryClassName,ASWGLOBAL::BOOL::FALSE);
+
+           TRACELEVEL::Debug_Trace2("intHWnd = ",intHWnd);
+           retValue = gAswStandardDialogs_objInterface.Initialize(intHWnd, _intNumberOfParallelDialogs);
+           if(0 != retValue) 
+           {
+              StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Error with Code [" + IStr(retValue) +  "] occured." , "Refer help.");
+              return(ASWGLOBAL::BOOL::FALSE);
+           }
+         onerror goto 0;
+           StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Complete", " Library initialized, path to IconSet exists.");
+           gAswStandardDialogs_blnIsLibraryInitialized = ASWGLOBAL::BOOL::TRUE;
+           SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+           return(ASWGLOBAL::BOOL::TRUE);
+         DLL_NOT_FOUND:
+         {
+           StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error"," AswStandardDialogs.dll not registered (please use asmreg.bat to register).");
+           SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+           return(ASWGLOBAL::BOOL::FALSE);
+         }
+      }
+      else
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Complete", " Library already initialized, path to IconSet exists.");
+         gAswStandardDialogs_blnIsLibraryInitialized = ASWGLOBAL::BOOL::TRUE;//already initialized
+         return(ASWGLOBAL::BOOL::TRUE);
+      }
+    } // Initialize
+
+
+    //------------------------------------------------------
+    // Creates the i_strMessage Dialog
+    // params 
+    //         i_strDialogTitle     - Title of the dialog (window title)
+    //         i_intIconType        - IconType::Error    (1)
+    //                                IconType::Info     (2)
+    //                                IconType::Question (3)
+    //                                IconType::Warning  (4)
+    //         i_intButtonType      - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight    - Height of the window 
+    //         i_intDialogWidth     - Width of the window
+    //         i_intTimeOut         - Timeout for dialog auto closing
+    //         i_strMessage         - The message of the dialog (forced line break with \n)
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL, ASWGLOBAL::DIALOG::YES, ASWGLOBAL::DIALOG::NO, ASWGLOBAL::DIALOG::RETRY, ASWGLOBAL::DIALOG::ABORT
+    //------------------------------------------------------
+    function MessageDialog(
+                              variable i_strDialogTitle, 
+                              variable i_intIconType, 
+                              variable i_intButtonType, 
+                              variable i_intDialogHeight, 
+                              variable i_intDialogWidth , 
+                              variable i_intTimeOut, 
+                              variable i_strMessage 
+                           ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intIconType, "i_intIconType", 0, 3)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intTimeOut, "i_intTimeOut", 0, 9999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strMessage, "i_strMessage")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intIconType);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_intTimeOut);
+       arrTraceInput.AddAsLast(i_strMessage);
+
+       TraceInputs(arrTraceInput, "MessageDialoge Inputs");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load MessageDialog.");
+       retValue = gAswStandardDialogs_objInterface.MessageDialog(i_strDialogTitle, i_intIconType ,i_intButtonType, GetButtonResourcesWithButtonType(i_intButtonType), i_intDialogHeight, i_intDialogWidth, _intFixedSize, i_intTimeOut, i_strMessage, _intWindowType);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]","MessageDialog finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+       
+       return(MapReturnValuesToGlobalAswDialogValues(retValue));
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+    }// MessageDialog
+    
+
+    //------------------------------------------------------
+    // Creates the Error Dialog
+    // params 
+    //         i_strDialogTitle     - Title of the dialog (window title)
+    //         i_intIconType        - IconType::Error    (1)
+    //                                IconType::Info     (2)
+    //                                IconType::Question (3)
+    //                                IconType::Warning  (4)
+    //         i_intButtonType      - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight    - Height of the window 
+    //         i_intDialogWidth     - Width of the window
+    //         i_intTimeOut         - Timeout for dialog auto closing
+    //         i_strMainMessage     - The main message about the error (forced line break with \n)
+    //         i_strSupplementMessage - The supplement information about the error (forced line break with \n)
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL, ASWGLOBAL::DIALOG::YES, ASWGLOBAL::DIALOG::NO, ASWGLOBAL::DIALOG::RETRY, ASWGLOBAL::DIALOG::ABORT
+    //------------------------------------------------------
+    function ErrorDialog(
+             variable i_strDialogTitle, 
+             variable i_intIconType, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_intTimeOut, 
+             variable i_strMainMessage,
+             variable i_strSupplementMessage ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intIconType, "i_intIconType", 0, 3)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intTimeOut, "i_intTimeOut", 0, 9999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strMainMessage, "i_strMainMessage")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strSupplementMessage, "i_strSupplementMessage")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intIconType);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_intTimeOut);
+       arrTraceInput.AddAsLast(i_strMainMessage);
+       arrTraceInput.AddAsLast(i_strSupplementMessage);
+
+       TraceInputs(arrTraceInput, "ErrorDialog Inputs");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load ErrorDialog.");
+       retValue = gAswStandardDialogs_objInterface.ErrorDialog(i_strDialogTitle, i_intIconType ,i_intButtonType, GetButtonResourcesWithButtonType(i_intButtonType), i_intDialogHeight, i_intDialogWidth, _intFixedSize, i_intTimeOut, i_strMainMessage, i_strSupplementMessage, _intWindowType);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]"," ErrorDialog finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+       
+       return(MapReturnValuesToGlobalAswDialogValues(retValue));
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+    }// ErrorDialog                     
+
+
+    //------------------------------------------------------
+    // Creates the Message Dialog with Images
+    // params 
+    //         i_strDialogTitle         - Title of the dialog (window title)
+    //         i_intIconType            - IconType::Error    (1)
+    //                                    IconType::Info     (2)
+    //                                    IconType::Question (3)
+    //                                    IconType::Warning  (4)
+    //         i_intButtonType          - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel
+    //         i_intDialogHeight        - Height of the window
+    //         i_intDialogWidth         - Width of the window
+    //         i_strMessage             - The text of the dialog (forced line break with \n)
+    //         i_strImage               - Full qualified path to Image
+    //         i_intMaxImageWidth       - Max width of displaying image
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL
+    //------------------------------------------------------
+    function MessageDialogWithImage(
+                                       variable i_strDialogTitle,
+                                       variable i_intIconType,
+                                       variable i_intButtonType,
+                                       variable i_intDialogHeight,
+                                       variable i_intDialogWidth,
+                                       variable i_intTimeOut,
+                                       variable i_strMessage,
+                                       variable i_strImage,
+                                       variable i_intMaxImageWidth
+                                    ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intIconType, "i_intIconType", 0, 3)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intTimeOut, "i_intTimeOut", 0, 9999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strMessage, "i_strMessage")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strImage, "i_strImage")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intMaxImageWidth, "i_intMaxImageWidth", 0, 5999)) return(ErrorCode::BadParameter);
+ 
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intIconType);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_intTimeOut);
+       arrTraceInput.AddAsLast(i_strMessage);
+       arrTraceInput.AddAsLast(i_strImage);
+       arrTraceInput.AddAsLast(i_intMaxImageWidth);
+
+       TraceInputs(arrTraceInput ,"MessageDialogWithImage Inputs");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","Load Loading Message Dialog.");
+       retValue = gAswStandardDialogs_objInterface.MessageDialogWithImage(i_strDialogTitle, i_intIconType, i_intButtonType, GetButtonResourcesWithButtonType(i_intButtonType), i_intDialogHeight, i_intDialogWidth, _intFixedSize, i_intTimeOut, i_strMessage, i_strImage, i_intMaxImageWidth, _intWindowType);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Completed with [" + IStr(retValue) +  "]", "Loading Message Dialog finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+
+       return(MapReturnValuesToGlobalAswDialogValues(retValue) );
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+    }// MessageDialogWithImage
+
+
+    //------------------------------------------------------
+    // Sets resources for Loading Dialog
+    // params 
+    //         i_arrColumnHeaders         - array with column captions
+    //
+    //------------------------------------------------------
+    function LoadingDialogSetResources(variable i_arrColumnHeaders[]) variable{
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ASWGLOBAL::BOOL::FALSE);
+       }
+
+       if(!IsStringArray(i_arrColumnHeaders, "i_arrColumnHeaders")) return(ErrorCode::BadParameter);
+
+       TraceInputs(i_arrColumnHeaders, "LoadingDialogSetResources Inputs");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "SetResources for LoadingDialog.");
+       retValue = gAswStandardDialogs_objInterface.LoadingDialogSetResources(i_arrColumnHeaders);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(retValue) +  "]","SetResources finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+       return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+    }
+
+    //------------------------------------------------------
+    // Creates the Loading Dialog
+    // params 
+    //         i_strDialogTitle         - Title of the dialog (window title)
+    //         i_intButtonType          - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight        - Height of the window
+    //         i_intDialogWidth         - Width of the window
+    //         i_intTimeOut             - Timeout used for autoclose (optional)
+    //         i_strLoadingText         - The text of the dialog (forced line break with \n)
+    //         i_strTopImage            - Dialog Images
+    //         i_strBottomImage         - Dialog Images
+    //         i_intMaxImageWidth       - Max width of dialog images (best results with 600)
+    //         i_arrLabwarePositions    - Array with the values for the first column
+    //         i_arrLabwareQuantities   - Array with the values for the second column
+    //         i_arrLabwareDescriptions - Array with the values for the third column
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL
+    //------------------------------------------------------
+    function LoadingDialog(
+                              variable i_strDialogTitle,
+                              variable i_intButtonType,
+                              variable i_intDialogHeight,
+                              variable i_intDialogWidth,
+                              variable i_intTimeOut,
+                              variable i_strTopText,
+                              variable i_strBottomText,
+                              variable i_strTopImage,
+                              variable i_strBottomImage,
+                              variable i_intMaxImageWidth,
+                              variable i_arrLabwarePositions[],
+                              variable i_arrLabwareQuantities[],
+                              variable i_arrLabwareDescriptions[]
+                           ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intTimeOut, "i_intTimeOut", 0, 9999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strTopText, "i_strTopText")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strBottomText, "i_strBottomText")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strTopImage, "i_strTopImage")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strBottomImage, "i_strBottomImage")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intMaxImageWidth, "i_intMaxImageWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrLabwarePositions, "i_arrLabwarePositions")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrLabwareQuantities, "i_arrLabwareQuantities")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrLabwareDescriptions, "i_arrLabwareDescriptions")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_intTimeOut);
+       arrTraceInput.AddAsLast(i_strTopText);
+       arrTraceInput.AddAsLast(i_strBottomText);
+       arrTraceInput.AddAsLast(i_strTopImage);
+       arrTraceInput.AddAsLast(i_strBottomImage);
+       arrTraceInput.AddAsLast(i_intMaxImageWidth);
+
+       TraceInputs(arrTraceInput, "LoadingDialog Inputs");
+       TraceInputs(i_arrLabwarePositions, "LoadingDialog Inputs - Array Positions");
+       TraceInputs(i_arrLabwareQuantities, "LoadingDialog Inputs - Array Quantities");
+       TraceInputs(i_arrLabwareDescriptions, "LoadingDialog Inputs - Array Descriptions");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load LoadingDialog.");
+       retValue = gAswStandardDialogs_objInterface.
+         LoadingDialog(
+           i_strDialogTitle, 
+           i_intButtonType, 
+           GetButtonResourcesWithButtonType(i_intButtonType), 
+           i_intDialogHeight, 
+           i_intDialogWidth, 
+           _intFixedSize,
+           i_intTimeOut,
+           i_strTopText,
+           i_strBottomText,
+           i_strTopImage,
+           i_strBottomImage,
+           i_intMaxImageWidth,
+           i_arrLabwarePositions,
+           i_arrLabwareQuantities, 
+           i_arrLabwareDescriptions, 
+           _intWindowType);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(retValue) +  "]","LoadingDialog finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+
+       return(MapReturnValuesToGlobalAswDialogValues(retValue) );
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+    }// LoadingDialog
+
+    //------------------------------------------------------
+    // Creates the List Dialog
+    // params 
+    //         i_strDialogTitle      - Title of the dialog (window title)
+    //         i_intButtonType       - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight     - Height of the window
+    //         i_intDialogWidth      - Width of the window
+    //         i_strTopText          - Text at top of the table
+    //         i_strBottomText       - Text at bottom of the table
+    //         i_arrIist             - The list of the dialog
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL
+    //------------------------------------------------------
+
+    function ListDialog(
+                         variable i_strDialogTitle, 
+                         variable i_intIconType,
+                         variable i_intButtonType, 
+                         variable i_intDialogHeight, 
+                         variable i_intDialogWidth , 
+                         variable i_intTimeOut,
+                         variable i_strTopText, 
+                         variable i_strBottomText, 
+                         variable i_arrList[] 
+                        ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable intMandatorySelection(0);
+       variable intListType(0);
+       variable arrTraceInput[];
+       variable strSelection("");
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intIconType, "i_intIconType", 0, 3)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intTimeOut, "i_intTimeOut", 0, 9999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strTopText, "i_strTopText")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strBottomText, "i_strBottomText")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrList, "i_arrList")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intIconType);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_intTimeOut);
+       arrTraceInput.AddAsLast(i_strTopText);
+       arrTraceInput.AddAsLast(i_strBottomText);
+
+       TraceInputs(arrTraceInput, "ListDialog Inputs");
+       TraceInputs(i_arrList, "ListDialog Inputs - List array");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load ListDialog.");
+       retValue = gAswStandardDialogs_objInterface.ListDialog(
+         i_strDialogTitle,
+         i_intIconType, 
+         i_intButtonType, 
+         GetButtonResourcesWithButtonType(i_intButtonType), 
+         i_intDialogHeight, 
+         i_intDialogWidth, 
+         _intFixedSize, 
+         i_intTimeOut, 
+         i_strTopText, 
+         i_strBottomText, 
+         i_arrList, 
+         intMandatorySelection,
+         intListType,
+         strSelection, 
+         _intWindowType);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]","ListDialog finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+
+       return(MapReturnValuesToGlobalAswDialogValues(retValue) );
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+
+    }// ListDialog
+
+    //------------------------------------------------------
+    // Creates the List Select Dialog
+    // params 
+    //         i_strDialogTitle      - Title of the dialog (window title)
+    //         i_intButtonType       - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight     - Height of the window
+    //         i_intDialogWidth      - Width of the window
+    //         i_strTopText          - Text at top of the table
+    //         i_strBottomText       - Text at bottom of the table
+    //         i_arrIist             - The list of the dialog
+    //         & o_strSelection      - for returned selection
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL
+    //------------------------------------------------------
+    function ListSelectDialog(
+                         variable i_strDialogTitle,
+                         variable i_intButtonType,
+                         variable i_intDialogHeight,
+                         variable i_intDialogWidth,
+                         variable i_strTopText,
+                         variable i_strBottomText,
+                         variable i_arrList[],
+                         variable & o_strSelection
+                        ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable intMandatorySelection(1);
+       variable intListType(1);
+       variable intTimeOut(0);
+       variable arrTraceInput[];
+
+       o_strSelection = "";
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strTopText, "i_strTopText")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strBottomText, "i_strBottomText")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrList, "i_arrList")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_strTopText);
+       arrTraceInput.AddAsLast(i_strBottomText);
+       arrTraceInput.AddAsLast(o_strSelection);
+
+       TraceInputs(arrTraceInput, "ListSelectDialog Inputs");
+       TraceInputs(i_arrList, "ListSelectDialog Inputs - List array");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load ListSelectDialog.");
+       retValue = gAswStandardDialogs_objInterface.ListSelectDialog(
+       i_strDialogTitle,
+       i_intButtonType,
+       GetButtonResourcesWithButtonType(i_intButtonType),
+       i_intDialogHeight,
+       i_intDialogWidth,
+       _intFixedSize,
+       intTimeOut,
+       i_strTopText,
+       i_strBottomText,
+       i_arrList,
+       intMandatorySelection,
+       intListType,
+       o_strSelection,
+       _intWindowType);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) + "]" + " >> Selected value: " + o_strSelection,"- ListSelectDialog finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+
+       return(MapReturnValuesToGlobalAswDialogValues(retValue) );
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+
+    }// ListDialog
+
+    function InputDialogSetResources(variable i_arrInputListHeaderLocalization[]) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ASWGLOBAL::BOOL::FALSE);
+       }
+
+       if(!IsStringArray(i_arrInputListHeaderLocalization, "i_arrInputListHeaderLocalization")) return(ErrorCode::BadParameter);
+
+       TraceInputs(i_arrInputListHeaderLocalization, "InputDialogSetResources Inputs - Header captions array");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load InputDialogSetResources.");
+       
+       retValue = gAswStandardDialogs_objInterface.InputDialogSetResources(i_arrInputListHeaderLocalization);
+       
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]","InputDialogSetResources finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+       return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+    }
+
+    //------------------------------------------------------
+    // Creates the Input Dialog
+    // params 
+    //         i_strDialogTitle      - Title of the dialog (window title)
+    //         i_intButtonType       - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight     - Height of the window (0 - autosize)
+    //         i_intDialogWidth      - Width of the window (0 - autosize)
+    //         i_strTopText          - Text at top of the table
+    //         i_strBottomText       - Text at bottom of the table
+    //         i_arrLabels           - Array of labels
+    //         i_arrValues           - Array of default values
+    //         i_arrUnits            - Array of descriptions
+    //         o_arrResult           - The result (passing by reference) of the dialog type array
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL
+    //------------------------------------------------------
+    function InputDialog(
+                           variable i_strDialogTitle,
+                           variable i_intButtonType,
+                           variable i_intDialogHeight,
+                           variable i_intDialogWidth,
+                           variable i_strTopText,
+                           variable i_strBottomText,
+                           variable i_arrInputListLabels[],
+                           variable i_arrInputListValues[],
+                           variable i_arrInputListUnits[],
+                           variable i_arrDataTypes[],
+                           variable i_arrRanges[],
+                           variable i_arrCustomToolTip[],
+                           variable & o_arrResult[]
+                         ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strTopText, "i_strTopText")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strBottomText, "i_strBottomText")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrInputListLabels, "i_arrInputListLabels")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrInputListValues, "i_arrInputListValues")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrInputListUnits, "i_arrInputListUnits")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRangeArray(i_arrDataTypes, "i_arrDataTypes", 1, 6)) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrRanges, "i_arrRanges")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrCustomToolTip, "i_arrCustomToolTip")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_strTopText);
+       arrTraceInput.AddAsLast(i_strBottomText);
+
+       TraceInputs(arrTraceInput, "InputDialog Inputs");
+       TraceInputs(i_arrInputListLabels, "InputDialog Inputs - Labels array");
+       TraceInputs(i_arrInputListValues, "InputDialog Inputs - Values array");
+       TraceInputs(i_arrInputListUnits, "InputDialog Inputs - Description array");
+       TraceInputs(i_arrDataTypes, "InputDialog Inputs - Datatypes array");
+       TraceInputs(i_arrRanges, "InputDialog Inputs - Ranges array");
+       TraceInputs(i_arrCustomToolTip, "InputDialog Inputs - Tooltip array");
+       TraceInputs(o_arrResult, "InputDialog Outputs - result array");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load InputDialog.");
+       
+       retValue = gAswStandardDialogs_objInterface.InputDialog(
+         i_strDialogTitle, 
+         i_intButtonType, 
+         GetButtonResourcesWithButtonType(i_intButtonType), 
+         i_intDialogHeight, 
+         i_intDialogWidth, 
+         _intFixedSize, 
+         i_strTopText, 
+         i_strBottomText, 
+         i_arrInputListLabels, 
+         i_arrInputListValues, 
+         i_arrInputListUnits, 
+         i_arrDataTypes, 
+         i_arrRanges,
+         i_arrCustomToolTip, 
+         o_arrResult, 
+         _intWindowType);
+       
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]","InputDialog finished.");
+
+       TraceInputs(o_arrResult, "InputDialog Result");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+
+       return(MapReturnValuesToGlobalAswDialogValues(retValue) );
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+
+    }// InputDialog
+
+    function DoubleInputDialogSetResources(variable i_arrLabels[] ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ASWGLOBAL::BOOL::FALSE);
+       }
+
+       if(!IsStringArray(i_arrLabels, "i_arrLabels")) return(ErrorCode::BadParameter);
+
+       TraceInputs(i_arrLabels, "DoubleInputSetResources Inputs - Header captions array");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load DoubleInputSetResources.");
+       
+       retValue = gAswStandardDialogs_objInterface.DoubleInputDialogSetResources(i_arrLabels);
+       
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]","DoubleInputSetResources finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+       return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+    }
+
+    //------------------------------------------------------
+    // Creates the DoubleInput Dialog
+    // params 
+    //         i_strDialogTitle      - Title of the dialog (window title)
+    //         i_intButtonType       - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight     - Height of the window (0 - autosize)
+    //         i_intDialogWidth      - Width of the window (0 - autosize)
+    //         i_strMessage          - Text at top of the inputs
+    //         i_strErrorMessage     - The error message for required input not valid information
+    //         o_strBlindEntry       - The return verified blind entry
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL
+    //------------------------------------------------------
+    function DoubleInputDialog(
+                           variable i_strDialogTitle,
+                           variable i_intButtonType,
+                           variable i_intDialogHeight,
+                           variable i_intDialogWidth,
+                           variable i_strMessage,
+                           variable i_strErrorMessage,
+                           variable &o_strBlindEntry
+    ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable _intTimeOut (0);
+       variable _intIcon(0);
+       variable arrTraceInput[];
+       
+       o_strBlindEntry = "";
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strMessage, "i_strMessage")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strMessage, "i_strMessage")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_strMessage);
+       arrTraceInput.AddAsLast(i_strErrorMessage);
+       arrTraceInput.AddAsLast(o_strBlindEntry);
+
+       TraceInputs(arrTraceInput, "DoubleInputDialog Inputs");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load DoubleInputDialog.");
+       
+       retValue = gAswStandardDialogs_objInterface.DoubleInputDialog(
+               i_strDialogTitle, 
+               _intIcon, 
+               i_intButtonType, 
+               GetButtonResourcesWithButtonType(i_intButtonType), 
+               i_intDialogHeight, 
+               i_intDialogWidth, 
+               _intFixedSize, 
+               _intTimeOut, 
+               i_strMessage, 
+               i_strErrorMessage, 
+               o_strBlindEntry, 
+               _intWindowType);
+       
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]","DoubleInputDialog finished.");
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(o_strBlindEntry);
+       TraceInputs(arrTraceInput, "DoubleInputDialog Result");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+
+       return(MapReturnValuesToGlobalAswDialogValues(retValue) );
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+
+    }// InputDialog
+
+    //------------------------------------------------------
+    // Sets resources for CheckBox Dialog
+    // params 
+    //         i_arrColumnHeaders         - array with column captions
+    //
+    // return 0 (success), -1 (fail)
+    //------------------------------------------------------
+    function CheckBoxDialogSetResources(variable i_arrColumnHeaders[]) variable{
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ASWGLOBAL::BOOL::FALSE);
+       }
+
+       if(!IsStringArray(i_arrColumnHeaders, "i_arrColumnHeaders")) return(hslFalse);
+
+       TraceInputs(i_arrColumnHeaders, "CheckBoxDialogSetResources - array column headers");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "SetResources for CheckBox.");
+       retValue = gAswStandardDialogs_objInterface.CheckBoxDialogSetResources(i_arrColumnHeaders);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(retValue) +  "]","SetResources finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0){
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+         return(ASWGLOBAL::BOOL::FALSE);
+       }
+       return(ASWGLOBAL::BOOL::TRUE);
+       
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+    }
+
+    //------------------------------------------------------
+    // Creates the CheckBoxDialog Dialog
+    // params 
+    //         i_strDialogTitle      - Title of the dialog (window title)
+    //         i_intButtonType       - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight     - Height of the window (0 - autosize)
+    //         i_intDialogWidth      - Width of the window (0 - autosize)
+    //         i_strTopText          - Text at top of the table
+    //         i_strBottomText       - Text at bottom of the table
+    //         i_arrLabels[]         - Array of default values
+    //         i_arrTooltips[]       - Array of descriptions (optional)
+    //         io_arrIsSelected[]    - The result (passing by reference) of the dialog type array (optional)
+    //         i_arrIsEditable[]     - Is the affected checkbox editable (optional)
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL
+    //------------------------------------------------------
+    function CheckBoxDialog(
+                           variable i_strDialogTitle,
+                           variable i_intButtonType,
+                           variable i_intDialogHeight,
+                           variable i_intDialogWidth,
+                           variable i_strTextTop,
+                           variable i_strTextBottom,
+                           variable i_arrLabels[],
+                           variable i_arrTooltips[],
+                           variable i_arrIsEditable[],
+                           variable & io_arrIsSelected[]
+                         ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+ 
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strTextTop, "i_strTextTop")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strTextBottom, "i_strTextBottom")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrLabels, "i_arrLabels")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrTooltips, "i_arrTooltips")) return(ErrorCode::BadParameter);
+       if(!IsIntegerArray(i_arrIsEditable, "i_arrIsEditable")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_strTextTop);
+       arrTraceInput.AddAsLast(i_strTextBottom);
+
+       TraceInputs(arrTraceInput, "CheckBoxDialog Inputs");
+       TraceInputs(i_arrLabels, "CheckBoxDialog Inputs - Labels array");
+       TraceInputs(i_arrTooltips, "CheckBoxDialog Inputs - Tooltips array");
+       TraceInputs(i_arrIsEditable, "CheckBoxDialog Inputs - IsEditable array");
+       TraceInputs(io_arrIsSelected, "CheckBoxDialog Inputs - IsSelected array");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load CheckBoxDialog.");
+       retValue = gAswStandardDialogs_objInterface.CheckBoxDialog(
+         i_strDialogTitle,
+         i_intButtonType,
+         GetButtonResourcesWithButtonType(i_intButtonType),
+         i_intDialogHeight,
+         i_intDialogWidth,
+         _intFixedSize,
+         i_strTextTop,
+         i_strTextBottom,
+         i_arrLabels,
+         i_arrTooltips,
+         i_arrIsEditable,
+         io_arrIsSelected,
+         _intWindowType);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]","CheckBoxDialog finished.");
+
+       TraceInputs(io_arrIsSelected, "CheckBoxDialog Result");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+
+       return(MapReturnValuesToGlobalAswDialogValues(retValue) );
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+
+    }// CheckBoxDialog
+
+
+
+    //------------------------------------------------------
+    // Creates the RadioButton Dialog
+    // params 
+    //         i_strDialogTitle      - Title of the dialog (window title)
+    //         i_intButtonType       - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight     - Height of the window (0 - autosize)
+    //         i_intDialogWidth      - Width of the window (0 - autosize)
+    //         i_strTopText          - Text at top of the table
+    //         i_strBottomText       - Text at bottom of the table
+    //         i_arrLabels[]         - Array of default values
+    //         i_arrTooltips[]       - Array of descriptions (optional)
+    //         io_arrIsSelected[]    - The result (passing by reference) of the dialog type array (optional)
+    //         i_arrIsEditable[]     - The result (passing by reference) of the dialog type array (optional)
+    //         i_arrGroupName[]      - group names for grouping radio buttons (optional)
+    //         i_intSortDirection    - specifies the sorting direction of radio buttons (per group)
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL
+    //------------------------------------------------------
+    function RadioButtonDialog(
+                           variable i_strDialogTitle,
+                           variable i_intButtonType,
+                           variable i_intDialogHeight,
+                           variable i_intDialogWidth,
+                           variable i_strTextTop,
+                           variable i_strTextBottom,
+                           variable i_arrLabels[],
+                           variable i_arrTooltips[],
+                           variable i_arrIsEditable[],
+                           variable & io_arrIsSelected[],
+                           variable i_arrGroupName[],
+                           variable i_intWrapOrientation,
+                           variable i_intSortDirection
+                         ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strTextTop, "i_strTextTop")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strTextBottom, "i_strTextBottom")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrLabels, "i_arrLabels")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrTooltips, "i_arrTooltips")) return(ErrorCode::BadParameter);
+       if(!IsIntegerArray(i_arrIsEditable, "i_arrIsEditable")) return(ErrorCode::BadParameter);
+       if(!IsIntegerArray(io_arrIsSelected, "io_arrIsSelected")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrGroupName, "i_arrGroupName")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intWrapOrientation, "i_intWrapOrientation", 0, 1)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intSortDirection, "i_intSortDirection", 0, 2)) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_strTextTop);
+       arrTraceInput.AddAsLast(i_strTextBottom);
+       arrTraceInput.AddAsLast(i_intWrapOrientation);
+       arrTraceInput.AddAsLast(i_intSortDirection);
+
+       TraceInputs(arrTraceInput, "RadioButtonDialog Inputs");
+       TraceInputs(i_arrLabels, "RadioButtonDialog Inputs - Labels array");
+       TraceInputs(i_arrTooltips, "RadioButtonDialog Inputs - Tooltips array");
+       TraceInputs(i_arrIsEditable, "RadioButtonDialog Inputs - IsEditable array");
+       TraceInputs(io_arrIsSelected, "RadioButtonDialog Inputs - IsSelected array");
+       TraceInputs(i_arrGroupName, "RadioButtonDialog Inputs - GroupName array");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load RadioButtonDialog.");
+       retValue = gAswStandardDialogs_objInterface.RadioButtonDialog(
+       i_strDialogTitle, 
+       i_intButtonType, 
+       GetButtonResourcesWithButtonType(i_intButtonType), 
+       i_intDialogHeight, 
+       i_intDialogWidth, 
+       _intFixedSize, 
+       i_strTextTop, 
+       i_strTextBottom, 
+       i_arrLabels, 
+       i_arrTooltips, 
+       i_arrIsEditable, 
+       io_arrIsSelected, 
+       i_arrGroupName,
+       i_intWrapOrientation,
+       i_intSortDirection,
+       _intWindowType);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]","RadioButtonDialog finished.");
+
+       TraceInputs(io_arrIsSelected, "RadioButtonDialog Result");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+
+       return(MapReturnValuesToGlobalAswDialogValues(retValue) );
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+
+    }// RadioButtonDialog
+
+    //------------------------------------------------------
+    // Creates the ImageRadioButton Dialog
+    // params 
+    //         i_strDialogTitle      - Title of the dialog (window title)
+    //         i_intButtonType       - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight     - Height of the window (0 - autosize)
+    //         i_intDialogWidth      - Width of the window (0 - autosize)
+    //         i_strTopText          - Text at top of the table
+    //         i_strBottomText       - Text at bottom of the table
+    //         i_arrLabels[]         - Array of default values
+    //         i_arrTooltips[]       - Array of descriptions (optional)
+    //         i_arrImageSource[]    - Source of the image (fullpath)
+    //         i_arrImageHeight[]    - Height of the image
+    //         i_arrImageWidth[]     - Width of the image
+    //         io_arrIsSelected[]    - The result (passing by reference) of the dialog type array (optional)
+    //         i_arrIsEditable[]     - The result (passing by reference) of the dialog type array (optional)
+    //         i_arrGroupName[]      - group names for grouping radio buttons (optional)
+    //         i_intSortDirection    - specifies the sorting direction of radio buttons (per group)
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL
+    //------------------------------------------------------
+
+    function ImageRadioButtonDialog(
+             variable i_strDialogTitle, 
+             variable i_intButtonType, 
+             variable i_intDialogHeight, 
+             variable i_intDialogWidth, 
+             variable i_strTextTop, 
+             variable i_strTextBottom, 
+             variable i_arrLabels[], 
+             variable i_arrTooltips[], 
+             variable i_arrIsEditable[], 
+             variable i_arrImageSource[], 
+             variable i_arrImageHeight[], 
+             variable i_arrImageWidth[], 
+             variable & io_arrIsSelected[], 
+             variable i_arrGroupName[], 
+             variable i_intWrapOrientation, 
+             variable i_intSortDirection) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strTextTop, "i_strTextTop")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strTextBottom, "i_strTextBottom")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrLabels, "i_arrLabels")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrTooltips, "i_arrTooltips")) return(ErrorCode::BadParameter);
+       if(!IsIntegerArray(i_arrIsEditable, "i_arrIsEditable")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrImageSource, "i_arrImageSource")) return(ErrorCode::BadParameter);
+       if(!IsIntegerArray(i_arrImageHeight, "i_arrImageHeight")) return(ErrorCode::BadParameter);
+       if(!IsIntegerArray(i_arrImageWidth, "i_arrImageWidth")) return(ErrorCode::BadParameter);
+       if(!IsIntegerArray(io_arrIsSelected, "io_arrIsSelected")) return(ErrorCode::BadParameter);
+       if(!IsStringArray(i_arrGroupName, "i_arrGroupName")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intWrapOrientation, "i_intWrapOrientation", 0, 1)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intSortDirection, "i_intSortDirection", 0, 2)) return(ErrorCode::BadParameter);
+ 
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_strTextTop);
+       arrTraceInput.AddAsLast(i_strTextBottom);
+       arrTraceInput.AddAsLast(i_intWrapOrientation);
+       arrTraceInput.AddAsLast(i_intSortDirection);
+
+       TraceInputs(arrTraceInput, "ImageRadioButtonDialog Inputs");
+       TraceInputs(i_arrLabels, "ImageRadioButtonDialog Inputs - Labels array");
+       TraceInputs(i_arrTooltips, "ImageRadioButtonDialog Inputs - Tooltips array");
+       TraceInputs(i_arrIsEditable, "ImageRadioButtonDialog Inputs - IsEditable array");
+       TraceInputs(io_arrIsSelected, "ImageRadioButtonDialog Inputs - IsSelected array");
+       TraceInputs(i_arrGroupName, "ImageRadioButtonDialog Inputs - GroupName array");
+       TraceInputs(i_arrImageSource, "ImageRadioButtonDialog Inputs - ImageSource array");
+       TraceInputs(i_arrImageHeight, "ImageRadioButtonDialog Inputs - ImageHeight array");
+       TraceInputs(i_arrImageWidth, "ImageRadioButtonDialog Inputs - ImageWidth array");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load ImageRadioButtonDialog.");
+       retValue = gAswStandardDialogs_objInterface.ImageRadioButtonDialog(
+       i_strDialogTitle, 
+       i_intButtonType, 
+       GetButtonResourcesWithButtonType(i_intButtonType), 
+       i_intDialogHeight, 
+       i_intDialogWidth, 
+       _intFixedSize, 
+       i_strTextTop, 
+       i_strTextBottom, 
+       i_arrLabels, 
+       i_arrTooltips, 
+       i_arrIsEditable,
+       i_arrImageSource,
+       i_arrImageHeight,
+       i_arrImageWidth,
+       io_arrIsSelected, 
+       i_arrGroupName,
+       i_intWrapOrientation,
+       i_intSortDirection,
+       _intWindowType);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]","ImageRadioButtonDialog finished.");
+
+       TraceInputs(io_arrIsSelected, "ImageRadioButtonDialog Result");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+
+       return(MapReturnValuesToGlobalAswDialogValues(retValue) );
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+
+    }// ImageRadioButtonDialog
+
+
+    function LoginDialogSetResources(variable i_arrLabels[] ) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ASWGLOBAL::BOOL::FALSE);
+       }
+
+       if(!IsStringArray(i_arrLabels, "i_arrLabels")) return(ErrorCode::BadParameter);
+       TraceInputs(i_arrLabels, "LoginDialogSetResources Inputs - Header captions array");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load LoginDialogSetResources.");
+       
+       retValue = gAswStandardDialogs_objInterface.LoginDialogSetResources(i_arrLabels);
+       
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]","LoginDialogSetResources finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+       return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer to help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+    }
+
+ //------------------------------------------------------
+    // Creates the Login Dialog
+    // params 
+    //         i_strDialogTitle      - Title of the dialog (window title)
+    //         i_intButtonType       - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight     - Height of the window (0 - autosize)
+    //         i_intDialogWidth      - Width of the window (0 - autosize)
+    //         i_strMessage          - Text at top of the inputs
+    //         i_intEncryption       - The encryption for the password
+    //         i_intEncoding         - The encoding for the passworden cryption
+    //         i_intEncodingCodepage - The i_intEncodingCodepage for the passworden cryption in case of user encoding
+    //         o_strUserName         - The return of the username
+    //         o_strUserPassword     - The return of the userpassword as hex string or plain text
+    //         o_strUserName         - The return of the userpassword as byte array
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL
+    //------------------------------------------------------
+    function LoginDialog(
+                           variable i_strDialogTitle, 
+                           variable i_intButtonType, 
+                           variable i_intDialogHeight, 
+                           variable i_intDialogWidth, 
+                           variable i_strMessage, 
+                           variable i_intEncryption, 
+                           variable i_intEncoding, 
+                           variable i_intEncodingCodepage, 
+                           variable& o_strUserName, 
+                           variable& o_strUserPassword, 
+                           variable& o_arrUserPasswordBytes[]) variable
+
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable _intTimeOut (0);
+       variable _intIcon(0);
+       variable arrTraceInput[];
+
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strMessage, "i_strMessage")) return(ErrorCode::BadParameter);
+       if(!CheckInteger(i_intEncryption, "i_intEncryption")) return(ErrorCode::BadParameter);
+       if(!CheckInteger(i_intEncoding, "i_intEncoding")) return(ErrorCode::BadParameter);
+       if(!CheckInteger(i_intEncodingCodepage, "i_intEncodingCodepage")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_strMessage);
+       arrTraceInput.AddAsLast(i_intEncryption);
+       arrTraceInput.AddAsLast(i_intEncoding);
+       arrTraceInput.AddAsLast(i_intEncodingCodepage);
+
+
+       TraceInputs(arrTraceInput, "LoginDialog Inputs");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load LoginDialog.");
+       
+       retValue = gAswStandardDialogs_objInterface.LoginDialog(
+               i_strDialogTitle, 
+               _intIcon, 
+               i_intButtonType, 
+               GetButtonResourcesWithButtonType(i_intButtonType), 
+               i_intDialogHeight, 
+               i_intDialogWidth, 
+               _intFixedSize, 
+               _intTimeOut, 
+               i_strMessage, 
+               i_intEncryption, 
+               i_intEncoding,
+               i_intEncodingCodepage,
+               o_strUserName,
+               o_strUserPassword,
+               o_arrUserPasswordBytes, 
+               _intWindowType);
+       
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]","LoginDialog finished.");
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(o_strUserName);
+       arrTraceInput.AddAsLast(o_strUserPassword);
+       TraceInputs(arrTraceInput, "LoginDialog Result");
+       TraceInputs(o_arrUserPasswordBytes, "");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+
+       return(MapReturnValuesToGlobalAswDialogValues(retValue) );
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+
+    }// InputDialog
+
+    //------------------------------------------------------
+    // Creates the FileBrowser Dialog
+    // params 
+    //         i_strDialogTitle     - Title of the dialog (window title)
+    //         i_intButtonType      - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight    - Height of the window 
+    //         i_intDialogWidth     - Width of the window
+    //         i_intTimeOut         - Timeout for dialog auto closing
+    //         i_strMessage         - The message of the dialog (forced line break with \n)
+    //         i_strCaptionBrowseButton - Caption of browse button
+    //         i_strFileDialogTitle - Title of browse dialog
+    //         i_strFileFilter      - File filter pattern
+    //         i_intFilterIndex     - Which index of FileFiler is preselected
+    //         i_strInitialDirectory - The initial directory of the  file browser
+    //         & o_strSelectedFile  - selected file if file exists
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL, ASWGLOBAL::DIALOG::YES, ASWGLOBAL::DIALOG::NO, ASWGLOBAL::DIALOG::RETRY, ASWGLOBAL::DIALOG::ABORT
+    //------------------------------------------------------
+    function FileBrowserDialog(
+      variable i_strDialogTitle,
+      variable i_intButtonType,
+      variable i_intDialogHeight,
+      variable i_intDialogWidth,
+      variable i_strMessage,
+      variable i_intFileDialogType,
+      variable i_strFileFilter,
+      variable i_intFilterIndex,
+      variable i_strInitialFile,
+      variable & o_strSelectedFile
+      )variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable intIconType (0);
+       variable arrTraceInput[];
+
+       o_strSelectedFile = "";
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strMessage, "i_strMessage")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intFileDialogType, "i_intFileDialogType", 0, 1)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strFileFilter, "i_strFileFilter")) return(ErrorCode::BadParameter);
+       if(!CheckInteger(i_intFilterIndex, "i_intFilterIndex")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strInitialFile, "i_strInitialFile")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_strMessage);
+       arrTraceInput.AddAsLast(i_intFileDialogType);
+       arrTraceInput.AddAsLast(i_strFileFilter);
+       arrTraceInput.AddAsLast(i_intFilterIndex);
+       arrTraceInput.AddAsLast(i_strInitialFile);
+       arrTraceInput.AddAsLast(o_strSelectedFile);
+
+       TraceInputs(arrTraceInput, "FileBrowserDialog Inputs");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load FileBrowserDialog.");
+       retValue = gAswStandardDialogs_objInterface.FileBrowserDialog(
+         i_strDialogTitle,
+         intIconType,
+         i_intButtonType,
+         GetButtonResourcesWithButtonType(i_intButtonType), 
+         i_intDialogHeight,
+         i_intDialogWidth,
+         _intFixedSize,
+         i_strMessage,
+         i_intFileDialogType,
+         i_strFileFilter,
+         i_intFilterIndex,
+         i_strInitialFile,
+         o_strSelectedFile, 
+         _intWindowType);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]" + " >> Selected file:" + o_strSelectedFile,"FileBrowserDialog finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please look into help file for more information!");
+       
+       return(MapReturnValuesToGlobalAswDialogValues(retValue));       
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+
+    }// FileBrowserDialog
+
+    //------------------------------------------------------
+    // Creates the DirectoryBrowserDialog Dialog
+    // params 
+    //         i_strDialogTitle     - Title of the dialog (window title)
+    //         i_intButtonType      - DIALOG_BUTTONS_Ok, DIALOG_BUTTONS_OkCancel ...
+    //         i_intDialogHeight    - Height of the window 
+    //         i_intDialogWidth     - Width of the window
+    //         i_strMessage         - The message of the dialog (forced line break with \n)
+    //         i_strInitialDirectory - The initial directory of the  file browser
+    //         & o_strSelectedFolder  - selected file if file exists
+    //
+    // return ASWGLOBAL::DIALOG::OK, ASWGLOBAL::DIALOG::CANCEL, ASWGLOBAL::DIALOG::YES, ASWGLOBAL::DIALOG::NO, ASWGLOBAL::DIALOG::RETRY, ASWGLOBAL::DIALOG::ABORT
+    //------------------------------------------------------
+    function DirectoryBrowserDialog(
+      variable i_strDialogTitle,
+      variable i_intButtonType,
+      variable i_intDialogHeight,
+      variable i_intDialogWidth,
+      variable i_strMessage,
+      variable i_strInitialDirectory,
+      variable & o_strSelectedFolder
+      )variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable intIconType (0);
+       variable arrTraceInput[];
+       o_strSelectedFolder = "";
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs is not initialized...");
+         return(ErrorCode::NotInitialized);
+       }
+
+       if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intButtonType, "i_intButtonType", 0, 7)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strMessage, "i_strMessage")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strInitialDirectory, "i_strInitialDirectory")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strDialogTitle);
+       arrTraceInput.AddAsLast(i_intButtonType);
+       arrTraceInput.AddAsLast(i_intDialogHeight);
+       arrTraceInput.AddAsLast(i_intDialogWidth);
+       arrTraceInput.AddAsLast(i_strMessage);
+       arrTraceInput.AddAsLast(i_strInitialDirectory);
+       arrTraceInput.AddAsLast(o_strSelectedFolder);
+
+       TraceInputs(arrTraceInput, "DirectoryBrowserDialog Inputs");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "Load DirectoryBrowserDialog.");
+       retValue = gAswStandardDialogs_objInterface.FolderBrowserDialog(
+         i_strDialogTitle,
+         intIconType,
+         i_intButtonType,
+         GetButtonResourcesWithButtonType(i_intButtonType), 
+         i_intDialogHeight,
+         i_intDialogWidth,
+         _intFixedSize,
+         i_strMessage,
+         i_strInitialDirectory,
+         o_strSelectedFolder, 
+         _intWindowType);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(MapReturnValuesToGlobalAswDialogValues(retValue)) +  "]" + " >> Selected folder:" + o_strSelectedFolder," DirectoryBrowserDialog finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0) 
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please look into help file for more information!");
+       
+       return(MapReturnValuesToGlobalAswDialogValues(retValue));
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+    }// DirectoryBrowserDialog
+
+
+   //---------------------------------------------
+   // set the worklist dialog resources 
+   // 
+   // Parameters:
+   // i_strDialogTitle: dialog title
+   // i_strSaveAndCloseCaption: text of the save and close button
+   // i_strResetCaption: text of the reset button
+   // i_strCaptionSelectedRows: text of the selected rows number label
+   // i_strSampleModeProcessText: process radio button text
+   // i_strSampleModeExcludeText: exclude radio button text
+   // i_strSampleModeRemoveText: remove radio button text
+   // i_strSetAllToProcessButtonText: process all button text
+   // i_strSetAllToExcludeButtonText: exclude all button text
+   // i_strSetAllToRemoveButtonText: remove all button text
+   // i_strLegendRowStatusOKText: legend text 
+   // i_strLegendRowStatusWarningText: legend text 
+   // i_strLegendRowStatusErrorText: legend text 
+   // i_strLegendProcessingModeProcessText: legend text 
+   // i_strLegendProcessingModeExcludeText: legend text 
+   // i_strLegendProcessingModeRemoveText: legend text 
+   // 
+   // Returns: (bool)
+   // - true: successful
+   // - false: error   
+   //---------------------------------------------
+    function WorklistDialogSetResources(  
+                                          variable i_strDialogTitle, 
+                                          variable i_strSaveAndCloseCaption, 
+                                          variable i_strResetCaption, 
+                                          variable i_strCaptionSelectedRows, 
+                                          variable i_strSampleModeProcessText,
+                                          variable i_strSampleModeExcludeText,
+                                          variable i_strSampleModeRemoveText,
+                                          variable i_strSetAllToProcessButtonText,
+                                          variable i_strSetAllToExcludeButtonText,
+                                          variable i_strSetAllToRemoveButtonText,
+                                          variable i_strLegendRowStatusOKText,
+                                          variable i_strLegendRowStatusWarningText,
+                                          variable i_strLegendRowStatusErrorText,
+                                          variable i_strLegendProcessingModeProcessText,
+                                          variable i_strLegendProcessingModeExcludeText,
+                                          variable i_strLegendProcessingModeRemoveText
+                                        ) variable
+   {
+      variable strReturnValue(ErrorCode::strNoError);
+      variable strFunctionName;
+      variable arrTraceInput[];
+      strFunctionName = GetFunctionName();
+
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckString(i_strDialogTitle, "i_strDialogTitle")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strSaveAndCloseCaption, "i_strSaveAndCloseCaption")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strResetCaption, "i_strResetCaption")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strCaptionSelectedRows, "i_strCaptionSelectedRows")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strSampleModeProcessText, "i_strSampleModeProcessText")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strSampleModeExcludeText, "i_strSampleModeExcludeText")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strSampleModeRemoveText, "i_strSampleModeRemoveText")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strSetAllToProcessButtonText, "i_strSetAllToProcessButtonText")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strSetAllToExcludeButtonText, "i_strSetAllToExcludeButtonText")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strSetAllToRemoveButtonText, "i_strSetAllToRemoveButtonText")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strLegendRowStatusOKText, "i_strLegendRowStatusOKText")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strLegendRowStatusWarningText, "i_strLegendRowStatusWarningText")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strLegendRowStatusErrorText, "i_strLegendRowStatusErrorText")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strLegendProcessingModeProcessText, "i_strLegendProcessingModeProcessText")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strLegendProcessingModeExcludeText, "i_strLegendProcessingModeExcludeText")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strLegendProcessingModeRemoveText, "i_strLegendProcessingModeRemoveText")) return(ErrorCode::BadParameter);
+
+      arrTraceInput.SetSize(0);
+      arrTraceInput.AddAsLast(i_strDialogTitle);
+      arrTraceInput.AddAsLast(i_strSaveAndCloseCaption);
+      arrTraceInput.AddAsLast(i_strResetCaption);
+      arrTraceInput.AddAsLast(i_strCaptionSelectedRows);
+      arrTraceInput.AddAsLast(i_strSampleModeProcessText);
+      arrTraceInput.AddAsLast(i_strSampleModeExcludeText);
+      arrTraceInput.AddAsLast(i_strSampleModeRemoveText);
+      arrTraceInput.AddAsLast(i_strSetAllToProcessButtonText);
+      arrTraceInput.AddAsLast(i_strSetAllToExcludeButtonText);
+      arrTraceInput.AddAsLast(i_strSetAllToRemoveButtonText);
+      arrTraceInput.AddAsLast(i_strLegendRowStatusOKText);
+      arrTraceInput.AddAsLast(i_strLegendRowStatusWarningText);
+      arrTraceInput.AddAsLast(i_strLegendRowStatusErrorText);
+      arrTraceInput.AddAsLast(i_strLegendProcessingModeProcessText);
+      arrTraceInput.AddAsLast(i_strLegendProcessingModeExcludeText);
+      arrTraceInput.AddAsLast(i_strLegendProcessingModeRemoveText);
+
+      TraceInputs(arrTraceInput, "WorklistDialogSetResources Inputs");
+
+      onerror goto Exception;
+      SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      strReturnValue = gAswStandardDialogs_objInterface.WorklistDialogSetResources(
+        i_strDialogTitle,
+        i_strSaveAndCloseCaption,
+        i_strResetCaption,
+        i_strCaptionSelectedRows,
+        i_strSampleModeProcessText,
+        i_strSampleModeExcludeText,
+        i_strSampleModeRemoveText,
+        i_strSetAllToProcessButtonText,
+        i_strSetAllToExcludeButtonText,
+        i_strSetAllToRemoveButtonText,
+        i_strLegendRowStatusOKText,
+        i_strLegendRowStatusWarningText,
+        i_strLegendRowStatusErrorText,
+        i_strLegendProcessingModeProcessText,
+        i_strLegendProcessingModeExcludeText,
+        i_strLegendProcessingModeRemoveText);
+
+      if (strReturnValue != ErrorCode::strNoError)
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", gAswStandardDialogs_objInterface.WorklistDialogGetErrorMessage(strReturnValue));
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         return (ASWGLOBAL::BOOL::FALSE);
+      }
+
+      SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName, "Successfully", "");
+      return (ASWGLOBAL::BOOL::TRUE);
+
+      Exception:
+      {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+      return (ASWGLOBAL::BOOL::FALSE);
+      }
+   }// WorklistDialogSetResources   
+
+   //---------------------------------------------
+   // inizialize columns name of the worklist view
+   // 
+   // Parameters:
+   // i_arrColumnNames: column name of the worklist view
+   // 
+   // Returns: (bool)
+   // - true: successful
+   // - false: error   
+   //---------------------------------------------
+   function WorklistDialogSetColumns(variable i_arrColumnNames[]) variable
+   {
+      variable strReturnValue(ErrorCode::strNoError);
+      variable arrTraceInput[];
+      variable strFunctionName;
+
+      strFunctionName = GetFunctionName();
+      
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!IsStringArray(i_arrColumnNames, "i_arrColumnNames")) return(ErrorCode::BadParameter);
+      TraceInputs(i_arrColumnNames, "WorklistDialogSetColumns - column names");
+
+      onerror goto Exception;
+      SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      strReturnValue = gAswStandardDialogs_objInterface.WorklistDialogInitializeColumns(i_arrColumnNames);
+
+      if (strReturnValue != ErrorCode::strNoError)
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", gAswStandardDialogs_objInterface.WorklistDialogGetErrorMessage(strReturnValue));
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         return (ASWGLOBAL::BOOL::FALSE);
+      }
+
+      SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName, "Successfully", "");
+
+      return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+
+   }// WorklistDialogSetColumns   
+
+   
+   //---------------------------------------------
+   // adds row in the worklist view
+   // 
+   // Parameters:
+   // i_intID: id
+   // i_intStatus: row status (OK = 1, Warning = 2, Error = 3)
+   // i_blnIsEditable: is editable (True = row editable, False = row not editable)
+   // i_intProcessingMode: processing mode (Process = 1, Exclude = 2, Remove = 3)
+   // i_arrValueColumns []: string value rows
+   // 
+   // Returns: (bool)
+   // - true: successful
+   // - false: error   
+   //---------------------------------------------
+   function WorklistDialogAddRow(
+                                    variable i_intID, 
+                                    variable i_intStatus,
+                                    variable i_blnIsEditable, 
+                                    variable i_intProcessingMode,
+                                    variable i_arrValueColumns[]
+                                 ) variable        
+   {
+      variable strReturnValue(ErrorCode::strNoError);     
+      variable strFunctionName;
+      variable arrTraceInput[];
+
+      strFunctionName = GetFunctionName();
+      
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckInteger(i_intID, "i_intID")) return(ErrorCode::BadParameter);
+      if(!CheckInteger(i_intStatus, "i_intStatus")) return(ErrorCode::BadParameter);
+      if(!CheckBool(i_blnIsEditable, "i_blnIsEditable")) return(ErrorCode::BadParameter);
+      if(!IsStringArray(i_arrValueColumns, "i_arrValueColumns")) return(ErrorCode::BadParameter);
+
+      arrTraceInput.SetSize(0);
+      arrTraceInput.AddAsLast(i_intID);
+      arrTraceInput.AddAsLast(i_intStatus);
+      arrTraceInput.AddAsLast(i_blnIsEditable);
+      arrTraceInput.AddAsLast(i_intProcessingMode);
+
+      TraceInputs(arrTraceInput, "WorklistDialogAddRow - inputs");
+      TraceInputs(i_arrValueColumns, "WorklistDialogAddRow - value columns");
+
+      onerror goto Exception;
+      SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      strReturnValue = gAswStandardDialogs_objInterface.WorklistDialogAddRow(i_intID, i_intStatus, i_blnIsEditable, i_intProcessingMode,i_arrValueColumns);
+      
+      if (strReturnValue != ErrorCode::strNoError)
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", gAswStandardDialogs_objInterface.WorklistDialogGetErrorMessage(strReturnValue));
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         return (ASWGLOBAL::BOOL::FALSE);
+      }
+
+      SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName, "Successfully", "");
+
+      return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+
+   }// WorklistDialogAddRow   
+
+   //---------------------------------------------
+   // set text field
+   // 
+   // Parameters:
+   // i_strTextField: text field
+   // 
+   // Returns: (bool)
+   // - true: successful
+   // - false: error   
+   //---------------------------------------------
+   function WorklistDialogSetTextField(variable i_strTextField) variable        
+   {
+      variable strReturnValue(ErrorCode::strNoError);     
+      variable strFunctionName;
+      variable arrTraceInput[];
+
+      strFunctionName = GetFunctionName();
+      
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckString(i_strTextField, "i_strTextField")) return(ErrorCode::BadParameter);
+
+      arrTraceInput.SetSize(0);
+      arrTraceInput.AddAsLast(i_strTextField);
+
+      TraceInputs(arrTraceInput, "WorklistDialogSetTextField - inputs");
+
+      onerror goto Exception;
+      SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      strReturnValue = gAswStandardDialogs_objInterface.WorklistDialogSetTextField(i_strTextField);
+      
+      if (strReturnValue != ErrorCode::strNoError)
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", gAswStandardDialogs_objInterface.WorklistDialogGetErrorMessage(strReturnValue));
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         return (ASWGLOBAL::BOOL::FALSE);
+      }
+
+      SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName, "Successfully", "");
+
+      return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+
+   }// WorklistDialogSetTextField  
+
+   //---------------------------------------------
+   // set the visibility of the column status in the worklist view
+   // 
+   // Parameters:   
+   // i_blnIsColumnVisibility: bool variable if false is not showed otherwise the column status is ever showed
+   // i_strStatusColumnName: status column name of the worklist view   
+   // 
+   // Returns: (bool)
+   // - true: successful
+   // - false: error   
+   //---------------------------------------------
+   function WorklistDialogSetStatusColumn(variable i_blnIsColumnVisibility, variable i_strStatusColumnName) variable
+   {
+      variable strReturnValue(ErrorCode::strNoError);     
+      variable strFunctionName;
+      variable arrTraceInput[];
+
+      strFunctionName = GetFunctionName();
+      
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckBool(i_blnIsColumnVisibility, "i_blnIsColumnVisibility")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strStatusColumnName, "i_strStatusColumnName")) return(ErrorCode::BadParameter);
+
+      arrTraceInput.SetSize(0);
+      arrTraceInput.AddAsLast(i_blnIsColumnVisibility);
+      arrTraceInput.AddAsLast(i_strStatusColumnName);
+
+      TraceInputs(arrTraceInput, "WorklistDialogSetStatusColumn - inputs");
+
+      onerror goto Exception;
+      SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      strReturnValue = gAswStandardDialogs_objInterface.WorklistDialogSetStatusColumn(i_blnIsColumnVisibility, i_strStatusColumnName);
+      
+      if (strReturnValue != ErrorCode::strNoError)
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", gAswStandardDialogs_objInterface.WorklistDialogGetErrorMessage(strReturnValue));
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         return (ASWGLOBAL::BOOL::FALSE);
+      }
+
+      SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName, "Successfully", "");
+
+      return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+
+   }// WorklistDialogSetStatusColumn  
+
+   //---------------------------------------------
+   // set the visibility of the column selected in the worklist view
+   // 
+   // Parameters:   
+   // i_blnIsColumnVisibility: bool variable if false is not showed otherwise the column status is ever showed
+   // i_strSelectedColumnName: selected column name of the worklist view
+   // 
+   // Returns: (bool)
+   // - true: successful
+   // - false: error   
+   //---------------------------------------------
+   function WorklistDialogSetSelectedColumn(variable i_blnIsColumnVisibility, variable i_strSelectedColumnName) variable
+   {
+      variable strReturnValue(ErrorCode::strNoError);
+      variable strFunctionName;
+      variable arrTraceInput[];
+
+      strFunctionName = GetFunctionName();
+      
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckBool(i_blnIsColumnVisibility, "i_blnIsColumnVisibility")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strSelectedColumnName, "i_strSelectedColumnName")) return(ErrorCode::BadParameter);
+
+      arrTraceInput.SetSize(0);
+      arrTraceInput.AddAsLast(i_blnIsColumnVisibility);
+      arrTraceInput.AddAsLast(i_strSelectedColumnName);
+
+      TraceInputs(arrTraceInput, "WorklistDialogSetSelectedColumn - inputs");
+
+      onerror goto Exception;
+      SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      strReturnValue = gAswStandardDialogs_objInterface.WorklistDialogSetSelectedColumn(i_blnIsColumnVisibility, i_strSelectedColumnName);
+      
+      if (strReturnValue != ErrorCode::strNoError)
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", gAswStandardDialogs_objInterface.WorklistDialogGetErrorMessage(strReturnValue));
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         return (ASWGLOBAL::BOOL::FALSE);
+      }
+
+      SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName, "Successfully", "");
+
+      return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+
+   }// WorklistDialogSetSelectedColumn
+   
+   
+   //---------------------------------------------
+   // set the visibility of the legend
+   // 
+   // Parameters:   
+   // i_blnIsVisible: set wether the legend should be visible or not
+   // 
+   // Returns: (bool)
+   // - true: successful
+   // - false: error   
+   //---------------------------------------------
+   function WorklistDialogSetLegendVisibility(variable i_blnIsVisible) variable
+   {
+      variable strReturnValue(ErrorCode::strNoError);     
+      variable strFunctionName;
+      variable arrTraceInput[];
+
+      strFunctionName = GetFunctionName();
+      
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckBool(i_blnIsVisible, "i_blnIsVisible")) return(ErrorCode::BadParameter);
+
+      arrTraceInput.SetSize(0);
+      arrTraceInput.AddAsLast(i_blnIsVisible);
+
+      TraceInputs(arrTraceInput, "WorklistDialogSetLegendVisibility - inputs");
+
+      onerror goto Exception;
+      SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      strReturnValue = gAswStandardDialogs_objInterface.WorklistDialogSetLegendVisibility(i_blnIsVisible);
+      
+      if (strReturnValue != ErrorCode::strNoError)
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", gAswStandardDialogs_objInterface.WorklistDialogGetErrorMessage(strReturnValue));
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         return (ASWGLOBAL::BOOL::FALSE);
+      }
+
+      SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName, "Successfully", "");
+
+      return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+
+   }// WorklistDialogSetLegendVisibility  
+                
+   
+   //---------------------------------------------
+   // set the edit mode of the dialog
+   //
+   // Parameters:
+   // i_intEditMode: edit mode enumerator
+   //
+   // Returns: (bool)
+   // - true: successful
+   // - false: error
+   //---------------------------------------------
+   function WorklistDialogSetEditMode(variable i_intEditMode)
+   {
+      variable strReturnValue(ErrorCode::strNoError);
+      variable strFunctionName;
+      variable arrTraceInput[];
+
+      strFunctionName = GetFunctionName();
+
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(i_intEditMode, "i_intEditMode", 1, 3)) return(ErrorCode::BadParameter);
+
+      arrTraceInput.SetSize(0);
+      arrTraceInput.AddAsLast(i_intEditMode);
+
+      TraceInputs(arrTraceInput, "WorklistDialogSetEditMode - inputs");
+
+      onerror goto Exception;
+      SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      strReturnValue = gAswStandardDialogs_objInterface.WorklistDialogSetEditMode(i_intEditMode);
+
+      if (strReturnValue != ErrorCode::strNoError)
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", gAswStandardDialogs_objInterface.WorklistDialogGetErrorMessage(strReturnValue));
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         return (ASWGLOBAL::BOOL::FALSE);
+      }
+
+      SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName, "Successfully", "");
+
+      return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+   }
+
+   //---------------------------------------------
+   // show of the worklist view
+   // 
+   // Parameters:
+   // i_intDialogHeight: height of the dialog or '0' to use an auto size
+   // i_intDialogWidth: width of the dialog or '0' to use an auto size
+   // o_arrIDsToProcess: arry with ids of all rows with status process
+   // o_arrIDsToExclude: arry with ids of all rows with status 'exclude'
+   // o_arrIDsToRemove: arry with ids of all rows with status 'remove'
+   // 
+   // Returns: (bool)
+   // - true: successful
+   // - false: error   
+   //---------------------------------------------
+   function WorklistDialogShow(
+        variable i_intDialogHeight,
+        variable i_intDialogWidth,
+        variable & o_arrIDsToProcess[],
+        variable & o_arrIDsToExclude[],
+        variable & o_arrIDsToRemove[]
+        ) variable
+   {
+      variable strReturnValue(ErrorCode::strNoError);     
+      variable strFunctionName;
+      variable arrTraceInput[];
+
+      strFunctionName = GetFunctionName();
+      
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(i_intDialogHeight, "i_intDialogHeight", 0, 5999)) return(ErrorCode::BadParameter);
+      if(!CheckIntegerRange(i_intDialogWidth, "i_intDialogWidth", 0, 5999)) return(ErrorCode::BadParameter);
+
+      arrTraceInput.SetSize(0);
+      arrTraceInput.AddAsLast(i_intDialogHeight);
+      arrTraceInput.AddAsLast(i_intDialogWidth);
+
+      TraceInputs(arrTraceInput, "WorklistDialogShow - inputs");
+
+      onerror goto Exception;
+      SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      strReturnValue = gAswStandardDialogs_objInterface.
+         WorklistDialogShow(
+            i_intDialogHeight,
+            i_intDialogWidth,
+            o_arrIDsToProcess,
+            o_arrIDsToExclude,
+            o_arrIDsToRemove
+      );
+      
+      TraceInputs(o_arrIDsToProcess, "WorklistDialogShow - outputs IDsToProcess");
+      TraceInputs(o_arrIDsToExclude, "WorklistDialogShow - outputs IDsToExclude");
+      TraceInputs(o_arrIDsToRemove, "WorklistDialogShow - outputs IDsToRemove");
+
+      if (strReturnValue != ErrorCode::strNoError)
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", gAswStandardDialogs_objInterface.WorklistDialogGetErrorMessage(strReturnValue));
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         return (ASWGLOBAL::BOOL::FALSE);
+      }
+
+      SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName, "Successfully", "");
+
+      return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }
+
+   }// WorklistDialogShow  
+
+
+
+
+   // function FileBrowserDialogSetResources(variable i_strCaptionBrowseButton, variable i_strFileDialogTitle) variable;
+
+    //------------------------------------------------------
+    // Sets resources for DirectoryBrowserDialogSetResources 
+    // params 
+    //         i_strCaptionBrowseButton         - browse button caption
+    //         i_strDirectoryDialogTitle        - windows directory title
+    //
+    // return 0 (SWGLOBAL::BOOL::TRUE), ASWGLOBAL::BOOL::FALSE (fail)
+    //------------------------------------------------------
+    function DirectoryBrowserDialogSetResources(variable i_strCaptionBrowseButton,variable i_strDirectoryDialogTitle) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialog library is not initialized...");
+         return(ASWGLOBAL::BOOL::FALSE);
+       }
+
+       if(!CheckString(i_strCaptionBrowseButton, "i_strCaptionBrowseButton")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strDirectoryDialogTitle, "i_strDirectoryDialogTitle")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strCaptionBrowseButton);
+       arrTraceInput.AddAsLast(i_strDirectoryDialogTitle);
+ 
+       TraceInputs(arrTraceInput, "DirectoryBrowserDialogSetResources - Localization of BrowseButton and DirectoryTitle");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "SetResources for DirectoryBrowser.");
+       retValue = gAswStandardDialogs_objInterface.DirectoryBrowserDialogSetResources(i_strCaptionBrowseButton,i_strDirectoryDialogTitle);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(retValue) +  "]","SetResources finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0){
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+         return(ASWGLOBAL::BOOL::FALSE);
+       }
+       return(ASWGLOBAL::BOOL::TRUE);
+       
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+    }
+    //------------------------------------------------------
+    // Sets resources for FileBrowser
+    // params 
+    //         i_arrColumnHeaders         - array with column captions
+    //
+    // return 0 (success), -1 (fail)
+    //------------------------------------------------------
+    function FileBrowserDialogSetResources(variable i_strCaptionBrowseButton, variable i_strFileDialogTitle) variable
+    {
+       variable strFunctionName(GetFunctionName());
+       variable retValue (0);
+       variable arrTraceInput[];
+
+       if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+       {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+         return(ASWGLOBAL::BOOL::FALSE);
+       }
+
+       if(!CheckString(i_strCaptionBrowseButton, "i_strCaptionBrowseButton")) return(ErrorCode::BadParameter);
+       if(!CheckString(i_strFileDialogTitle, "i_strFileDialogTitle")) return(ErrorCode::BadParameter);
+
+       arrTraceInput.SetSize(0);
+       arrTraceInput.AddAsLast(i_strCaptionBrowseButton);
+       arrTraceInput.AddAsLast(i_strFileDialogTitle);
+ 
+       TraceInputs(arrTraceInput, "FileBrowserDialogSetResources - Localization of BrowseButton and DirectoryTitle");
+
+       onerror goto Exception;
+       SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "SetResources for DirectoryBrowser.");
+       retValue = gAswStandardDialogs_objInterface.FileBrowserDialogSetResources(i_strCaptionBrowseButton,i_strFileDialogTitle);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Completed with [" + IStr(retValue) +  "]","SetResources finished.");
+
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+       //negative return value -> error 
+       if(retValue < 0){
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"An error occured with error code [" + IStr(retValue) +  "]","Please see help file for more information!");
+         return(ASWGLOBAL::BOOL::FALSE);
+       }
+       return(ASWGLOBAL::BOOL::TRUE);
+       
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+         return(-1000);
+       }
+    }
+
+
+   //Set the optional button resources (captions / localizations)
+   function SetButtonResources(
+                                 variable i_strOk, 
+                                 variable i_strCancel, 
+                                 variable i_strYes, 
+                                 variable i_strNo, 
+                                 variable i_strAbort, 
+                                 variable i_strRetry, 
+                                 variable i_strAccept, 
+                                 variable i_strIgnore
+                               ) variable
+   {
+      variable strEmpty("");
+      variable strFunctionName;
+      variable arrTraceInput[];
+
+      strFunctionName = GetFunctionName();
+      
+
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)         
+      {        
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckString(i_strOk, "i_strOk")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strCancel, "i_strCancel")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strYes, "i_strYes")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strNo, "i_strNo")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strAbort, "i_strAbort")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strRetry, "i_strRetry")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strAccept, "i_strAccept")) return(ErrorCode::BadParameter);
+      if(!CheckString(i_strIgnore, "i_strIgnore")) return(ErrorCode::BadParameter);
+
+      arrTraceInput.SetSize(0);
+      arrTraceInput.AddAsLast(i_strOk);
+      arrTraceInput.AddAsLast(i_strCancel);
+      arrTraceInput.AddAsLast(i_strYes);
+      arrTraceInput.AddAsLast(i_strNo);
+      arrTraceInput.AddAsLast(i_strAbort);
+      arrTraceInput.AddAsLast(i_strRetry);
+      arrTraceInput.AddAsLast(i_strAccept);
+      arrTraceInput.AddAsLast(i_strIgnore);
+
+      TraceInputs(arrTraceInput, "SetButtonResources - inputs");
+
+      StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName,"Start", "set localization for buttons ");
+
+      gAswStandardDialogs_arrButtonOk.SetSize(0);
+      gAswStandardDialogs_arrButtonOkCancel.SetSize(0);
+      gAswStandardDialogs_arrButtonYesNo.SetSize(0);
+      gAswStandardDialogs_arrButtonYesNoCancel.SetSize(0); 
+      gAswStandardDialogs_arrButtonAbortRetryCancel.SetSize(0); 
+      gAswStandardDialogs_arrButtonRetryCancel.SetSize(0); 
+      gAswStandardDialogs_arrButtonAcceptCancel.SetSize(0); 
+      gAswStandardDialogs_arrButtonAbortRetryIgnore.SetSize(0); 
+ 
+      if(i_strOk != strEmpty){
+         gAswStandardDialogs_arrButtonOk.AddAsLast(i_strOk);
+         gAswStandardDialogs_arrButtonOkCancel.AddAsLast(i_strOk);
+      }
+
+      if(i_strYes != strEmpty){
+         gAswStandardDialogs_arrButtonYesNo.AddAsLast(i_strYes);
+         gAswStandardDialogs_arrButtonYesNoCancel.AddAsLast(i_strYes);
+      }
+
+      if(i_strAbort != strEmpty){
+         gAswStandardDialogs_arrButtonAbortRetryCancel.AddAsLast(i_strAbort);
+         gAswStandardDialogs_arrButtonAbortRetryIgnore.AddAsLast(i_strAbort);
+      }
+
+      if(i_strRetry != strEmpty){
+         gAswStandardDialogs_arrButtonRetryCancel.AddAsLast(i_strRetry);
+         gAswStandardDialogs_arrButtonAbortRetryCancel.AddAsLast(i_strRetry);
+         gAswStandardDialogs_arrButtonAbortRetryIgnore.AddAsLast(i_strRetry);
+      }
+
+      if(i_strAccept != strEmpty){
+         gAswStandardDialogs_arrButtonAcceptCancel.AddAsLast(i_strAccept);
+      }
+
+      if(i_strNo != strEmpty){
+         gAswStandardDialogs_arrButtonYesNo.AddAsLast(i_strNo);
+         gAswStandardDialogs_arrButtonYesNoCancel.AddAsLast(i_strNo);
+      }
+
+      if(i_strCancel != strEmpty){
+         gAswStandardDialogs_arrButtonOkCancel.AddAsLast(i_strCancel);
+         gAswStandardDialogs_arrButtonYesNoCancel.AddAsLast(i_strCancel);
+         gAswStandardDialogs_arrButtonAbortRetryCancel.AddAsLast(i_strCancel);
+         gAswStandardDialogs_arrButtonRetryCancel.AddAsLast(i_strCancel);
+         gAswStandardDialogs_arrButtonAcceptCancel.AddAsLast(i_strCancel);
+      }
+
+      if(i_strIgnore != strEmpty){
+         gAswStandardDialogs_arrButtonAbortRetryIgnore.AddAsLast(i_strIgnore);
+      }
+
+      StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Complete", "localization for dialog buttons ");
+      return (ASWGLOBAL::BOOL::TRUE);
+   }// SetButtonResources
+
+   //------------------------------------------------------
+   // disposes the COM visible
+   // params 
+   //   none
+   //------------------------------------------------------
+   function Terminate() variable
+   {
+     variable strFunctionName(GetFunctionName());
+     variable retValue (0);
+
+     if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+     {        
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs.is not initialized...");
+       return(ASWGLOBAL::BOOL::FALSE);
+     }  
+
+     onerror goto Exception;
+
+     SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+     StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName,"start disposing","");
+     retValue = gAswStandardDialogs_objInterface.Terminate();
+     StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName,"disposed with ", IStr(retValue));
+     retValue = gAswStandardDialogs_objInterface.ReleaseObject();
+
+     SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+     //reset gAswStandardDialogs_blnIsLibraryInitialized
+     gAswStandardDialogs_blnIsLibraryInitialized = ASWGLOBAL::BOOL::FALSE;
+     
+     StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName,"disposing successful","");
+     return(ASWGLOBAL::BOOL::TRUE);
+
+     Exception:
+     {
+       SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+       StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured. Please refer help for details.");
+     }
+     return(ASWGLOBAL::BOOL::FALSE);
+   } // Terminate
+   
+   
+   function SetDefaultLanguage(variable i_intDefaultLanguage) variable
+   {
+      variable intReturnValue(0);
+      variable strFunctionName;
+      variable arrTraceInput[];
+
+      strFunctionName = GetFunctionName();
+
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs is not initialized...");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckIntegerRange(i_intDefaultLanguage, "i_intDefaultLanguage", 0, 3)) return(ErrorCode::BadParameter);
+
+      arrTraceInput.SetSize(0);
+      arrTraceInput.AddAsLast(i_intDefaultLanguage);
+
+      TraceInputs(arrTraceInput, "SetDefaultLanguage - inputs");
+
+      onerror goto Exception;
+      SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      intReturnValue = gAswStandardDialogs_objInterface.SetDefaultLanguage(i_intDefaultLanguage);
+
+      if (intReturnValue != 0)
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error"," Function SetDefaultLanguage returns unsuccessfully");
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         return (ASWGLOBAL::BOOL::FALSE);
+      }
+
+      SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName, "Successfully", "");
+
+      return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }      
+    }
+   
+   function ActivateSoundForNextDialog(variable i_strWaveFileFullName,variable i_blnSoundIsLooping) variable
+   {
+      variable intReturnValue(0);
+      variable strFunctionName;
+      variable arrTraceInput[];
+
+      strFunctionName = GetFunctionName();
+
+      if(gAswStandardDialogs_blnIsLibraryInitialized == ASWGLOBAL::BOOL::FALSE)
+      {
+        StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error","AswStandardDialogs is not initialized...");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      if(!CheckString(i_strWaveFileFullName, "i_strWaveFileFullName")) return(ErrorCode::BadParameter);
+      if(!CheckBool(i_blnSoundIsLooping, "i_blnSoundIsLooping")) return(ErrorCode::BadParameter);
+
+      arrTraceInput.SetSize(0);
+      arrTraceInput.AddAsLast(i_strWaveFileFullName);
+      arrTraceInput.AddAsLast(i_blnSoundIsLooping);
+
+      TraceInputs(arrTraceInput, "ActivateSoundForNextDialog - inputs");
+
+      onerror goto Exception;
+      SynEnterCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      intReturnValue = gAswStandardDialogs_objInterface.ActivateSoundForNextDialog(i_strWaveFileFullName, i_blnSoundIsLooping);
+
+      if (intReturnValue != 0)
+      {
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error"," Function SetDefaultLanguage returns unsuccessfully");
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         return (ASWGLOBAL::BOOL::FALSE);
+      }
+
+      SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+
+      StatusTrace(TRACE_LEVEL_DEBUG, strFunctionName, "Successfully", "");
+
+      return (ASWGLOBAL::BOOL::TRUE);
+
+       Exception:
+       {
+         SynLeaveCriticalSection(gAswStandardDialogs_varCriticalSection);
+         StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error", "COM - error occured.");
+         return (ASWGLOBAL::BOOL::FALSE);
+       }     
+      
+   }
+
+  
+    //********************************************************************************
+    //* helper functions(private)
+    //********************************************************************************
+
+    //----------------------------------------------------------------------------------------------
+    // private function GetButtonResourcesWithButtonType
+    //----------------------------------------------------------------------------------------------
+    private function GetButtonResourcesWithButtonType(variable i_intButtonType) variable[]
+    {
+       variable strFunctionName(GetFunctionName());
+       if(i_intButtonType==ButtonType::Ok) return (gAswStandardDialogs_arrButtonOk);                   // array with name for ButtonOk
+       if(i_intButtonType==ButtonType::OkCancel) return (gAswStandardDialogs_arrButtonOkCancel);             // array with name for ButtonOkCancel
+       if(i_intButtonType==ButtonType::YesNo) return (gAswStandardDialogs_arrButtonYesNo);                // array with name for ButtonYesNo   
+       if(i_intButtonType==ButtonType::YesNoCancel) return (gAswStandardDialogs_arrButtonYesNoCancel);          // array with name for ButtonYesNoCancel
+       if(i_intButtonType==ButtonType::AbortRetryCancel) return (gAswStandardDialogs_arrButtonAbortRetryCancel);     // array with name for ButtonAbortRetryCancel
+       if(i_intButtonType==ButtonType::RetryCancel) return (gAswStandardDialogs_arrButtonRetryCancel);          // array with name for ButtonRetryCancel
+       if(i_intButtonType==ButtonType::AcceptCancel) return (gAswStandardDialogs_arrButtonAcceptCancel);         // array with name for ButtonAcceptCancel
+       if(i_intButtonType==ButtonType::AbortRetryIgnore) return (gAswStandardDialogs_arrButtonAbortRetryIgnore);     // array with name for ButtonAbortRetryIgnore
+
+    }// GetButtonResourcesWithButtonType
+
+
+
+    //----------------------------------------------------------------------------------------------
+    // private function MapReturnValuesToGlobalAswDialogValues
+    //----------------------------------------------------------------------------------------------
+    private function MapReturnValuesToGlobalAswDialogValues(variable i_retValue) variable
+    {
+      if(i_retValue == 0) return (ASWGLOBAL::DIALOG::OK);
+      if(i_retValue == 1) return (ASWGLOBAL::DIALOG::NO);
+      if(i_retValue == 2) return (ASWGLOBAL::DIALOG::CANCEL);
+      if(i_retValue == 3) return (ASWGLOBAL::DIALOG::RETRY);
+      if(i_retValue == 4) return (ASWGLOBAL::DIALOG::ABORT);
+      if(i_retValue == 5) return (ASWGLOBAL::DIALOG::IGNORE);
+      if(i_retValue == 6) return (ASWGLOBAL::DIALOG::YES);
+      if(i_retValue == 7) return (ASWGLOBAL::DIALOG::OK);
+
+      //return value if different from above
+      return (i_retValue);
+    }// MapReturnValuesToGlobalAswDialogValues
+
+    //----------------------------------------------------------------------------------------------
+    // private function StatusTrace
+    //----------------------------------------------------------------------------------------------
+    private function StatusTrace(variable iTraceLevel, variable iFunctionName, variable iTraceString1,variable iTraceString2) void
+    {
+      if(iTraceLevel <= gAswStandardDialogs_intLibraryTraceLevel)
+      {
+        
+        iFunctionName = StrMid(iFunctionName, StrReverseFind(iFunctionName, ":") + 1, StrGetLength(iFunctionName));
+        FormatTrace("LIBRARY: " + _strLibraryModuleName, iFunctionName, iTraceLevel, " >> " + iTraceString1, " >> " + iTraceString2);
+      }
+    } // StatusTrace
+
+
+    //----------------------------------------------------------------------------------------------
+    // private function TraceInputs
+    //----------------------------------------------------------------------------------------------
+      private function TraceInputs(variable i_arrTraceInput[], variable i_strDescription) void 
+      {
+         TRACELEVEL::Release_TraceArray(i_arrTraceInput, i_strDescription);
+      }
+
+    //------------------------------------------------------
+    // Check whether the array contains only integer values
+    //------------------------------------------------------
+    private function IsIntegerArray(variable i_arrValues[], variable i_strVariableName) variable
+    {
+      variable i;
+      variable strFunctionName;
+
+      for(i=0; i<i_arrValues.GetSize(); i++)
+      {
+        if(CheckInteger(i_arrValues[i], i_strVariableName) == hslFalse)
+        {
+          strFunctionName=GetFunctionName();
+          StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error: Variable " + i_strVariableName + "[" + IStr(i) + "] is not of type 'integer'.","");
+          return(hslFalse);
+        }
+      }
+      return(hslTrue);
+    }
+
+    //------------------------------------------------------
+    // Check whether the array contains only string values
+    //------------------------------------------------------
+    private function IsStringArray(variable i_arrValues[], variable i_strVariableName) variable
+    {
+      variable i;
+      variable strFunctionName;
+
+      for(i=0; i<i_arrValues.GetSize(); i++)
+      {
+        if(CheckString(i_arrValues[i], i_strVariableName) == hslFalse)
+        {
+          strFunctionName=GetFunctionName();
+          StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error: Variable " + i_strVariableName + "[" + IStr(i) + "] is not of type 'string'.","");
+          return(hslFalse);
+        }
+      }
+      return(hslTrue);
+    }
+
+    //------------------------------------------------------
+    // Check whether the array contains only float values
+    //------------------------------------------------------
+    private function IsFloatArray(variable i_arrValues[], variable i_strVariableName) variable
+    {
+      variable i;
+      variable strFunctionName;
+
+      for(i=0; i<i_arrValues.GetSize(); i++)
+      {
+        if(CheckFloat(i_arrValues[i], i_strVariableName) == hslFalse)
+        {
+          strFunctionName=GetFunctionName();
+          StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error: Variable " + i_strVariableName + "[" + IStr(i) + "] is not of type 'float'.","");
+          return(hslFalse);
+        }
+      }
+      return(hslTrue);
+    }
+
+    //------------------------------------------------------
+    // Check whether the array contains only boolean values
+    //------------------------------------------------------
+    private function IsBoolArray(variable i_arrValues[], variable i_strVariableName) variable
+    {
+      variable i;
+      variable strFunctionName;
+
+      for(i=0; i<i_arrValues.GetSize(); i++)
+      {
+        if(CheckBool(i_arrValues[i], i_strVariableName) == hslFalse)
+        {
+          strFunctionName=GetFunctionName();
+          StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error: Variable " + i_strVariableName + "[" + IStr(i) + "] is not of type 'bool'.","");
+          return(hslFalse);
+        }
+      }
+      return(hslTrue);
+    }
+
+    //------------------------------------------------------
+    // Check whether the variable is of type bool
+    //------------------------------------------------------
+    private function CheckBool(variable i_varValue, variable i_strVariableName) variable
+    {
+      string strTypeIdentifier("");
+      variable strFunctionName;
+
+      strTypeIdentifier = GetType(i_varValue);
+      if(strTypeIdentifier.Compare(hslInteger) == 0)
+      {
+        if((i_varValue == hslTrue) || (i_varValue == hslFalse)) return(hslTrue);
+      }
+      strFunctionName=GetFunctionName();
+      StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error: Variable " + i_strVariableName + " is not of type 'bool'.","");
+      return(hslFalse);
+    }
+
+    //------------------------------------------------------
+    // Check whether the variable is of type integer
+    //------------------------------------------------------
+    private function CheckInteger(variable i_varValue, variable i_strVariableName) variable
+    {
+      string strTypeIdentifier("");
+      variable strFunctionName;
+
+      strTypeIdentifier = GetType(i_varValue);
+      if(strTypeIdentifier.Compare(hslInteger) == 0) return(hslTrue);
+      strFunctionName=GetFunctionName();
+      StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error: Variable " + i_strVariableName + " is not of type 'integer'.","");
+      return(hslFalse);
+    }
+
+    //------------------------------------------------------
+    // Check whether the variable is of type string
+    //------------------------------------------------------
+    private function CheckString(variable i_varValue, variable i_strVariableName) variable
+    {
+      string strTypeIdentifier("");
+      variable strFunctionName;
+
+      strTypeIdentifier = GetType(i_varValue);
+      if(strTypeIdentifier.Compare(hslString) == 0) return(hslTrue);
+      strFunctionName=GetFunctionName();
+      StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error: Variable " + i_strVariableName + " is not of type 'string'.","");
+      return(hslFalse);
+    }
+
+    //------------------------------------------------------
+    // Check whether the variable is of type float
+    //------------------------------------------------------
+    private function CheckFloat(variable i_varValue, variable i_strVariableName) variable
+    {
+      string strTypeIdentifier("");
+      variable strFunctionName;
+
+      strTypeIdentifier = GetType(i_varValue);
+      if(strTypeIdentifier.Compare(hslFloat) == 0) return(hslTrue);
+      strFunctionName=GetFunctionName();
+      StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error: Variable " + i_strVariableName + " is not of type 'float'.","");
+      return(hslFalse);
+    }
+
+    //------------------------------------------------------
+    // Check whether the variable is integer and contained in the defined range
+    //------------------------------------------------------
+    private function CheckIntegerRange(variable iVariable, variable i_strVariableName, variable iMin, variable iMax) variable
+    {
+      variable strFunctionName;
+
+      if(!CheckInteger(iVariable, i_strVariableName)) return(hslFalse);
+      if(iVariable>=iMin && iVariable<=iMax) return(hslTrue);
+      strFunctionName=GetFunctionName();
+      StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error: Variable " + i_strVariableName + " is out of range [" + IStr(iMin) + ", " + IStr(iMax) + "].","");
+      return(hslFalse);
+    }
+
+    private function CheckIntegerRangeArray(variable i_arrValues[], variable i_strVariableName, variable iMin, variable iMax) variable
+    {
+      variable strFunctionName;
+      variable i;
+
+      for(i=0; i<i_arrValues.GetSize(); i++)
+      {
+        if(CheckIntegerRange(i_arrValues[i], i_strVariableName, iMin, iMax) == hslFalse)
+        {
+          strFunctionName=GetFunctionName();
+          StatusTrace(TRACE_LEVEL_RELEASE, strFunctionName, "Error: Variable " + i_strVariableName + "[" + IStr(i) + "] is not correct.","");
+          return(hslFalse);
+        }
+      }
+      return(hslTrue);
+    }
+}
+#endif
+// $$author=DWittmer$$valid=0$$time=2013-05-22 11:18$$checksum=72d33634$$length=087$$

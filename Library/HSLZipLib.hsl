@@ -1,0 +1,148 @@
+//--------------------------------------------------------------------------------------------------
+// This is a part of the HSL Library.
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+//
+// This Library reads and writes zip files.
+//
+// Modification History
+// 2009-01-16  mschloenvoigt : Initial file creation.
+//
+//--------------------------------------------------------------------------------------------------
+
+#ifndef __HSLArchiveLib_hsl__
+#define __HSLArchiveLib_hsl__ 1
+
+
+namespace HSLArchive
+{
+   private object ZipObj;
+
+   //---------------------------------------------------------
+   // Analyzes the COM object. Creates a reference to the 
+   // COM object if it is necessary.
+   //---------------------------------------------------------
+	private function ComObjectIsValid() variable
+	{
+		if (ZipObj.IsNull())
+		{
+         if( ZipObj.CreateObject("Hamilton.ZipLib") == 0 )//fails
+         {
+            Trace(GetFunctionName(), "Couldn't initialize COM object.");
+            return(hslFalse);
+         }
+		}
+      return(hslTrue);
+	}
+
+   //---------------------------------------------------------
+   // Releases the reference to the used COM object.
+   //---------------------------------------------------------
+   private function ReleaseComObject( ) void
+	{
+      if (!ZipObj.IsNull())
+		   ZipObj.ReleaseObject();
+	}
+
+
+   namespace ZIP
+   {
+      //---------------------------------------------------------
+      // Creates a new archive using the specified archive name.
+      //
+      // i_strArchiveName (IN) - The filename to use for the new zip archive.
+      //---------------------------------------------------------
+      function InitializeArchive(variable i_strArchiveName) void
+	   {
+         //check COM object
+         if( !ComObjectIsValid() )
+            return;
+
+         ZipObj.Creator_InitializeArchive(i_strArchiveName);
+      }
+
+      //---------------------------------------------------------
+      // Adds an item, either a file or a directory, to the zip file archive, 
+      // explicitly specifying the directory path to be used in the archive. 
+      //
+      // i_strFileOrDirectoryName (IN) - The name of the file or directory to add.
+      // i_strDirectoryPathInArchive (IN) - The name of the directory 
+      //                                  path to use within the zip archive.
+      // 
+      // Return:
+      // 0 - an error occured
+      // 1 - method succeds
+      //---------------------------------------------------------
+      function AddItemToArchive(variable i_strFileOrDirectoryName, variable i_strDirectoryPathInArchive) variable
+	   {
+         //check COM object
+         if( !ComObjectIsValid() )
+            return(0);
+
+         return(ZipObj.Creator_AddItemToArchive(i_strFileOrDirectoryName, i_strDirectoryPathInArchive));
+      }
+
+      //---------------------------------------------------------
+      // Adds all items to the zip file archive prior defined in the method
+      // AddItemToArchive() and saves the archive.
+      // 
+      // Return:
+      //  1 if the method succeeds
+      //  0 if the COM object isn't valid
+      // -1 if the archive name refers to an existing file that is not a valid zip file
+      // -2 if one of the files or directories passed in did not exist
+      // -3 if one of the items already exists in the file archive
+      //---------------------------------------------------------
+      function PackArchive() variable
+	   {
+         variable iReturnValue(0);
+
+         //check COM object
+         if( !ComObjectIsValid() )
+            return(iReturnValue);
+
+   		iReturnValue = ZipObj.Creator_PackArchive();
+
+         //release COM object
+         ReleaseComObject();
+
+   		return(iReturnValue);
+      }
+   }//end namespace ZIP
+
+   namespace UNZIP
+   {
+      //---------------------------------------------------------
+      // Reads a zip file archive and extracts all of the items in 
+      // the zip archive to the specified path in the filesystem.
+      //
+      // i_strArchiveName (IN) - The name of the zip archive to open.
+      // i_strPathOutput (IN) -  The path to which the contents of the 
+      //                         zip archive should be extracted.
+      // 
+      // Return:
+      // 0 - an error occured
+      // 1 - method succeds
+      //---------------------------------------------------------
+      function UnpackArchive(variable i_strArchiveName, variable i_strPathOutput) variable
+	   {
+         variable iReturnValue(0);
+
+         //check COM object
+         if( !ComObjectIsValid() )
+            return(iReturnValue);
+
+   		iReturnValue = ZipObj.Extractor_UnpackArchive(i_strArchiveName, i_strPathOutput);
+
+         //release COM object
+         ReleaseComObject();
+
+   		return(iReturnValue);
+      }
+
+   }//namespace UNZIP
+
+}//namespace HSLArchive
+
+#endif //__HSLArchiveLib_hsl__
+// $$author=marsll_hamilton$$valid=0$$time=2009-01-25 16:15$$checksum=dbba391d$$length=094$$

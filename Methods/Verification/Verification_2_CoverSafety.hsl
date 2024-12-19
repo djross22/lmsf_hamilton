@@ -1,0 +1,327 @@
+/***************************************************************************************************
+*  Method     : Verification_2_CoverSafety.hsl
+*  Copyright by HAMILTON Bonaduz AG, CH-7402 Bonaduz
+****************************************************************************************************
+*
+*  Description : Cover Safety Verification of front cover lock(s)
+*
+* ==================================================================================================
+*  ATTENTION: Change this HSL only with HSL Editor of SW Version 4.0!
+*              (Note: This library must run from SW-version 4.0 on)
+* ==================================================================================================
+*  Modification History:
+* ----------------------
+* Rev 1.0 2010-07-19 Erich Caflisch   / Module Version : 01
+*                First released version running on software version >=4.0
+* --------------------------------------------------------------------------------------------------
+* Rev 0.7 2009-11-03	Erich Caflisch
+*                First test version for software version >=3.2.0
+*
+****************************************************************************************************/
+
+
+//device ML_STAR("TestDeck_1.lay");
+//device ML_STAR("Verification_Starlet.lay");
+	// -----------------------------------------------------------------------------
+	// Debug switch for this file
+	// -----------------------------------------------------------------------------
+	//		#define _DEBUG_VolVer 1
+
+	// -----------------------------------------------------------------------------
+	// Included libraries
+	// -----------------------------------------------------------------------------
+
+	#ifndef __HslVerToolsLib_hsl__
+	#include "HslVerToolsLib.hs_"
+	#endif
+
+	#ifndef __HSLStrLib_hsl__
+	#include "HSLStrLib.hsl"
+	#endif
+
+	//==============================================================================
+	// local functions
+	//==============================================================================
+namespace CS_1
+{	
+	// General variable definitions
+	//------------------------------------------------------------------------------
+	variable moduleVersion("01");				// verification subversion of this library
+	variable individualVerificationState[];// individual verification criteria status
+	variable singleFrontCover(hslTrue); 	// 1 front cover installed
+	variable doubleFrontCover(hslFalse); 	// 2 front cover installed
+	variable frontAndSideCover(hslFalse); // front cover plus side cover installed
+
+	//------------------------------------------------------------------------------
+	private function OnRun_Abort() //variable
+	//------------------------------------------------------------------------------
+	{
+		// no additional step executed					
+
+	}  // -- end of function "OnRun_Abort"
+
+
+	//------------------------------------------------------------------------------
+	private function CheckFrontCoverOpenStatus(device ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information			
+		variable warning("");			
+		variable returnValue;
+		variable response;
+
+		dialogTitle 		= LdT("Start of the Cover Safety Verification:");
+		pictureFile 		= "OpenFrontCover.jpg";
+
+		// unlock front cover 
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+				
+		singleFrontCover = hslTrue;
+		if((VerDef::CoverLocking > 0) && (VerDef::AddtionalCoverLocking > 0))
+		{
+			singleFrontCover = hslFalse;
+			if (VerDef::isIVD) 	frontAndSideCover = hslTrue;
+			else 						doubleFrontCover = hslTrue;
+		}
+
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");
+		Trace(" ");
+		Trace("           ",dialogTitle);
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");	
+		Trace(" ");
+
+		VerTool::NewTextLine(1, LdT("Next processing steps to be performed:"));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0, "      - " + LdT("Cover Safety Verification"));
+
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		if (frontAndSideCover) 	VerTool::NewTextLine(0, LdT("Open Front and Side Cover."));
+		if (doubleFrontCover) 	VerTool::NewTextLine(0, LdT("Open both Front Covers."));
+		if (singleFrontCover) 	VerTool::NewTextLine(0, LdT("Open the Front Cover."));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		if (frontAndSideCover)	warning =  LdT("Hint:") + " " + LdT("Front and Side Cover should not be locked.");
+		if (doubleFrontCover) 	warning =  LdT("Hint:") + " " + LdT("Both Front Covers should not be locked.");
+		if (singleFrontCover) 	warning =  LdT("Hint:") + " " + LdT("The Front Cover should not be locked");
+		
+		returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,warning, hslOKOnly, 1, "","","");
+
+		// check cover status :  cover (both) sensor indicate closed
+		if(VerDef::SimulationMode) CS_1::individualVerificationState.AddAsLast( 1 );
+		else // cover (both) sensor indicate closed
+		{
+			response = VerTool::FwCommand("C0QC","",hslTrue, ML_STAR);
+			if(StrMid(response, StrReverseFind(response,"qc")+2, 1) == "1") // failed
+					CS_1::individualVerificationState.AddAsLast( 0 ); 
+			else	CS_1::individualVerificationState.AddAsLast( 1 ); 
+		}
+	}  // -- end of function "CheckFrontCoverOpenStatus"
+	
+	//------------------------------------------------------------------------------
+	private function CheckFrontCoverCloseStatus(device ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information			
+		variable warning("");			
+		variable returnValue;
+		variable response;
+
+		dialogTitle 		= LdT("Cover Safety Verification Steps:");
+		pictureFile 		= "CloseFrontCover.jpg";
+
+		if (frontAndSideCover)	VerTool::NewTextLine(1, LdT("Close Front and Side Cover."));
+		if (doubleFrontCover) 	VerTool::NewTextLine(1, LdT("Close both Front Covers."));
+		if (singleFrontCover) 	VerTool::NewTextLine(1, LdT("Close the Front Cover."));
+		
+		returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,warning, hslOKOnly, 1, "","","");
+		
+		// check cover status :  cover(s) indicate not closed 
+		if(VerDef::SimulationMode) CS_1::individualVerificationState.AddAsLast( 1 );
+		else // cover (both) sensor indicate closed
+		{
+			response = VerTool::FwCommand("C0QC","",hslTrue, ML_STAR);
+			if(StrMid(response, StrReverseFind(response,"qc")+2, 1) == "0") // failed
+					CS_1::individualVerificationState.AddAsLast( 0 ); 
+			else	CS_1::individualVerificationState.AddAsLast( 1 ); 
+		}
+
+	}  // -- end of function "CheckFrontCoverCloseStatus"
+
+	//------------------------------------------------------------------------------
+	private function CheckFrontCoverLockedStatus(device ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information			
+		variable warning("");	
+		variable defaultButton(1); 		
+		variable returnValue;
+
+		// lock front cover 
+		VerTool::CoverLock(ML_STAR , VerDef::coverLock);
+
+		dialogTitle 		= LdT("Cover Safety Verification Steps:");
+		pictureFile 		= "CheckCoverLock.jpg";
+
+		VerTool::NewTextLine(1, LdT("Manually check if:"));
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		if (frontAndSideCover) 
+		{	
+			VerTool::NewTextLine(0, "- " + LdT("The Front and Side Cover are locked."));
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, LdT("Are Front and Side Cover properly locked?"));
+		}		
+		if (doubleFrontCover) 
+		{	
+			VerTool::NewTextLine(0, "- " + LdT("Both Front Covers are locked."));
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, LdT("Are both Front Covers properly locked?"));
+		}		
+		if (singleFrontCover)
+		{
+			VerTool::NewTextLine(0, "- " + LdT("The Front Cover is locked."));
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, LdT("Is the Front Ccover properly locked?"));
+		}
+		defaultButton = 2; // default button is 'No'
+		returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,warning, hslYesNo, defaultButton, "","","");
+
+		if (returnValue == hslNo) 	CS_1::individualVerificationState.AddAsLast( 0 ); // failed
+		else								CS_1::individualVerificationState.AddAsLast( 1 );
+
+	}  // -- end of function "CheckFrontCoverLockedStatus"
+
+	//------------------------------------------------------------------------------
+	// Evaluate data and generate report file
+	private function Evaluate()
+	//------------------------------------------------------------------------------
+	{
+		variable processSummaryState("");	
+		variable SW_version("");
+		variable i;
+	
+		VerTool::displayArrayData(" Check Criteria for Cover Safety Verification", CS_1::individualVerificationState);
+
+		// Evaluate individual verification states
+
+			processSummaryState = VerDef::passed;
+			for(i=0; i < CS_1::individualVerificationState.GetSize(); i++)
+			{
+				if(CS_1::individualVerificationState.GetAt( i ) == 0) processSummaryState = VerDef::failed;  
+			}
+
+		// Generate report file
+		//------------------------------------------------------------------------------
+			VerTool::CreateReportFile(RPD::reportTemplateFileName);
+
+			// ---  add general data
+			VerTool::WriteCell(4, 4,	VerDef::InstrumentName); 	 			// cell D4: instrument name 
+			VerTool::WriteCell(4, 5,	VerDef::InstrumentSerialNo); 			// cell D5: instrument serial no	
+			SW_version = VerDef::SWReleaseVersion + VerDef::FVK2_ReleaseVersion;
+			StrReplace(SW_version ,"%s1",moduleVersion);
+			VerTool::WriteCell(4, 6, 	SW_version );								// cell D6: user software version / FVK 2 version
+			VerTool::WriteCell(4, 7,	RPD::laboratoryName); 					// cell D7: laboratory name / location
+			VerTool::WriteCell(4, 8,	RPD::operatorName); 						// cell D8: operator name
+			VerTool::WriteCell(4, 9,	RPD::verifcationReason); 				// cell D9: reason for verification
+			VerTool::WriteCell(8, 4, 	GetDate("%Y-%m-%d"));					// cell H4: processed date
+			VerTool::WriteCell(8, 5, 	GetTime("%H:%M"));						// cell H5: processed time
+
+		// ---  report  summary state
+			VerTool::WriteCell( 4, 16, processSummaryState); 	// cell D16: overall process status 
+
+		// ---  add pdf file information close to "header"
+			VerTool::WriteCell(4, 10, 	RPD::pdfReportFileName);				// cell D10: on first page 
+
+		if (processSummaryState == VerDef::passed) return(PS::successful);
+		else	
+		{ 
+			VerTool::VerificationFailedDialog(LdT("Cover Safety Verification of Front Cover."), "x");
+			return(PS::failed);
+		}
+
+	} // -- end of function "Evaluate"
+
+
+} // end of namespace
+
+//==============================================================================
+// main functions
+//==============================================================================
+
+	//------------------------------------------------------------------------------
+	function CoverSafety_Verification(device ML_STAR)
+	//------------------------------------------------------------------------------
+	{
+		variable processState;
+
+		if(VerDef::isIVD )	RPD::reportTemplateFileName ="Report_CoverSafety_IVD_Ver";  // Report_CoverSafety_IVD_VerEnu.xls
+		else						RPD::reportTemplateFileName ="Report_CoverSafety_Ver";		// Report_CoverSafety_VerEnu.xls
+
+		// Initialize BC verification 
+		//------------------------------------------------------------------------------	
+			VerTool::InitializeDataVariables();
+			CS_1::individualVerificationState.SetSize( 0 );
+
+		// Initialization of ML_STAR
+		// --------------------------------------------------------------------------
+//	Trace("Test: instrumentNo =>",instrumentNo,"<   layoutFileName =>",VerDef::layoutFileName,"<  ML-STAR instrument serial number =>", VerDef::InstrumentSerialNo);
+
+			ML_STAR.Initialize( "b3d4abb0_7e4b_4ad0_94ffdc8b13a2aab9" );
+		// activate abort handler
+			RegisterAbortHandler("CS_1::OnRun_Abort");
+
+		// Dialog "open front cover" and check "lock sensor" status
+		//------------------------------------------------------------------------------
+			CS_1::CheckFrontCoverOpenStatus(ML_STAR);
+
+
+		// Dialog "close front cover" and check "lock sensor" status
+		//------------------------------------------------------------------------------
+			CS_1::CheckFrontCoverCloseStatus(ML_STAR);
+
+
+		// Dialog "check manually front cover lock status
+		//------------------------------------------------------------------------------
+			CS_1::CheckFrontCoverLockedStatus(ML_STAR);
+
+
+		// Evaluate data and generate report file
+		//------------------------------------------------------------------------------
+			processState = CS_1::Evaluate();
+
+		// store status on instrument
+		//------------------------------------------------------------------------------
+			VerTool::StoreProcessDataOnInstrument(PID::CoverSafety, processState, ML_STAR );
+
+
+		// Unlock front cover 
+		//------------------------------------------------------------------------------
+			VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+		// Generate pdf file
+		//------------------------------------------------------------------------------
+			VerTool::GeneratePDF_File();
+	
+	}  // -- end of function "CoverSafety_Verification"
+
+
+//==============================================================================
+
+// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=e4d68f94$$length=088$$

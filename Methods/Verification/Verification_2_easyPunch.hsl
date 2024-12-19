@@ -1,0 +1,123 @@
+/***************************************************************************************************
+*  Method     : Verification_2_easyPunch.hsl
+*  Copyright by HAMILTON Bonaduz AG, CH-7402 Bonaduz
+****************************************************************************************************
+*
+*  Description : Main Method for Verification of "easyPunch2 features
+*
+*						Check if easPunch libraries are installed, else error info dialog 
+*						 
+* ==================================================================================================
+*  ATTENTION: Change this HSL only with HSL Editor of SW Version 3.2!
+*              (Note: This library must run from SW-version 3.2 on)
+* ==================================================================================================
+*  Modification History:
+* ----------------------
+* Rev 1.0 2012-08-23
+*                Version running on software version 3.2.0
+****************************************************************************************************/
+
+// -----------------------------------------------------------------------------
+// Included libraries
+// -----------------------------------------------------------------------------
+
+	#ifndef __HslVerToolsLib_hsl__
+	#include "HslVerToolsLib.hs_"
+	#endif
+
+	#ifndef __HSLVerDevice_PT_hs___
+	#include "HSLVerDevice_PT.hs_"
+	#endif
+
+	//------------------------------------------------------------------------------
+//	private function includeLibrary(device ML_STAR, variable labIndex) variable
+	private function includeLibrary() variable
+	//------------------------------------------------------------------------------
+   {
+		variable fileToInclude;
+		variable libraryName;
+		variable librariesFound(hslFalse);
+		object fso;  // file system object
+
+		if (fso.IsNull()) fso.CreateObject("Scripting.FileSystemObject");
+
+		librariesFound = fso.FileExists(GetLibraryPath() + "\\easyPunchImagingLibrary\easyPunchImaging_Helper.hs_") && 
+								fso.FileExists(GetLibraryPath() + "\\easyPunchImagingLibrary\EASYPUNCHIMAGING_LIBRARY.hsl");
+
+		if(!librariesFound)  return(hslFalse); // no library
+		libraryName = "Verification_2_EasyPunchExecution.hs_";
+
+	   onerror goto IncludeError;
+
+		// include corresponding library, if installed
+      fileToInclude = libraryName;      // used in the error-handler below
+    Trace("Test: ----  Requested HSL Library: \"", fileToInclude, "\" try to included....");
+      << fileToInclude;
+
+	   onerror goto 0;
+
+	   return(hslTrue);
+
+	   IncludeError:
+	   {
+			FormatTrace( LdT("easyPunch Verification"),"()",VerDef::CMD_ERROR, "Requested HSL Library: \"", fileToInclude, "\" not installed.");
+		   return(hslFalse);
+	   }
+	} // -- end of function "includeLibrary"
+
+	//------------------------------------------------------------------------------
+	private function showNotInstalledSoftware() 
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information
+		variable warning("");
+
+		dialogTitle 		= LdT("Userdialog for'easyPunch' Verification:");
+		pictureFile 		= "UndefinedEasyPunchSoftware.jpg";
+
+		VerTool::NewTextLine(1," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,"===  " + LdT("'easyPunch' SOFTWARE IS NOT INSTALLED!") +  "====");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,LdT("Note:") + " " + LdT("Install easyPunch Software first!"));
+
+		warning = LdT("Note:") + " " +LdT("The Verification step will be skipped.");	
+
+		VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText, warning, hslOKOnly, 1, "","","");
+	}  // -- end of function "showNotInstalledSoftware"	
+
+//==============================================================================
+// main functions
+//==============================================================================
+
+	//------------------------------------------------------------------------------
+	function easyPunch_Verification(device ML_STAR)
+	//------------------------------------------------------------------------------
+	{
+		variable dialogTitle("");			//	dialog titel information
+		
+		// Check, if Vector software version is >= 4.4
+		if(VerDef::SWVersionNumber < 4.4)
+		{
+			dialogTitle 		= "easyPunch Verification:";
+			VerTool::VerificationNotImplementedDialog(dialogTitle, "x");
+			return(hslFalse);
+		}
+
+		// Check, if easyPunch libraries are installed4
+		if(!includeLibrary())
+		{
+ 			showNotInstalledSoftware();
+			return(hslFalse);
+		}
+		
+		// execute easyPunch verification
+		easyP::easyPunch_Verification(ML_STAR);
+
+	}  // -- end of  function "easyPunch_Verification"
+
+//==============================================================================
+
+// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=313cb2b9$$length=088$$

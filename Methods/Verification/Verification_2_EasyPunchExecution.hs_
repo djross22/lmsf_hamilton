@@ -1,0 +1,1992 @@
+/***************************************************************************************************
+*  Method     : Verification_2_EasyPunchExecution.hs_
+*  Copyright by HAMILTON Bonaduz AG, CH-7402 Bonaduz
+****************************************************************************************************
+*
+*  Description : Verification of easyPunch features, (executable library)
+*
+* ==================================================================================================
+*  ATTENTION: Change this HSL only with HSL Editor of SW Version 4.4!
+*              (Note: This library must run from SW-version 4.4 on)
+* ==================================================================================================
+*  Modification History:
+* ----------------------
+* Rev 1.0 2012-xx-xx Erich Caflisch   / Module Version : 01
+*                First released version running on software version >=4.4
+* --------------------------------------------------------------------------------------------------
+* Rev 0.3 2013-01-16 Erich Caflisch   / ECO13197 /  Module Version : 00
+*                New specification for punch accuracy
+* --------------------------------------------------------------------------------------------------
+* Rev 0.2 2012-10-12 Erich Caflisch   / ECO13197 /  Module Version : 00
+*                Update easyPunchImaging_Helper and EASYPUNCHIMAGING_LIBRARY function (Version 0.9.9)
+* --------------------------------------------------------------------------------------------------
+* Rev 0.1 2012-09-20 Erich Caflisch   / ECO13197 /  Module Version : 00
+*                First  version running on software version >=4.4
+****************************************************************************************************/
+/* Open item:
+- Card grip mit Offset bei versch. Greifer => executePlateAlignment (25mm => mx2)
+- Card type --> labware property "MlStarPunchCardType" in rack Defnition : 1, 2, 3 wie gripper type
+      VerDef::paperCard_Magazine : 3 verschiedene definitionen mit entsprechendem propety
+- C0BC
+-----------------------------------------------------------------------------*/
+
+//device ML_STAR("TestDeck_1.lay");
+//device ML_STAR("Verification_Starlet.lay");
+
+	// -----------------------------------------------------------------------------
+	// Debug switch for this file
+	// -----------------------------------------------------------------------------
+	//		#define _DEBUG_VolVer 1
+
+	// -----------------------------------------------------------------------------
+	// Included libraries
+	// -----------------------------------------------------------------------------
+
+	#ifndef __HslVerToolsLib_hsl__
+   	#include "HslVerToolsLib.hs_"
+	#endif
+
+	#ifndef __HSLStrLib_hsl__
+	   #include "HSLStrLib.hsl"
+	#endif
+
+   #ifndef __HSLTrcLib_hs__
+      #include "HSLTrcLib.hsl"
+   #endif
+
+   #ifndef __easyPunchImaging_Helper_hs__
+      #include "easyPunchImagingLibrary\easyPunchImaging_Helper.hs_"
+   #endif
+
+   #ifndef __EASYPUNCHIMAGING_LIBRARY_hsl_
+      #include "easyPunchImagingLibrary\EASYPUNCHIMAGING_LIBRARY.hsl"
+   #endif
+
+	//==============================================================================
+	// local functions
+	//==============================================================================
+namespace easyP
+{	
+	// General variable definitions
+	//------------------------------------------------------------------------------
+   private variable moduleVersion("00");		      	// verification subversion of this library
+
+   const variable rack_ID("Cards_1"), plate_ID_1("DWP_1"), plate_ID_2("DWP_2");
+   const variable gripHeight(15), gripWidth(81.5), gripOpenWidth(88);
+   const variable SettingNameCamera("Verification");
+   const variable XstepResPuncher(1140.0/34121.0);    // [0.1mm/Step]  ==> 0.00334105096568096mm/step      
+   const variable YstepResPuncher(1630.0/48773.0);    // [0.1mm/Step]  ==> 0.0033420129989953mm/step      
+   const variable ZstepResPuncher(300.0/149299.0);    // [0.1mm/Step]  ==> 0.00020093905518456mm/step      
+   const variable YstepResGripper(4530.0/ 145607.0);  // [0.1mm/Step] ==> 0.0031111141634674mm/step
+   const variable ZstepResGripper(5.0/128.0);         // [0.1mm/Step] ==> 0.00390625mm/step
+
+   // adjustment values
+   private variable kq, mx0, mx1, mx2, my0,my1, mz0, mz1, pc0, pc1, pc2;
+   // configurations
+//	variable puncherType(1);  // puncher  type: 1: PN 803022, D=1.2mm / 2: PN803023, D=2mm / 3: PN803024, D=3mm / 4: PN803025, D=6mm 
+	private variable puncherGripperType(0);         // puncher card gripper type: 
+         // CHQG  Card Handler type: qg00 : no Handler, qg01 : Plastic PN 803054 , qg02 : EC Paper PN 803053 ,qg03 : DMPK PN 803520
+
+
+   // process status   
+   private variable focusVerificationState(VerDef::passed);    // Verification state of focus feature
+   private variable apertureVerificationState(VerDef::passed); // Verification state of aperture feature
+	private variable arrGripperAlignmentDeviations[];           // deviation of gripper alignment
+	private variable arrPlateAlignmentDeviations[];             // deviation of plate / frame alignment
+	private variable arrPunchPositionDevX[];                    // measured punch position deviations in X dirction
+	private variable arrPunchPositionDevY[];                    // measured punch position deviations in Y dirction
+	private variable arrPunchWellStatus[];                      // punched well status (detection of punched paper)
+	private variable arrCardBarcode[];                          // read verification card barcode
+   
+   // process 
+   private variable SettingNameCard("");
+	private variable SettingNamePlate("");
+
+   private variable punchDiameter(6);
+   private variable punchDistance(0.5);
+   private variable punchZdistance(2.0);
+
+   private variable processStepDescription("");
+   private variable magazineCarrierLabID("");
+
+   private variable cardInPuncherHead(hslFalse);
+
+   private sequence seqPlatePositions;
+   private sequence seqCardPositions;
+
+/*private function TracePresentLabware(device ML_STAR)
+// for testing only-------------------------------------------------------------------------------------------------------
+{
+		variable array_of_templateNames[], array_of_labwareNames[];
+		variable i;
+
+		ML_STAR.GetTemplateLabwareNames( array_of_templateNames, array_of_labwareNames );
+
+      Trace("");
+		for (i = 0; i < array_of_templateNames.GetSize();i++ )
+		{
+         Trace("Test: At index ",i,"  TemplateName =>", array_of_templateNames.ElementAt(i), "<== ");
+		}
+      Trace("");
+
+		ML_STAR.GetTemplateLabwareNames( array_of_templateNames, array_of_labwareNames );
+		for (i = 0; i < array_of_labwareNames.GetSize();i++ )
+		{
+         Trace("Test: At index ",i,"  LabwareName =>", array_of_labwareNames.ElementAt(i), "<== ");
+		}
+      Trace("");
+}
+*/
+	//------------------------------------------------------------------------------
+	private function OnRun_Abort() //variable
+	//------------------------------------------------------------------------------
+	{
+		device ML_STAR(VerDef::layoutFileName);	
+
+      Trace("Test: OnRun_Abort will be executed. card in puncher head is =>",cardInPuncherHead,"<===");
+			
+      if(cardInPuncherHead)
+      { // Move card gripper out of puncher (+50mm )
+         // C0BXbc500xd0
+         ML_STAR._1FB5DA01_3ACB_11d4_AE1F_0004ACB1DCB2( "a57d2d3c_5ba8_4332_8cac136b2d3606ae" ); // FirmwareCommand
+      }
+      // Initialize puncher system: C0BI
+      ML_STAR._1FB5DA01_3ACB_11d4_AE1F_0004ACB1DCB2( "2e903ef2_42b1_4cd3_85ee06db3a5d40ef" ); // FirmwareCommand
+
+	}  // -- end of function "OnRun_Abort"
+
+
+	//-----------------------------------------------------------------------------------------------------
+	private function FW_Command(device& ML_STAR, variable &fwCommand, variable &fwParameter, variable errCheck, variable& response) variable
+	//-----------------------------------------------------------------------------------------------------
+	{
+
+		// call firmware command
+		if(VerDef::SimulationMode) 
+		{  
+         response = StrConcat2(response, "");
+         if(StrGetLength(response) == 0)  response = fwCommand + "er00";
+         Trace("Test: FW_Command =>",fwCommand, fwParameter,"<  response =>",response,"<===");
+         return(hslTrue);
+      }
+      response = VerTool::FwCommand(fwCommand,fwParameter,hslFalse , ML_STAR);
+
+		// check firmware return value
+		if ( hslTrue == errCheck )
+		{
+			if (StrFind(response, "er00") < 0)
+			{
+            return(hslFalse);
+			}
+		}
+		return (hslTrue);
+
+	} // end FwCommand
+
+	//------------------------------------------------------------------------------
+	private function copyEasyPunchSettings(variable subFolderName) variable
+	//------------------------------------------------------------------------------
+	{
+		variable folderNameLength, i;
+		variable fileName(""),sourceFolderName("");
+      variable targetFileName(""),targetFolderName("");
+//      variable description("");
+
+		object sourceFolder; 
+		object files;
+		object enumerator;
+		object fileItem;
+      object fso;  // file system object
+
+		if (fso.IsNull()) fso.CreateObject("Scripting.FileSystemObject");		
+      
+		onerror resume next;
+
+      sourceFolderName = GetMethodsPath() + VerDef::toolsSubDirName +"easyPunchSettings\\" + subFolderName;
+
+		targetFolderName = GetBinPath();
+		targetFolderName = StrLeft(targetFolderName , StrFind(targetFolderName ,"\\Bin"));
+      targetFolderName = targetFolderName + "\\easyPunchImagingApplication\\settings\\" + subFolderName + "\\";
+		
+		folderNameLength = StrGetLength(sourceFolderName);
+		sourceFolder = fso.GetFolder(sourceFolderName);
+
+//      Trace("");
+//      Trace("Test: ---- Source file name ==>",sourceFolderName,"<----- " );
+
+		// get files collection from source folder
+		files = sourceFolder.Files; 
+		// get enumerator from files collection
+		enumerator = files._NewEnum;
+		// iterate through files collection
+		i = 0;
+		while (enumerator.EnumNext(fileItem))
+		{
+			i++;
+			sourceFolderName = fileItem.Path();
+			fileName = StrRight(sourceFolderName,StrGetLength(sourceFolderName) - folderNameLength - 1) ;
+
+//	Trace("At loop =>",i,"   File path & name ==>",fileItem.Path(),"<  Name ==>", fileName,"<==");
+         targetFileName = targetFolderName + fileName;
+         if (fso.FileExists(targetFileName)) fso.DeleteFile(targetFileName , 1);
+
+		   fso.CopyFile(sourceFolderName, targetFileName);
+//		   description = LdT("Run information: File '%s1' copied to '%s2'.");
+//   		StrReplace(description, "%s1", fileName);
+//	   	StrReplace(description, "%s2", targetFileName);
+//		   FormatTrace(GetFunctionName(),"()", VerDef::CMD_COMPLET ," ",description);	
+
+			fileItem.ReleaseObject();
+		}
+
+      Trace("");
+      Trace("Test: ---- Source file name ==>",sourceFolderName," ----> ",i, " file(s) copied" );
+
+		enumerator.ReleaseObject();
+		files.ReleaseObject();
+		sourceFolder.ReleaseObject();
+
+      return(hslTrue);
+	}  // -- end of function "copyEasyPunchSettings"
+
+
+
+	//------------------------------------------------------------------------------
+	private function errorDetectedInEasyPunchStep(variable returnValue) variable
+	//------------------------------------------------------------------------------
+	{
+      if(VerDef::SimulationMode) return(hslFalse);
+      if(returnValue == EASYPUNCHIMAGING::ERROR::_NONE) return(hslFalse);
+
+      EASYPUNCHIMAGING_HELPER::ShowErrorDialog(returnValue);
+      EASYPUNCHIMAGING::GUI::LIVEVIEW::Hide();
+      EASYPUNCHIMAGING::GUI::Hide();
+
+      return(hslTrue);
+	}  // -- end of function "errorDetectedInEasyPunchStep"
+
+
+	//------------------------------------------------------------------------------
+	private function InitializeEasyPunch(device ML_STAR) variable
+	//------------------------------------------------------------------------------
+	{
+   	variable response, returnValue;
+   	variable moduleName("");
+      variable labwarePosition(0.0);
+
+      // copy easyPunch settings for imaging evaluation
+      copyEasyPunchSettings("camera");    // camera specific settings for verification
+      copyEasyPunchSettings("card");      // verification card specific settings   
+      copyEasyPunchSettings("plate");     // Deep well plate specific settings
+       
+      // CHQG  Card Handler type: qg00 : no Handler, qg01 : Plastic PN 803054 , qg02 : EC Paper PN 803053 ,qg03 : DMPK PN 803520
+		FW_Command( ML_STAR, "CHQG","",hslFalse , response);
+		puncherGripperType = IVal(StrMid(response, StrReverseFind(response,"qg")+2, 2) );
+
+      // Get stored adjustment data
+   	// -----------------------------------------------------------------
+      // Puncher head position values (center puncher) : CPRArapc [increments puncher]
+         response = "pc+015085 +078653 +065691";
+         FW_Command( ML_STAR, "CPRA","rapc",hslFalse , response);
+
+         pc0 = XstepResPuncher * FVal(StrMid(response, StrReverseFind(response,"pc")+2, 7) ); // x coordinate [0.1mm] 
+         pc1 = YstepResPuncher * FVal(StrMid(response, StrReverseFind(response,"pc")+10, 7) ); // y coordinate [0.1mm] 
+         pc2 = ZstepResPuncher * FVal(StrMid(response, StrReverseFind(response,"pc")+18, 7) ); // delta z coordinate [0.1mm]  ; offset between middle of aperture and bottom edge
+Trace("Test: ",GetFunctionName() ," : Get stored puncher head data: pc0 =>",pc0,"[0.1mm]<   pc1 =>",pc1,"[0.1mm]<   pc2 =>",pc2,"[0.1mm]<==");
+
+      // Arm/gripper offset: C0RArakq
+      // kq####      2980          Set X-offset X- axis arm <=> Puncher plate gripper center
+         response = "er00/00kq3003";
+         FW_Command( ML_STAR, "C0RA","rakq",hslFalse , response);
+         kq = IVal(StrMid(response, StrReverseFind(response,"kq")+2, 4) );
+      // CHQH Request Gripper Type Geometry Values
+         response = "mx0897 0518 0365 my-0386 24101 mz09374 07398";
+         FW_Command( ML_STAR, "CHQH","",hslFalse , response);
+      // mx####      0913     mx0: [0.1mm] Middle of Cardgripper to Pos.Marker (Gripfinger horizontal), adjusted value
+         mx0 = IVal(StrMid(response, StrReverseFind(response,"mx")+2, 4) );
+      //    ####     0533     mx1: [0.1mm] Middle of Cardgripper to CardPickPos (Gripfinger vertical), adjusted value
+         mx1 = IVal(StrMid(response, StrReverseFind(response,"mx")+7, 4) );
+      //    ####     0365     mx2: [0.1mm] End of Cardgripfinger to Pos.Marker (Gripfinger horizontal)
+         mx2 = IVal(StrMid(response, StrReverseFind(response,"mx")+12, 4) );
+
+      // my#####     0        my0: [incr] Mid. of GripperHead to Middle of Cardgripper(Gripper horizontal) , adjusted value
+         my0 = IVal(StrMid(response, StrReverseFind(response,"my")+2, 5 ) );
+      //    #####    24107    my1: [incr] Cardgripper Witdh between PosMarker (Gripper horizontal):  (24107inc = 75.0mm), adjusted value
+         my1 = IVal(StrMid(response, StrReverseFind(response,"my")+8, 5 ) );
+
+      // mz#####     9370     mz0: [incr] Plategripper Peaks to Pos.Marker (Gripper vertical): 36.60 mm => 09370 [inc], adjusted value
+         mz0 = IVal(StrMid(response, StrReverseFind(response,"mz")+2, 5 ) );
+      //    #####    7398     mz1: [incr] Plategripper Peaks to lower edge CardGripper (Gripper horizontal): 28.9 mm => 7398[inc], adjusted value
+         mz1 = IVal(StrMid(response, StrReverseFind(response,"mz")+8, 5 ) );
+      //                      
+      Trace("Test: ",GetFunctionName() ," : Get stored adjustment data: kq =>",kq,"<  mx0 =>",mx0,"<   mx1 =>",mx1,"<   mx2 =>",mx2,"<   my0 =>",my0,"<    my1 =>",my1,"<    mz0 =>",mz0,"<    mz1 =>",mz1,"<==");
+
+      // table light off
+   	// -----------------------------------------------------------------
+      FW_Command(ML_STAR, "C0CK","lr0cz000",hslTrue, response);
+      // spot light off
+      FW_Command(ML_STAR, "C0CK","lr1cz000",hslTrue, response);
+
+		// load easy puncher labware : track_position = (xPos - 77.5)/22.5
+      labwarePosition   = (-107.2 -77.5)/22.5;
+      moduleName        = "VER_PuncherModule";
+		VerTool::AddTemplateOnDeck(ML_STAR, moduleName , VerDef::easyPuncherModule, labwarePosition);
+		VerTool::Load_Carrier(ML_STAR, moduleName, labwarePosition, hslFalse);
+
+    	if(!FW_Command( ML_STAR, "C0BV","",hslTrue, response) )return(hslFalse) ; // Park puncher
+
+      // init easyPunch , camera
+      returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Init(ML_STAR, EASYPUNCHIMAGING::_TRACE_LEVEL_FULL, EASYPUNCHIMAGING::_HSLTRUE) ;
+	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+      returnValue = EASYPUNCHIMAGING::CAMERA::Open(SettingNameCamera) ; 
+      if((!VerDef::SimulationMode) && errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);    
+      
+      return(hslTrue); 
+   }// -- end of function "InitializeEasyPunch"
+  
+	//------------------------------------------------------------------------------
+	private function displayErrorDialog(variable errorText, variable buttonsTypes) variable
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information
+		variable warning("");
+		variable defaultButton(1);
+		variable response(hslCancel);
+
+		dialogTitle 		= LdT("Userdialog for'easyPunch' Verification:");
+		pictureFile 		= "EasyPunchError.jpg";
+
+		VerTool::NewTextLine(1,"===  " + LdT("'easyPunch' PROCCESSING ERROR!") +  "====");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0, errorText);
+		VerTool::NewTextLine(0, " ");
+      VerTool::NewTextLine(0, " ");
+      VerTool::NewTextLine(0, " ");
+		if (buttonsTypes == hslOKOnly)
+      { 
+         defaultButton = 1;
+   		warning = LdT("Note:") + " " +LdT("The Verification step will be skipped.");	
+      }
+		if (buttonsTypes == hslOKCancel) 
+      {
+         defaultButton =2;
+   		VerTool::NewTextLine(0, LdT("Press 'OK' to continue the Verification."));
+	   	VerTool::NewTextLine(0, LdT("Press 'Cancel' to skip this Verification."));
+      }
+
+		response = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText, warning, buttonsTypes, defaultButton, "","","");
+      return(response);
+
+	}  // -- end of function "displayErrorDialog"	
+
+
+	//------------------------------------------------------------------------------
+	private function StartDialogEasyPunch(device ML_STAR) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information	
+  		variable prop2, prop3, sn, date(""),lcd(""),lcb(""); // dummy place holder 		
+		variable inputDescription(""), inputRemarks("");
+      variable strPuncherType(""); 
+      variable warning("");	
+      variable response;
+
+//		VerTool::GetVerificationInformation(VerDef::KeyEasyPunch, strPuncherType, prop2 , prop3 ,sn, date,lcd,lcb);
+//		puncherType	= IVal(strPuncherType);
+      //move arm and autoload to extrem position
+      VerTool::MoveToEndPositions(ML_STAR);
+
+		// Unlock front cover 
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+      // spot light on
+      FW_Command(ML_STAR, "C0CK","lr1cz100",hslFalse, response);
+
+		dialogTitle 		= LdT("Start of the 'easyPunch' Verification:");
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");
+		Trace(" ");
+		Trace("           ",dialogTitle);
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");	
+		pictureFile 		= "StartEasyPunch.jpg";
+
+		VerTool::NewTextLine(1, LdT("Remove the following labware:"));
+		VerTool::NewTextLine(0, " ");
+	   VerTool::NewTextLine(0, "      - " + LdT("Labware from 'Punch Module' table."));
+  		VerTool::NewTextLine(0, " ");
+	   VerTool::NewTextLine(0, "      - " + LdT("Carrier(s) on track 7 to 12."));
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, LdT("Open tool box below transport position (2.5mm Allen screw )"));
+		VerTool::NewTextLine(0, "       " + LdT(" and remove:"));
+		VerTool::NewTextLine(0, " ");
+	   VerTool::NewTextLine(0, "      - " + LdT("Camera Adjustment Tool"));
+		VerTool::NewTextLine(0, " ");
+	   VerTool::NewTextLine(0, "      - " + LdT("Verification Magazine"));
+		VerTool::NewTextLine(0, " ");
+      VerTool::NewTextLine(0, LdT("Note:") + " " + LdT("Close and screw tool box afterwards.") );
+//		VerTool::NewTextLine(0, LdT("Define installed 'Puncher Head' type:"));
+//		VerTool::NewTextLine(0, " ");
+//      VerTool::NewTextLine(0, "      1 : PN 803022 ( " + LdT("puncher diameter") + " = 1.2 mm )");
+//	   VerTool::NewTextLine(0, "      2 : PN 803023 ( " + LdT("puncher diameter") + " = 2 mm )");
+//	   VerTool::NewTextLine(0, "      3 : PN 803024 ( " + LdT("puncher diameter") + " = 3 mm )");
+//	   VerTool::NewTextLine(0, "      4 : PN 803025 ( " + LdT("puncher diameter") + " = 6 mm )");
+
+//      inputDescription 	= LdT("Define installed 'easyPuncher' type:");
+      warning =  LdT("Attention:") + " " + LdT("Loaded labware could crash with card gripper!");
+
+
+//		while(hslTrue)
+		{// show load dialog	
+			VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,warning, hslOKOnly, 1, 
+																	inputDescription, inputRemarks, strPuncherType);
+//			if(VerTool::checkInputValue(strPuncherType, 4, 1, puncherType)) break;
+//			inputRemarks = LdT("Define correct number!");
+		}
+
+//		VerTool::UpdateVerificationInformation(1, VerDef::KeyEasyPunch, strPuncherType, prop2, prop3,sn, GetDate("%Y-%m-%d"));
+
+      // spot light off
+      FW_Command(ML_STAR, "C0CK","lr1cz000",hslFalse, response);
+
+		// Lock front cover 
+		VerTool::CoverLock(ML_STAR , VerDef::coverLock);
+
+	}  // -- end of function "CheckFrontCoverLockedStatus"
+
+
+	//------------------------------------------------------------------------------
+	private function LoadDialogEasyPunch(device ML_STAR, variable loadPhase) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information			
+		variable warning("");	
+     	variable moduleName("");
+      variable labwarePosition(0.0);		
+		variable response, carrierName;
+      variable carrierType;
+      variable magazineType;
+      sequence seq_DummyDef;  // place holder sequence definition
+
+		dialogTitle 		= LdT("Userdialog for'easyPunch' Verification:");
+
+      // move frame to park position
+      if( !FW_Command(ML_STAR, "C0CF","di4du0000dy0000",hslTrue, response) ) return(hslFalse);
+
+		// unlock front cover 
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");
+		Trace(" ");
+		Trace("           ",dialogTitle);
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");	
+		Trace(loadPhase);
+
+		VerTool::NewTextLine(1, LdT("Load following labware on 'easyPuncher X/Y Frame':"));
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+      if(loadPhase == 1)
+      {
+//   		pictureFile 		= "LoadDWPonEasyPuncher.jpg";
+   		pictureFile 		= "LoadEasyPuncher.jpg";
+//		   VerTool::NewTextLine(0, "      - " + LdT("'Deepwell Plate' on rear position of the 'easyPuncher Module'."));
+		   VerTool::NewTextLine(0, "- " + LdT("'Deepwell Plate'  onto the rear position."));
+		   VerTool::NewTextLine(0," ");
+		   VerTool::NewTextLine(0, "- " + LdT("'Camera Adjustment Tool' onto the front position."));
+         warning =  LdT("Attention:") + " " + LdT("'Deepwell Plate' must be empty") + VerDef::CRLF
+                    + "                 " + LdT("'Camera Adjustment Tool' must be readable.");
+      }
+
+      if(loadPhase == 2)
+      {
+         if(puncherGripperType == 3)         // : DMPK PN 803520
+         {  		   
+            pictureFile 	      = "LoadCardMagazine_1.jpg";
+            carrierName          = " ( MAG_CAR_L5_DMPK_A##; pn 803'606 )";
+            carrierType          = VerDef::punchCardMagazine_1;
+            magazineType         = VerDef::paperCard_Magazine_3;
+            magazineCarrierLabID = VerDef::carrierName_Magazine_1;
+
+         }
+         else
+         {
+   		   pictureFile 		   = "LoadCardMagazine_2.jpg";
+            carrierName          = " ( MAG_CAR_L5_A##; pn 803'416 )";
+            carrierType          = VerDef::punchCardMagazine_2;
+            if(puncherGripperType == 1)   magazineType = VerDef::paperCard_Magazine_1;        // : Plastic
+            else                          magazineType = VerDef::paperCard_Magazine_2;        // : EC Paper
+            magazineCarrierLabID = VerDef::carrierName_Magazine_2;
+         }
+
+		   VerTool::NewTextLine(0, "  - " + LdT("'Card Magazine Carrier'") );
+		   VerTool::NewTextLine(0, "              "  + carrierName);
+		   VerTool::NewTextLine(0, "          " + LdT("on track position 7 .. 12 of the Autoload Tray."));
+   		VerTool::NewTextLine(0, " ");
+		   VerTool::NewTextLine(0, "  - " + LdT("'Verification Card Magazine' on position 5 of carrier."));
+   		VerTool::NewTextLine(0, " ");
+		   VerTool::NewTextLine(0, "  - " + LdT("4 'Verification Cards' into the Card Magazine."));
+
+     		VerTool::NewTextLine(0, " ");
+     		VerTool::NewTextLine(0, " ");
+         VerTool::NewTextLine(0, LdT("Note:") );
+         VerTool::NewTextLine(0, "  - " + LdT("Load correct Verification Card without any punches.") );
+         VerTool::NewTextLine(0, "  - " + LdT("Load Verification Card # 1 on left side ...") );
+         VerTool::NewTextLine(0, "     " + LdT("up to Verification Card # 4 on right side.") );
+     		VerTool::NewTextLine(0, " ");
+         
+         warning =  LdT("Attention:") + " " + LdT("Load new verification card properly in magazine.");
+      }
+		
+		VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,warning, hslOKOnly, 1, "","","");
+
+      if(loadPhase == 1)
+      {
+		   VerTool::AddRackOnCarrier(VerDef::site_ResetAll,"","",seq_DummyDef); 
+		   VerTool::AddRackOnCarrier(VerDef::site_2, VerDef::_DWP_2ml,	plate_ID_2,	seqPlatePositions);
+		   VerTool::AddRackOnCarrier(VerDef::site_1, VerDef::_DWP_2ml,	plate_ID_1,	seqPlatePositions);
+   		seqPlatePositions.SetCurrentPosition( 1 );
+//	   	TrcTraceSequence(seqPlatePositions);
+//         moduleName  = "VER_PuncherModule";
+//         labwarePosition   = (-107.2 -77.5)/22.5;
+//Trace("Test: Deck: New rack added ->",rack_ID,"< at site =>",VerDef::site_1,"<  of template =>",moduleName, "<=");
+
+         labwarePosition   = (-107.2 -77.5)/22.5;
+         moduleName        = "VER_PuncherModule";
+   		ML_STAR.RemoveLabware( moduleName);
+   		VerTool::AddTemplateOnDeck(ML_STAR, moduleName , VerDef::easyPuncherModule, labwarePosition);
+    		VerTool::Load_Carrier(ML_STAR, moduleName, labwarePosition, hslFalse);
+//      TracePresentLabware(ML_STAR);
+     }
+
+      if(loadPhase == 2)
+      {
+		   VerTool::AddRackOnCarrier(VerDef::site_ResetAll,"","",seq_DummyDef); 
+		   VerTool::AddRackOnCarrier(VerDef::site_5, magazineType,	rack_ID,	seqCardPositions);
+   		seqCardPositions.SetCurrentPosition( 1 );
+//	   	TrcTraceSequence(seqCardPositions);
+
+   		// load above pre-defined rack on "easyPuncher module"
+Trace("Test: ",GetFunctionName() ," : Load_Carrier  carrierName_Magazine =>",magazineCarrierLabID,"<=="); 
+		   VerTool::Load_Carrier(ML_STAR, magazineCarrierLabID, 7 , hslFalse); // no barcode identification, fix at track 7
+      }
+	}  // -- end of function "LoadDialogEasyPunch"
+	
+	//------------------------------------------------------------------------------
+	private function UnloadDialogEasyPunch(device ML_STAR, variable processState) //variable
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information			
+		variable warning("");			
+		variable returnValue;
+		variable response;
+      variable carrierName(magazineCarrierLabID);
+
+		dialogTitle 		= LdT("Userdialog for'easyPunch' Verification:");
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");
+		Trace(" ");
+		Trace("           ",dialogTitle);
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");	
+		Trace(" ");
+
+      // Park puncher
+      FW_Command(ML_STAR, "C0BV","",hslFalse , response)  ;
+
+      //   ----------	Move xy Frame to the front position (end of processing)
+Trace("Test: ",GetFunctionName() ," : Move plate transport to front position");
+      ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "fde0f3ba_58d9_469b_9f128c4a0ab88fef" ); // PuncherPositionPlate
+
+      // unload magazine carrier
+      ML_STAR._54114400_7FA2_11D3_AD85_0004ACB1DCB2( "1f15abc2_c700_40b9_a0253d69122508cf" ); // UnloadCarrier
+      
+      // Move STAR to idle positions
+		VerTool::MoveToEndPositions(ML_STAR);
+
+		// unlock front cover 
+		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+      // spot light on
+      FW_Command(ML_STAR, "C0CK","lr1cz100",hslFalse, response);
+
+      if(processState == PS::failed)
+      {
+		   pictureFile 		= "UnloadEasyPunchDeck_Failed.jpg";
+         warning           = LdT("Attention:") + " " + LdT("Verification failed!");
+      }
+      else
+      {
+         pictureFile 		= "UnloadEasyPunchDeck_Passed.jpg";
+         warning           = LdT("Note:") + " " + LdT("Verification passed!");
+      }
+
+		VerTool::NewTextLine(1, LdT("Unload all labware from deck or autoload tray;"));
+
+  		VerTool::NewTextLine(0, " ");
+      VerTool::NewTextLine(0, " - " + LdT("'Card Magazine Carrier' from the Autoload Tray") );
+  		VerTool::NewTextLine(0, " ");
+	   VerTool::NewTextLine(0, " -  " + LdT("Deepwell plate from rear position of easyPuncher module."));
+  		VerTool::NewTextLine(0, " ");
+	   VerTool::NewTextLine(0, " - " + LdT("'Camera Adjustment Tool from easyPuncher X/Y Frame."));
+
+  		VerTool::NewTextLine(0, " ");
+  		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, LdT("Open tool box below transport position (2.5mm Allen screw )"));
+		VerTool::NewTextLine(0, "       " + LdT(" and put back :"));
+		VerTool::NewTextLine(0, " ");
+	   VerTool::NewTextLine(0, "      - " + LdT("Camera Adjustment Tool"));
+		VerTool::NewTextLine(0, " ");
+	   VerTool::NewTextLine(0, "      - " + LdT("Verification Magazine"));
+		VerTool::NewTextLine(0, " ");
+      VerTool::NewTextLine(0, LdT("Note:") + " " + LdT("Close and screw tool box afterwards.") );
+		
+		returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,warning, hslOKOnly, 1, "","","");
+
+		VerTool::RemovePresentLabware(ML_STAR, carrierName);
+
+      // spot light off
+      FW_Command(ML_STAR, "C0CK","lr1cz000",hslFalse, response);		
+
+	}  // -- end of function "UnloadDialogEasyPunch"
+
+	//------------------------------------------------------------------------------
+	private function searchFingerPositions(device ML_STAR, variable ySearchDirection, variable& xPos, variable& yPos, variable& zPos) variable
+	//------------------------------------------------------------------------------
+   //	Search Finger Positions on PuncherHead
+   {
+      const variable XStartPos(600);  // [0.1mm] : 60mm
+      const variable X_Offset(400);  // [0.1mm]  : 40mm
+      const variable ZStartPos(2975); // [0.1mm] : +297.5mm
+             
+      variable prefix(1.0);
+      variable prm(""), yd(""), yd_inv(""), ys("");
+      variable response("");
+      variable index;
+
+      xPos = yPos = zPos = -99;
+
+      // Synchronize x arm-positions
+    	if( !FW_Command(ML_STAR, "C0RU","",hslFalse, response) ) return(hslFalse);
+      FW_Command(ML_STAR, "X0RX","",hslFalse , response);
+      // Move card handler in front of puncher head  XStartPosition (bc = 60mm)
+     	if( !FW_Command(ML_STAR, "C0BH",StrConcat4("di2bc",XStartPos,"xd0bk000yd0th2850bl000cy000bo0",""),hslTrue, response) ) return(hslFalse);
+      // move card handler -17mm in Z direction
+      if( !FW_Command(ML_STAR, "CHAA","zv05000",hslTrue, response) ) return(hslFalse);
+    	if( !FW_Command(ML_STAR, "C0BZ","bl170zd1",hslTrue, response) ) return(hslFalse);
+     
+      if(ySearchDirection > 0)
+      { // positive direction
+         prefix = -1.0;
+         yd     = "yd0";
+         yd_inv = "yd1";
+         ys     = "ys-008000";
+      }
+      else
+      {
+         yd     = "yd1";
+         yd_inv = "yd0";
+         ys     = "ys+008000";
+      }
+      // move card handler in Y direction : e.g. +/- 34.5 mm (my1/2 -3mm)     
+      prm = "bk"+ StrFillLeft(IStr(Ceiling(YstepResGripper*my1/2.0 -30)), "0", 3) + yd;
+    	if( !FW_Command(ML_STAR, "C0BY",prm, hslTrue, response) ) return(hslFalse);
+
+FW_Command(ML_STAR, "X0RX","",hslFalse , response);
+
+
+      cardInPuncherHead = hslTrue;
+      // move card handler  in puncher head  :bc = start - mx2 + 1mm  ??  in -X direction
+//      prm = StrConcat2("xd1bc",XStartPos-mx2 + 10);
+//      if( !FW_Command(ML_STAR, "C0BX",prm,hslTrue, response)) return(hslFalse);
+//      prm = "lt1ls"+ StrFillLeft(IStr(XStartPos-mx2 + 10), "0", 5);
+//  		if( !FW_Command(ML_STAR, "X0XR",prm,hslTrue, response)) return(hslFalse);
+//FW_Command(ML_STAR, "X0RX","",hslFalse , response);
+
+      // x position left arm = x position puncher head (pc0) + diverse offset values (mx2,mx0,kq) - 1mm + X_Offset (40mm)
+      prm = "xs"+ StrFillLeft(IStr(Ceiling(pc0)+mx2+mx0+kq+X_Offset-10), "0", 5);
+Trace("Test: X-position below matrix prm =>",prm,"<===");
+//pause;
+  		if( !FW_Command(ML_STAR, "C0JX",prm,hslTrue, response)) return(hslFalse);
+      // move to the left x offset
+      prm = "lt1ls"+ StrFillLeft(IStr(X_Offset), "0", 5);
+Trace("Test: X-position below matrix prm =>",prm,"<===");
+//pause;
+      if( !FW_Command(ML_STAR,"X0XR", prm,hslTrue, response)) return(hslFalse);
+
+      // search Z-Position of front/rear finger 
+   	// -----------------------------------------------------------------	
+      // switch on LLD
+      if( !FW_Command(ML_STAR, "CHAL","al1",hslTrue, response) ) return(hslFalse);
+      response = "id0079er00rz+67756"; // for simulation only
+      if( !FW_Command(ML_STAR, "CHZJ","zs+03000zv00300",hslTrue, response) ) return(hslFalse);
+      // Gripper finger Z position = measured Z position + mz1 
+		zPos = ZstepResGripper * (IVal(StrMid(response, StrReverseFind(response,"rz")+2, 6) ) + mz1); // measured Z value [0.1mm]
+      // move card handler -1mm in Z direction
+      if( !FW_Command(ML_STAR, "CHAA","zv05000",hslTrue, response) ) return(hslFalse);
+    	if( !FW_Command(ML_STAR, "C0BZ","bl010zd1",hslTrue, response) ) return(hslFalse);
+
+      // move card handler in Y direction : +/-15 mm 
+    	if( !FW_Command(ML_STAR, "C0BY","bk150"+ yd,hslTrue, response) ) return(hslFalse);
+      // move card handler +2.5mm in Z direction
+    	if( !FW_Command(ML_STAR, "C0BZ","bl025zd0",hslTrue, response) ) return(hslFalse);
+
+      // search Y-Position of front/rear finger 
+   	// -----------------------------------------------------------------	
+      response = "id0281er00ry+98404"; // for simulation only
+      if( !FW_Command(ML_STAR, "CHYJ",ys + "yv000500",hslTrue, response) ) return(hslFalse);
+      // Gripper finger Y position = measured Y position + my0 +/- my/2
+		yPos = YstepResGripper * (IVal(StrMid(response, StrReverseFind(response,"ry")+2, 6) ) + my0 + prefix * my1/2.0 ); // measured Y value [0.1mm]
+      // move card handler +1mm in Y direction
+      FW_Command(ML_STAR, "CHAA","zv35000yv100000", hslTrue, response) ;
+    	if( !FW_Command(ML_STAR, "C0BY","bk010"+ yd, hslTrue, response) ) return(hslFalse);
+
+      // search X-Position of front/rear finger 
+   	// -----------------------------------------------------------------	
+      // move card handler +10mm in X direction
+//    	if( !FW_Command(ML_STAR, "C0BX","bc100xd0",hslTrue, response) ) return(hslFalse);
+  		if( !FW_Command(ML_STAR, "X0XR","ls00100lt0",hslTrue, response)) return(hslFalse);
+
+      // move card handler -/+8mm in Y direction
+    	if( !FW_Command(ML_STAR, "C0BY","bk080" + yd_inv,hslTrue, response) ) return(hslFalse);
+
+      // switch on LLD
+      if( !FW_Command(ML_STAR, "CHAL","al1",hslTrue, response) ) return(hslFalse);
+      // Request LLD
+      if( !FW_Command(ML_STAR, "CHRN","",hslFalse, response) ) return(hslFalse);
+
+      for(index = 0; index < 500; index++)
+      {
+   		if( !FW_Command(ML_STAR, "X0XR","ls00001lt1",hslTrue, response)) return(hslFalse);
+         if(index > 3)  response = "id0079er00rn1"; // for simulation only
+         else           response = "id0079er00rn0"; // for simulation only
+   		if( !FW_Command(ML_STAR, "CHRN","",hslFalse , response)) return(hslFalse); // ==> CHRNid0047rn0
+         if(IVal(StrMid(response, StrReverseFind(response,"rn")+2, 1)) > 0 )break;
+      }
+      if(index < 500)
+      {  // Request X-Value
+         response = "id1234rx+004856 +0000048555"; // for simulation only
+   	   if( !FW_Command(ML_STAR, "X0RX","",hslFalse , response) ) return(hslFalse);
+         // Gripper finger X position = measured X position - mx2 -mx0 - kq
+		   xPos = IVal(StrMid(response, StrReverseFind(response,"rx")+2, 7) )  - mx2 -mx0 - kq ; // measured X value  [0.1mm]
+      }
+      // switch off LLD
+      if( !FW_Command(ML_STAR, "CHAL","al0",hslTrue, response) ) return(hslFalse);
+
+      // move card handler +40mm in X direction
+//    	if( !FW_Command(ML_STAR, "C0BX","bc400xd0",hslTrue, response) ) return(hslFalse);
+		if( !FW_Command(ML_STAR, "X0XR","ls00400lt0",hslTrue, response)) return(hslFalse);
+
+      // Synchronize x arm-positions
+      FW_Command(ML_STAR, "X0RX","",hslFalse , response);
+    	if( !FW_Command(ML_STAR, "C0RU","",hslFalse, response) ) return(hslFalse);
+
+      return(hslTrue);
+   } // ---- End of function "searchFingerPositions"
+
+	//------------------------------------------------------------------------------
+	private function executePunchGripperAlignment(device ML_STAR) //variable
+	//------------------------------------------------------------------------------
+   //	Check Card Handler Position relative to Punch Head Position
+ 	{
+      const variable puncherRadius(50); // 5mm
+//      const variable XStartPos(700);  // [0.1mm]  
+      const variable ZStartPos(2975); // [0.1mm]  
+      const variable frontFinger(1); 
+      const variable rearFinger(-1); 
+        
+   	variable response("");
+      variable prm("");
+      variable delta(0.0);
+      variable xPosAtPuncher(""), yPosAtPuncher("");
+      variable xPos, yPos, zPos;
+   	variable arrNominalPositions[];  // array of calculated nominal positions 
+   	variable arrMeasuredPositions[]; // array of meassured X1, X2, Y1, Y2, Z1, Z2 positions
+
+		onerror goto errorHandling;
+
+      arrNominalPositions.SetSize( 0 );
+      arrMeasuredPositions.SetSize( 0 );
+	   arrGripperAlignmentDeviations.SetSize( 0 ); // deviation of gripper alignment   
+   	// -----------------------------------------------------------------
+      loop( 6 ) 
+      { // 
+         arrGripperAlignmentDeviations.AddAsLast( 99.9 );
+         arrMeasuredPositions.AddAsLast( 0.0 );
+         arrNominalPositions.AddAsLast( 0.0 );
+      }
+
+      // Calculate nominal positions
+      // X-Position for X0RX values: +49.7mm (pc0, center puncher) + 5mm (radius punch matrix)
+      arrNominalPositions.SetAt( 0, pc0 + puncherRadius ); // [0.1mm]
+      arrNominalPositions.SetAt( 1, arrNominalPositions.GetAt( 0) );
+
+      // Y-Position for CHRY values: +262.1mm (pc1, center puncher) +/-( 5mm (radius punch matrix)  )
+      arrNominalPositions.SetAt( 2, pc1 + puncherRadius ); // [0.1mm]
+      arrNominalPositions.SetAt( 3, pc1 - puncherRadius );     // [0.1mm]
+
+      // Z-Position for CHRZvalues: +297.5mm (center puncher) (delta z coordinate)
+      arrNominalPositions.SetAt( 4, ZStartPos); // [0.1mm]
+      arrNominalPositions.SetAt( 5, arrNominalPositions.GetAt( 4) );
+
+      // Pre-position gripper and puncher
+   	// -----------------------------------------------------------------	
+         // Move card handler in front of puncher head  :bc = 60mm
+     	if( !FW_Command(ML_STAR, "C0BH","di2bc600xd0bk000yd0th2850bl000cy000bo0",hslTrue, response) ) return(hslFalse);
+
+      if( !FW_Command(ML_STAR, "CHGP","gp1",hslTrue, response) )return(hslFalse);
+       // move puncher head in z position
+    	if( !FW_Command(ML_STAR, "C0BU",StrConcat2("bm",ZStartPos),hslTrue, response) ) return(hslFalse);
+//      FW_Command(ML_STAR, "CPRZ","",hslFalse , response);
+
+   	//  Search Front Finger Positions of Card Handler 
+   	// -----------------------------------------------------------------	
+      if( !searchFingerPositions(ML_STAR, frontFinger, xPos, yPos, zPos) ) return(hslFalse);
+      arrMeasuredPositions.SetAt( 0, xPos); // measured X value
+      arrMeasuredPositions.SetAt( 2, yPos); // measured Y value
+      arrMeasuredPositions.SetAt( 4, zPos); // measured Z value
+
+   	//  Search Rear FingerPositions of Card Handler 
+   	// -----------------------------------------------------------------	
+      if( !searchFingerPositions(ML_STAR, rearFinger, xPos, yPos, zPos) ) return(hslFalse);
+      arrMeasuredPositions.SetAt( 1, xPos); // measured X value
+      arrMeasuredPositions.SetAt( 3, yPos); // measured Y value
+      arrMeasuredPositions.SetAt( 5, zPos); // measured Z value
+
+   	// -----------------------------------------------------------------
+     // Park card handler
+   	// -----------------------------------------------------------------
+      // move card handler +50mm in X direction
+//    	if( !FW_Command(ML_STAR, "C0BX","bc500xd0",hslTrue, response) ) return(hslFalse);
+      cardInPuncherHead = hslFalse;
+      if( !FW_Command(ML_STAR, "C0BW","",hslTrue, response) ) return(hslFalse);
+      if( !FW_Command(ML_STAR, "CHAA","zv35000",hslTrue, response) ) return(hslFalse);
+
+   	// -----------------------------------------------------------------
+      // Calculate gripper alignment deviations
+   	// -----------------------------------------------------------------
+Trace("");
+      // X deviation: delta = (Xmeasrured - Xstored)
+      delta = 0.1 * 0.5*(arrMeasuredPositions.GetAt(0) + arrMeasuredPositions.GetAt(1)- arrNominalPositions.GetAt(0)- arrNominalPositions.GetAt(1)); //[mm]
+      arrGripperAlignmentDeviations.SetAt(0, delta );
+Trace("Test: X-direction : 1st position: Measured  =>", arrMeasuredPositions.GetAt(0),"<  calculated nominal value =>",arrNominalPositions.GetAt(0),"<=="); 
+Trace("Test: X-direction : 2nd position: Measured  =>", arrMeasuredPositions.GetAt(1),"<  calculated nominal value =>",arrNominalPositions.GetAt(1),"<=="); 
+Trace("Test: Gripper Alignment X deviation  =>",  arrGripperAlignmentDeviations.GetAt(0));
+
+      // Y deviation: delta = (Y1measrured +Y2measrured)/2 - (Y1stored+Y2stored)/2
+      delta = 0.1 * 0.5*(arrMeasuredPositions.GetAt(2) + arrMeasuredPositions.GetAt(3)- arrNominalPositions.GetAt(2)- arrNominalPositions.GetAt(3)); // [mm]
+      arrGripperAlignmentDeviations.SetAt(1, delta );
+Trace("Test: Y-direction 1st position: Measured  value =>", arrMeasuredPositions.GetAt(2),"<  calculated nominal value =>",arrNominalPositions.GetAt(2),"<=="); 
+Trace("Test: Y-direction 2nd position: Measured  value =>", arrMeasuredPositions.GetAt(3),"<  calculated nominal value =>",arrNominalPositions.GetAt(3),"<=="); 
+Trace("Test: Gripper Alignment Y deviation  =>",  arrGripperAlignmentDeviations.GetAt(1));
+
+      // Z deviation: delta = (Zmeasrured - Zstored) 
+      delta = 0.1*0.5*(arrMeasuredPositions.GetAt(4) + arrMeasuredPositions.GetAt(5)- arrNominalPositions.GetAt(4)- arrNominalPositions.GetAt(5));  // [mm]
+      arrGripperAlignmentDeviations.SetAt(2, delta );
+Trace("Test: Z-direction 1st position: Measured  value =>", arrMeasuredPositions.GetAt(4),"<  calculated nominal value =>",arrNominalPositions.GetAt(4),"<=="); 
+Trace("Test: Z-direction 2nd position: Measured  value =>", arrMeasuredPositions.GetAt(5),"<  calculated nominal value =>",arrNominalPositions.GetAt(5),"<=="); 
+Trace("Test: Gripper Alignment Z deviation  =>",  arrGripperAlignmentDeviations.GetAt(2));
+Trace("");
+
+      // finger x deviation: delta = (Zfront - Zrear) 
+      delta = 0.1*(arrMeasuredPositions.GetAt(0)- arrMeasuredPositions.GetAt(1)); 
+      arrGripperAlignmentDeviations.SetAt(3, delta );
+Trace("Test: Gripper Alignment finger X deviation  =>",  arrGripperAlignmentDeviations.GetAt(3));
+      // finger Z deviation: delta = (Zfront - Zrear) 
+      delta = 0.1*(arrMeasuredPositions.GetAt(4)- arrMeasuredPositions.GetAt(5)); 
+      arrGripperAlignmentDeviations.SetAt(4, delta );
+Trace("Test: Gripper Alignment finger Z deviation  =>",  arrGripperAlignmentDeviations.GetAt(4));
+Trace("");
+
+      return(hslTrue);
+		///////////////////////////////////////////////////
+		errorHandling : 
+		{
+
+         // table light off
+         FW_Command(ML_STAR, "C0CK","lr0cz000",hslTrue, response);
+         // spot light off
+         FW_Command(ML_STAR, "C0CK","lr1cz000",hslTrue, response);
+      	// -----------------------------------------------------------------
+      	//  Move to (upper) safety position
+      	// -----------------------------------------------------------------		
+         FW_Command(ML_STAR, "CHAA","zv35000",hslTrue, response);
+      	FW_Command(ML_STAR, "C0BM","xs03610xd0zj3100yj5090th2000",hslTrue, response);
+      	FW_Command(ML_STAR, "CHGP","gp0",hslTrue, response);
+      	FW_Command(ML_STAR, "C0BV","",hslTrue, response);
+
+			// If error occurs during execution processing will be  stopped
+			return(hslFalse);
+		}
+   } // ---- End of function "executePunchGripperAlignment"
+
+	//------------------------------------------------------------------------------
+	private function executeCameraSetting(device& ML_STAR) variable
+	//------------------------------------------------------------------------------
+	{ 	//  Überprüfen der Kamera Einstellungen (Fokus, Blende) mittels der easyPunch Imaging Software
+      const variable iPositionX(7.0);
+      const variable iPositionY(30.0);
+      const variable iSizeX(60.0);
+      const variable iSizeY(45.0);
+      const variable iAngle(0.0);
+      const variable iGrayValueCenter(136.0);
+      const variable iGrayValueSensibility(4.0);  // lower limt as for adjustments (=> iGrayValueSensibility(5.0);)
+      const variable iGradientValueThreshold(14.0);
+      const variable iGradientValueSensibility(30.0);
+   
+   	variable response(""), returnValue;
+   	variable moduleName("");
+      variable labwarePosition(0.0);
+      variable tempValue_1,tempValue_2, tempValue_3, tempValue_4; // temporary (dummy) values
+      variable status(hslFalse);
+
+      timer timerLiveView;
+
+      SettingNamePlate  = "Verification_Camera_Position";
+
+      // Park puncher
+      if( !FW_Command(ML_STAR, "C0BV","",hslTrue, response) ) return(hslFalse);
+
+      // table light on
+      if( !FW_Command(ML_STAR, "C0CK","lr0cz100",hslTrue, response) ) return(hslFalse);
+      // spot light on
+      if( !FW_Command(ML_STAR, "C0CK","lr1cz100",hslTrue, response) ) return(hslFalse);
+
+      // camera adjustment plate to check position : Move plate to handling point X = 67mm / Y = 46mm 
+      if( !FW_Command(ML_STAR, "C0CF","di1du0670dy0460",hslTrue, response) ) return(hslFalse);
+
+    // execute [%PATH]..\Methods\easyPunchImaging_Justage_CameraFocusAndAperture.hsl  
+    //  ----------- Camera Focus Check
+      processStepDescription = "Evaluate camera focus feature";
+Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
+
+      if(VerDef::SimulationMode)
+      { // simulated process states
+         focusVerificationState  = VerDef::passed;
+         apertureVerificationState = VerDef::passed;
+      }
+      else
+      {      
+         returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::ClearAll();
+         if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+         returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::Show(EASYPUNCHIMAGING::GUI::LIVEVIEW::MODE::_NORMAL);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+         returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::FOCUS::Show(iPositionX, iPositionY, iSizeX, iSizeY, iAngle, iGradientValueThreshold, iGradientValueSensibility);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+
+         returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::Rectangle(LdT("Evaluate camera focus feature"), 9.0, 3.0, 60.0, 8.0, 0.0, 
+                                                         EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::COLOR::_BLACK, 0, 
+                                                         EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::DRAWMODE::_FILL);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+         returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::Text(Translate("TextTitle"), 10.0, 3.0, Translate(LdT("Please wait ...")), 
+                                                         EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::COLOR::_CYAN, 
+                                                         EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::FONT::_ARIAL, 30) ;
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+         timerLiveView.SetTimer(3.0); // wait 3 seconds
+         timerLiveView.WaitTimer( hslFalse, hslFalse );
+
+         returnValue = EASYPUNCHIMAGING::ERROR::_NONE;
+         if(VerDef::SimulationMode)  status = hslTrue; 
+         else returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::FOCUS::GetCurrentValue(tempValue_1,tempValue_2, tempValue_3, status);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+         if(status == EASYPUNCHIMAGING::_HSLTRUE)  focusVerificationState  = VerDef::passed;
+         else                                      focusVerificationState  = VerDef::failed;
+   Trace("Test: ",GetFunctionName() ," : ",processStepDescription,"   status is =>", focusVerificationState);
+
+       //  ----------- Camera Aperture Check
+         processStepDescription = "Evaluate camera aperture feature";
+
+         returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::ClearAll() ;
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+         returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::Show(EASYPUNCHIMAGING::GUI::LIVEVIEW::MODE::_NORMAL);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+         returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::APERTURE::Show(iPositionX, iPositionY, iSizeX, iSizeY, iAngle, iGrayValueCenter, iGrayValueSensibility) ;
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+
+         returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::Rectangle(LdT("Evaluate camera aperture feature"), 9.0, 3.0, 60.0, 8.0, 0.0, 
+                                                         EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::COLOR::_BLACK, 0, 
+                                                         EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::DRAWMODE::_FILL);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+         returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::Text(Translate("TextTitle"), 10.0, 3.0, Translate(LdT("Please wait ...")), 
+                                                         EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::COLOR::_CYAN, 
+                                                         EASYPUNCHIMAGING::GUI::LIVEVIEW::DRAW::FONT::_ARIAL, 30) ;
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+         timerLiveView.SetTimer(3.0); // wait 3 seconds
+         timerLiveView.WaitTimer( hslFalse, hslFalse );
+
+         returnValue = EASYPUNCHIMAGING::ERROR::_NONE;
+         if(VerDef::SimulationMode)  status = hslTrue; 
+         else returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::APERTURE::GetCurrentValue(tempValue_1,tempValue_2, tempValue_3, status);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+         if(status == EASYPUNCHIMAGING::_HSLTRUE)  apertureVerificationState = VerDef::passed;
+         else                                      apertureVerificationState= VerDef::failed;
+   Trace("Test: ",GetFunctionName() ," : ",processStepDescription,"   status is =>", apertureVerificationState);
+
+         returnValue = EASYPUNCHIMAGING::GUI::LIVEVIEW::Hide();
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      // table light off
+      if( !FW_Command(ML_STAR, "C0CK","lr0cz000",hslTrue, response) ) return(hslFalse);
+      // spot light off
+      if( !FW_Command(ML_STAR, "C0CK","lr1cz000",hslTrue, response) ) return(hslFalse);
+
+      processStepDescription = "";
+      return(hslTrue);
+   } // ---- End of function "executeCameraSetting"
+  
+	//------------------------------------------------------------------------------
+	private function executePlateAlignment(device& ML_STAR) variable
+	//------------------------------------------------------------------------------
+	{ 	//  Verifikation des Plate Alignment:
+      //       1.	Messen der Position des xy Frames. Abweichung der Frame Lage zur optischen Achse der Kamera
+      //       2.	Vergleich ob Wert innerhalb der geforderten Toleranz
+   	variable response(""),returnValue;
+      variable deltaX (0.0), deltaY(0.0),deltaAngle(0.0);
+      variable EasyPunchCardID("");
+
+   	variable runningFlag(EASYPUNCHIMAGING::_HSLTRUE);
+      variable iCameraNotClose(EASYPUNCHIMAGING::_HSLTRUE); 
+      
+      SettingNameCard = "Verification_PlateAlignment";
+
+      arrPlateAlignmentDeviations.SetSize(0 );
+      loop(3) arrPlateAlignmentDeviations.AddAsLast(99.9 );
+
+      // Release all occupied areas 
+      if( !FW_Command(ML_STAR, "C0BC","",hslTrue, response) ) return(hslFalse); 
+
+      // Transport DWP to transfer position
+Trace("Test: ",GetFunctionName() ," : Move plate transport to transfer position");
+      ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "0e1aaaf1_2fb0_45ed_9b30075a4c2096ef" ); // PuncherPositionPlate
+      ML_STAR._61B2987E_BF32_45b0_B891_307803E944F3( "2bb652f5_9ed2_4d63_af983e5d2ee063b4" ); // PunchCardGripGet
+      seqPlatePositions.SetCurrentPosition( 97 );
+      ML_STAR._356B202E_2016_4457_89D6_BECF5F07C83E( "505dff85_90bf_4f00_b2c202cfdc3c90a9" ); // PunchCardGripPlace
+
+      // execute similar to "[%PATH]..\Methods\easyPunchImaging_Justage_PlateHandlerToPateHolder.hsl"
+
+      processStepDescription = "Execute plate alignment check, positioning handler";
+
+      // Initialize puncher system 
+//      if( !FW_Command(ML_STAR, "C0BI","",hslTrue, response) ) return(hslFalse); 
+     // Park card handler
+//      if( !FW_Command(ML_STAR, "C0BW","",hslTrue, response) ) return(hslFalse);
+
+      // Set x/y speed
+      if( !FW_Command(ML_STAR, "CPAA","xv20000yv20000",hslTrue, response) ) return(hslFalse);
+
+      // Move plate to camera position (di1) and position offset values: X = 128 + 8mm = 136mm / Y = 96.5mm 
+      //   with 128mm : frame distance to cross in X direction 
+      //          8mm : Theoretical X distance between gripper and frame 
+      //       96.5mm : Frame middle in Y direction 
+      if( !FW_Command(ML_STAR, "C0CF","di1du1360dy0965",hslTrue, response) ) return(hslFalse);
+
+      // Move Card Rotation to Predefined destination position:gp0 : park position/ gp1 : horizontal position/ gp2 : vertical position ( 90°);gp3 : pregrip Position ( ~ 89°)
+      if( !FW_Command(ML_STAR, "CHGP","gp1",hslTrue, response) ) return(hslFalse);
+      // Move Card H-drive  to Predefined destination position: 0 = home / 1 = open / 2 = closed
+      if( !FW_Command(ML_STAR, "CHHP","hp2",hslTrue, response) ) return(hslFalse);
+      // Card handler z-Init
+      if( !FW_Command(ML_STAR, "CHZI","",hslTrue, response) ) return(hslFalse);
+
+      // Move card to handling point: di1 = camera/ bc000xd0: X-offset =+0 / bk000yd0 Y-offset =+0 / 
+      if( !FW_Command(ML_STAR, "C0BH","di1bc000xd0bk000yd0th3100bl030cy600bo0",hslTrue, response) ) return(hslFalse);
+
+      // spot light on
+      if( !FW_Command(ML_STAR, "C0CK","lr1cz100",hslTrue, response) ) return(hslFalse);
+
+      processStepDescription = "Execute plate alignment check, picture evaluation";
+
+      returnValue = EASYPUNCHIMAGING::GUI::Show(EASYPUNCHIMAGING::GUI::SHOW::MODE::_MAXIMIZED);
+	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+      returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Card_TakePicture(ML_STAR, SettingNameCamera, iCameraNotClose );
+	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+      returnValue = EASYPUNCHIMAGING::ANALYSE::CARD::Start(SettingNameCard);
+	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+
+      while(runningFlag == EASYPUNCHIMAGING::_HSLTRUE) // loop until data are measured
+      {
+         returnValue = EASYPUNCHIMAGING::ANALYSE::CARD::CheckRunning(runningFlag);  // Running-Flag
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      // get data
+      returnValue = EASYPUNCHIMAGING::JUSTAGE::Card_PlateHandlerToPlateHolder_GetDistance(deltaX, deltaY,deltaAngle);
+	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);       
+
+      returnValue = EASYPUNCHIMAGING::GUI::Hide();
+	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);       
+
+      // for debugging
+      returnValue = EASYPUNCHIMAGING::ANALYSE::CARD::SaveResult(EASYPUNCHIMAGING::_HSLFALSE,"easyPunch Verification",EasyPunchCardID);
+ 	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      //Trace("Test: ",GetFunctionName() ," : Camera data generated for card ID =>",EasyPunchCardID);   
+      // table light off
+      if( !FW_Command(ML_STAR, "C0CK","lr0cz000",hslTrue, response) ) return(hslFalse);
+      // spot light off
+      if( !FW_Command(ML_STAR, "C0CK","lr1cz000",hslTrue, response) ) return(hslFalse);
+
+      // Calculate difference values
+      // nominal X distance between reference marks: 36.5mm (maximaler gripper X-offset)  + 8mm (plate offset) = 44.5mm
+       deltaX = deltaX + 44.5;
+      
+      arrPlateAlignmentDeviations.SetAt(0, deltaX);
+      arrPlateAlignmentDeviations.SetAt(1, deltaY);
+      arrPlateAlignmentDeviations.SetAt(2, deltaAngle);
+Trace("Test: Plate Alignment X deviation  =>",  arrPlateAlignmentDeviations.GetAt(0));
+Trace("Test: Plate Alignment Y deviation  =>",  arrPlateAlignmentDeviations.GetAt(1));
+Trace("Test: Plate Alignment angle        =>",  arrPlateAlignmentDeviations.GetAt(2));
+
+     // Park card handler
+      if( !FW_Command(ML_STAR, "C0BW","",hslTrue, response) ) return(hslFalse);
+
+      // Transport DWP from transfer position to rear position of frame
+      processStepDescription = "Execute plate alignment check, plate transport back to rear position of frame";
+Trace("Test: ",GetFunctionName() ," : Move plate transport from transfer position to rear position of frame");
+      ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "20ee5540_5c54_4969_82780851ec0ffe73" ); // PuncherPositionPlate
+      seqPlatePositions.SetCurrentPosition( 97 );
+      ML_STAR._61B2987E_BF32_45b0_B891_307803E944F3( "4d013d5a_5f2d_4e98_a4f93add30ec55b0" ); // PunchCardGripGet
+      seqPlatePositions.SetCurrentPosition( 1 );
+      ML_STAR._356B202E_2016_4457_89D6_BECF5F07C83E( "aa1ebccd_293b_49d0_af43ba7f9ff20bb9" ); // PunchCardGripPlace
+
+      processStepDescription = "";
+      return(hslTrue);
+   } // ---- End of function "executePlateAlignment"
+
+	//------------------------------------------------------------------------------
+	private function analysePlate(device& ML_STAR, variable wellPosition, variable& wellState) variable
+	//------------------------------------------------------------------------------
+	{	// take picture of plate and analyse content of well		
+      private variable returnValue;			
+      private variable wellStatus(hslFalse);
+      private variable PunchPlateID;
+      private variable PlatePositionX;
+      private variable GetPlateResultError;
+      private variable PlatePositionY;
+      private variable arrayWellState[];
+      private variable arrayWellErrorCode[];
+      private variable oArrayParticleArea[];
+      private variable oArrayParticleCount[];      
+//      variable SettingNameCard("DEVELOPMENT_DMPK-Indicating_Paper_WB120222_4Position");
+//      variable SettingNameCard("Verification_DWP_1_2mm_settings");
+
+      if(!VerDef::SimulationMode)   wellState = hslFalse;
+
+      arrayWellState.SetSize(0);
+      arrayWellErrorCode.SetSize(0);
+      if(VerDef::SimulationMode)
+      {
+         arrayWellState.SetSize(4);
+         arrayWellErrorCode.SetSize(4);
+      }
+
+      seqPlatePositions.SetCurrentPosition(wellPosition); 
+
+      // Move plate transport to camera position
+Trace("Test: ",GetFunctionName() ," : Move plate transport to camera position");
+Trace("Test: Transport plate below puncher : LabwareID =>", seqPlatePositions.GetLabwareId(), "  PosID =>",seqPlatePositions.GetPositionId());
+
+      ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "bd0f4f4f_3649_4244_96b423c736680a0d" ); // PuncherPositionPlate
+
+      processStepDescription = "Analyse Plate :  Step 'Reset Imaging' ";
+Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING::ANALYSE::PLATE::Reset() ;
+	      if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Plate :  Step 'Show Image'";
+Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING::GUI::Show(EASYPUNCHIMAGING::GUI::SHOW::MODE::_NORMAL);
+         if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Plate :  Step 'Light Control ON'";
+Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Plate_LightControl(ML_STAR, SettingNamePlate, EASYPUNCHIMAGING::_HSLTRUE);
+         if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Plate :  Step 'Take picture'";
+Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Plate_TakePicture(ML_STAR, SettingNameCamera, EASYPUNCHIMAGING::_HSLTRUE);
+	      if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Plate :  Step 'Light Control OFF'";
+Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Plate_LightControl(ML_STAR, SettingNamePlate, EASYPUNCHIMAGING::_HSLFALSE);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Plate :  Step 'Analyse plate picture'";
+Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Plate_Analyse(SettingNamePlate, EASYPUNCHIMAGING::_HSLTRUE, "", "Verification", PunchPlateID);
+         Trace("Test: ",GetFunctionName() ," : Camera data generated for plate ID =>",PunchPlateID);   
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Plate :  Step 'Get plate well result'";
+Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Plate_GetPlateResult(PunchPlateID, PlatePositionX, PlatePositionY, GetPlateResultError);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Plate :  Step 'Get plate well result'";
+Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Plate_GetWellResult(PunchPlateID, arrayWellState,  oArrayParticleArea, oArrayParticleCount, arrayWellErrorCode); 
+                  
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+VerTool::TraceArray("Test: analysePlate: --- arrayWellState ----",arrayWellState);
+         wellState =(arrayWellState.GetAt(0) == EASYPUNCHIMAGING::EASYPUNCH_HELPER::PLATE::WELL::WELLSTATE::_PUNCH_FOUND);
+         Trace("Test: ",GetFunctionName() ," : Analyse plate was successful","  wellState =>",wellState);
+       }
+
+      processStepDescription = "Analyse Plate :  Step 'Hide Image'";
+Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
+      if(!VerDef::SimulationMode)
+      {
+            EASYPUNCHIMAGING::GUI::Hide();
+      }
+
+      Trace("Test: ",GetFunctionName() ," : Analyse plate was successful","  wellState =>",wellState);
+      processStepDescription = "";
+      return(hslTrue);
+	}  // -- end of function "analysePlate"
+
+	//------------------------------------------------------------------------------
+	private function analyseCard( device& ML_STAR,  
+                                 variable measureHole,
+                                 variable punchPosition,  // (1-based) punch position 
+                                 variable& gripPosX, variable& gripPosY, 
+                                 variable& centerPosX, variable& centerPosY,
+                                 variable& cardBarcode) variable
+	//------------------------------------------------------------------------------
+	{	// take picture of card and analyse it	
+
+      const variable punchesPerCard(0); // number of clean punches: not used => 0
+
+      private variable arrayOfPunches[];        // array index = position to be punched; content = number of punches, 
+      private variable Card_BarcodeErrorCode;
+      private variable Card_ErrorCode;
+      private variable Card_AssayPositions;
+//      private variable Card_Barcode;
+      private variable easyPunchCardID;
+      private variable easyPunchID;
+      private variable arrayEasyPunchID[];
+      private variable easyPunch_HoleDiameter,easyPunch_PunchState, easyPunch_ErrorCode, easyPunch_Description;
+//      private variable arrayOf_Punch_PositionsX[];
+//      private variable arrayOf_Punch_PositionsY[];
+      private variable arrayOf_Card_Assay_ErrorCode[];
+//      private variable arrayOf_Punch_ErrorCode[];
+      private variable arrayOf_Card_Assay_Validation[];
+//      private variable arrayOf_Holes_PositionX[];
+//      private variable arrayOf_Holes_PositionY[];
+//      private variable arrayOf_Holes_ErrorCode[];
+      private variable PunchSampleOverlap;
+      private variable returnValue;
+        
+      if(VerDef::SimulationMode)
+      {
+        gripPosX     = -45 + 0.1* punchPosition;
+        gripPosY     = 20 + 0.1*punchPosition;
+        centerPosX   = 0;
+        centerPosY   = 0;
+        return(hslTrue);
+      }
+
+//      punchPositionX = punchPositionY = holePositionX = holePositionY = -99;
+      gripPosX = gripPosY = centerPosX = centerPosY = -99;
+
+      // define position of one punch
+      arrayOfPunches.SetSize(4);
+      arrayOfPunches.SetAt(punchPosition-1,1);
+VerTool::TraceArray("Test: analyseCard: --- arrayOfPunches ----",arrayOfPunches);
+
+      processStepDescription = "Analyse Card:  Step 'Reset Card Reset'";
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING::ANALYSE::CARD::Reset();
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Card:  Step 'Show Card Analyse'";
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING::GUI::Show(EASYPUNCHIMAGING::GUI::SHOW::MODE::_NORMAL);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Card:  Step 'Light Control ON'";
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Card_LightControl(ML_STAR, SettingNameCard, EASYPUNCHIMAGING::_HSLTRUE);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Card:  Step 'Take Card Picture'";
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Card_TakePicture(ML_STAR, SettingNameCamera, EASYPUNCHIMAGING::_HSLTRUE);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Card:  Step 'Light Control OFF'";
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Card_LightControl(ML_STAR, SettingNameCard, EASYPUNCHIMAGING::_HSLFALSE);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Card:  Step 'Analyse Card Picture'";
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Card_Analyse(SettingNameCard, EASYPUNCHIMAGING::_HSLTRUE,"Verification", 
+                                       EASYPUNCHIMAGING::_HSLTRUE, EASYPUNCHIMAGING::_HSLTRUE, "", 
+                                       EASYPUNCHIMAGING::_HSLFALSE, punchDiameter, punchDistance, 
+                                       EASYPUNCHIMAGING::EASYPUNCH_HELPER::CARD::ANALYSE::PUNCHMODE::_WHOLE_SAMPLING_AREA, 
+                                       EASYPUNCHIMAGING::EASYPUNCH_HELPER::CARD::ANALYSE::PUNCHSTRATEGY::_CENTER_OF_SAMPLING_AREA,
+                                       arrayOfPunches, punchesPerCard, easyPunchCardID);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Card:  Step 'Get Card Result'";
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Card_GetCardResult(easyPunchCardID, cardBarcode, Card_BarcodeErrorCode, Card_AssayPositions, Card_ErrorCode);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+      processStepDescription = "Analyse Card:  Step 'Get Card Sample Result'";
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Card_GetAssayResult(easyPunchCardID, arrayOf_Card_Assay_Validation, arrayOf_Card_Assay_ErrorCode);
+   	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }
+
+      //--  get punch location data
+      if(measureHole)
+      {
+         processStepDescription = "Analyse Card:  Step 'Get Punch Hole Result '";
+         if(!VerDef::SimulationMode)
+         {
+            returnValue = EASYPUNCHIMAGING::DATABASE::CARD::GetEasyPunchHoleID_By_AssayNumber(easyPunchCardID, punchPosition, arrayEasyPunchID);
+      	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+         }
+         if(!VerDef::SimulationMode)
+         {
+            easyPunchID=arrayEasyPunchID.GetAt(0);
+            returnValue = EASYPUNCHIMAGING::DATABASE::CARD::GetEasyPunchHole(easyPunchID, gripPosX, gripPosY, centerPosX, centerPosY, easyPunch_HoleDiameter, easyPunch_ErrorCode, easyPunch_Description);
+            if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+         }
+         Trace("Test: ",GetFunctionName() ," : Punch-Hole Positions: Gripper X =>",gripPosX,"<   Gripper Y =>", gripPosY,"<   Center X ==>", centerPosX,"<   Center Y ==>", centerPosY);
+      }
+      else
+      {
+         processStepDescription = "Analyse Card:  Step 'Get Punch Target Result'";
+         if(!VerDef::SimulationMode)
+         {
+            returnValue = EASYPUNCHIMAGING::DATABASE::CARD::GetEasyPunchPunchID_By_AssayNumber(easyPunchCardID, punchPosition, arrayEasyPunchID);
+      	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+         }
+         if(!VerDef::SimulationMode)
+         {
+            easyPunchID=arrayEasyPunchID.GetAt(0);
+            returnValue = EASYPUNCHIMAGING::DATABASE::CARD::GetEasyPunchPunch(easyPunchID, gripPosX, gripPosY, centerPosX, centerPosY, easyPunch_HoleDiameter,PunchSampleOverlap, easyPunch_PunchState, easyPunch_ErrorCode, easyPunch_Description);
+      	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+         }
+         if(!VerDef::SimulationMode)
+         {
+      	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+         }
+         Trace("Test: ",GetFunctionName() ," : Punch-Target Positions: Gripper X =>",gripPosX,"<   Gripper Y =>", gripPosY,"<   Center X ==>", centerPosX,"<   Center Y ==>", centerPosY);
+      }
+
+//pause;
+      processStepDescription = "Analyse Card:  Step 'Hide Dialog'";
+      if(!VerDef::SimulationMode)
+      {
+         returnValue = EASYPUNCHIMAGING::GUI::Hide();
+         if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+      }   
+      processStepDescription = "";
+      return(hslTrue);
+	}  // -- end of function "analyseCard"
+ 
+
+	//------------------------------------------------------------------------------
+	private function CheckEmptyPlate(device& ML_STAR) variable
+	//------------------------------------------------------------------------------
+	{ 	// 
+      const variable executionLoops(8);
+          
+      variable loopCounter(0);
+      variable wellStatus;
+      variable arrWellCheckPositions[];
+      variable messageText("");
+
+      arrWellCheckPositions.SetSize(0);
+      arrWellCheckPositions.AddAsLast( 1 ); // A1
+      arrWellCheckPositions.AddAsLast( 8 ); // H1
+      arrWellCheckPositions.AddAsLast(44 ); // D6
+      arrWellCheckPositions.AddAsLast(45 ); // E6
+      arrWellCheckPositions.AddAsLast(53 ); // E7
+      arrWellCheckPositions.AddAsLast(52 ); // D7
+      arrWellCheckPositions.AddAsLast(89 ); // A12
+      arrWellCheckPositions.AddAsLast(96 ); // H12
+      
+      SettingNamePlate = "Verification_DWP_Settings";
+
+      for(loopCounter = 0; loopCounter < executionLoops; loopCounter++)
+      {
+         // ----------- Check for empty well position 
+         if(VerDef::SimulationMode) wellStatus = hslFalse;
+         if(!analysePlate( ML_STAR,  arrWellCheckPositions.GetAt(loopCounter), wellStatus) )return(hslFalse);
+Trace("Test: ",GetFunctionName() ," : analysePlate : wellStatus =>",wellStatus);
+         if(wellStatus) 
+         {  // Move plate transport to safety position   
+            Trace("Test: ",GetFunctionName() ," : Move plate transport to load position");
+            ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "aca905fd_1098_4a09_ab4ea38a6474cd20" ); // PuncherPositionPlate
+            // error message
+            messageText = LdT("A well of 'Deep Well Plate' was not empty!")+ VerDef::CRLF +  VerDef::CRLF 
+                          + LdT("Note:") + "  " + LdT("If continue, empty the 'Deepwell Plate' first."); 
+            if(displayErrorDialog(messageText, hslOKCancel) == hslCancel) return(hslFalse);
+            loopCounter--;
+         }        
+      }
+      return(hslTrue);
+	}  // -- end of function "CheckEmptyPlate"
+ 
+
+	//------------------------------------------------------------------------------
+	private function executePunchProcessing(device& ML_STAR) variable
+	//------------------------------------------------------------------------------
+	{ 	
+      const variable executionLoops(8);
+      const variable measureHole(hslTrue);
+      const variable measureTarget(!measureHole);
+
+      variable cardGripHeight(33.0);
+      variable cardNumber(0), loopCounter(0);
+      variable response;
+      variable wellStatus;
+      variable arrWellStatus[];
+//      variable arrPunchPositionX[],arrPunchPositionY[], arrHolePositionX[], arrHolePositionY[];
+      variable arrWellCheckPositions[];
+      variable pos_X, pos_Y;
+      variable punchPosX, punchPosY, centerPosX, centerPosY;
+      variable punchPosition;
+      variable cardBarcode;
+      variable messageText("");
+
+      arrWellStatus.SetSize(0);
+      arrWellCheckPositions.SetSize(0);
+      arrPunchPositionDevX.SetSize(0);
+      arrPunchPositionDevY.SetSize(0);
+      arrPunchWellStatus.SetSize(0);
+      arrCardBarcode.SetSize(0);
+
+      if(puncherGripperType == 1)   cardGripHeight = mx2/10 + 1 ; // Gripper finger length  // : Plastic
+      else                          cardGripHeight = mx2/10 - 3.5; // Gripper finger length - 3.5mm 
+
+      loop(executionLoops)
+      {
+         arrWellStatus.AddAsLast(0);
+      } 
+      
+      arrWellCheckPositions.AddAsLast( 1 ); // A1
+      arrWellCheckPositions.AddAsLast( 8 ); // H1
+      arrWellCheckPositions.AddAsLast(89 ); // A12
+      arrWellCheckPositions.AddAsLast(96 ); // H12
+      arrWellCheckPositions.AddAsLast(44 ); // D6
+      arrWellCheckPositions.AddAsLast(53 ); // E7
+      arrWellCheckPositions.AddAsLast(45 ); // E6
+      arrWellCheckPositions.AddAsLast(52 ); // D7
+
+      punchDiameter = 6.0;
+      punchDistance = 0.5;
+      SettingNamePlate = "Verification_DWP_Settings";
+      SettingNameCard = "Verification_Card_A";
+
+      // Move plate transport to safety position   
+Trace("Test: ",GetFunctionName() ," : Move plate transport to safety position");
+      ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "fd8141ab_cc04_43dc_99e84a6fc933a3d2" ); // PuncherPositionPlate
+
+      // move puncher head to z distance
+      seqCardPositions.SetCurrentPosition( cardNumber );
+      ML_STAR._A64873DF_C5B1_40d4_A58E_ED74499B1394( "9710c54a_ea85_4a4d_8f3040c2683418df" ); // PuncherMove
+
+      // Execute followings steps 8 times
+      cardNumber = 0;
+      for(loopCounter = 0; loopCounter < executionLoops; loopCounter++)
+      {
+         cardNumber++;
+         // 4 cards with 2 (middle) puch positions
+         if(cardNumber > 4) cardNumber = 1;
+         punchPosition = (loopCounter / 4) + 2; // card position 2, 3 on all cards
+
+Trace("Test: ",GetFunctionName() ," : Execute Punch Processing Steps, loop =>",loopCounter + 1,"<   at punch position ==>", punchPosition);
+
+         // ----------	Get card from magazine and measure card alignment
+   		seqCardPositions.SetCurrentPosition( cardNumber );
+Trace("Test: Transport card from magazine to camera : LabwareID =>", seqCardPositions.GetLabwareId(), "  PosID =>",seqCardPositions.GetPositionId());
+
+         ML_STAR._61B2987E_BF32_45b0_B891_307803E944F3( "ccb61a6e_11bb_4a37_8a167bf62a6a3db3" ); // PunchCardGripGet
+         ML_STAR._762AECC3_41AB_4549_B89E_6DCD29D61F4F( "bcdf2a8e_62df_400f_b445285780982833" ); // PunchCardGripMove
+
+         if(!analyseCard(ML_STAR, measureTarget, punchPosition, punchPosX, punchPosY, centerPosX, centerPosY, cardBarcode)) return(hslFalse); 
+
+Trace("Test:  Center position in loop ", loopCounter, "  X pos =>", punchPosX,"<   Y pos =>", punchPosY,"<   centerPosX =>",centerPosX,"<  centerPosY ==>",centerPosY,"<  card Barcode ==>",cardBarcode,"<==");               
+         if(punchPosX > -30) 
+         { // no position found for punching
+      
+            // Transport card back to magazine 
+            ML_STAR._356B202E_2016_4457_89D6_BECF5F07C83E( "95d8b303_ccc1_4923_8db9e83d466bd012" ); // PunchCardGripPlace
+
+            messageText = LdT("No proper punch position found on the card!") + VerDef::CRLF +  VerDef::CRLF 
+                          + LdT("Note:") + "  " + LdT("Load correct Verification Card without any punches."); 
+            displayErrorDialog(messageText, hslOKOnly) ;
+           return(hslFalse);
+         }
+         // store read card barcode
+         arrCardBarcode.AddAsLast(cardBarcode);
+
+         // Card transport to safety position
+         ML_STAR._762AECC3_41AB_4549_B89E_6DCD29D61F4F( "35c9aece_1646_4bf1_8d51a90cda0b5758" ); // PunchCardGripMove
+         // --- Transport plate below puncher
+         seqPlatePositions.SetCurrentPosition( arrWellCheckPositions.GetAt(loopCounter) );  
+Trace("Test: ",GetFunctionName() ," : Move plate transport to puncher position");
+Trace("Test: Transport plate below puncher : LabwareID =>", seqPlatePositions.GetLabwareId(), "  PosID =>",seqPlatePositions.GetPositionId());
+         ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "08f5e606_b7df_49a4_9a376ae077194e1a" ); // PuncherPositionPlate
+
+      // ----------	Punch card and measure punch/card alignment 
+         // Switch ON fan
+         if(!FW_Command( ML_STAR, "CPHR","hr55000",hslTrue, response) )return(hslFalse) ;         
+         cardInPuncherHead = hslTrue;
+         // Card transport to puncher position ( x/y position)
+         ML_STAR._762AECC3_41AB_4549_B89E_6DCD29D61F4F( "6066d915_4f29_4d5d_89f57401cfd4d9d2" ); // PunchCardGripMove
+         Trace("Test: Punch into well of : LabwareID =>", seqPlatePositions.GetLabwareId(), "  PosID =>",seqPlatePositions.GetPositionId());
+         ML_STAR._DAC4826B_C3DF_44f2_ADD1_4C1D84498BA7( "0542e8da_6c1e_40d8_9cf26d5b44fe20c5" ); // PuncherPunch
+         // Card transport to safety position
+         ML_STAR._762AECC3_41AB_4549_B89E_6DCD29D61F4F( "1b50e1b7_7bb0_483f_8f11db71f84531f1" ); // PunchCardGripMove
+         cardInPuncherHead = hslFalse;
+         // Switch OFF fan
+         if(!FW_Command( ML_STAR, "CPHR","hr00000",hslTrue, response) )return(hslFalse) ; 
+
+         // ----------	Check punch in well of DWP
+         // check well position : must be filled with punched paper
+         if(VerDef::SimulationMode) wellStatus = hslTrue;
+         if(!analysePlate( ML_STAR,  arrWellCheckPositions.GetAt(loopCounter), wellStatus) )return(hslFalse);
+         arrPunchWellStatus.AddAsLast(wellStatus);
+         // Move plate transport to X-safety position   
+Trace("Test: ",GetFunctionName() ," : Move plate transport to X-safety position");
+         if( !FW_Command(ML_STAR, "CPXP","xp0",hslTrue, response) ) return(hslFalse);
+         //------ Check punch in card
+         // Card transport to camera
+         ML_STAR._762AECC3_41AB_4549_B89E_6DCD29D61F4F( "e3834a15_7531_402a_a83dbaf4dd9fc46c" ); // PunchCardGripMove
+         // measure punched hole position
+         if(!analyseCard(ML_STAR, measureHole, punchPosition, punchPosX, punchPosY, centerPosX, centerPosY, cardBarcode)) return(hslFalse); 
+
+Trace("Test:  Punch position in loop ", loopCounter + 1, "  X pos =>", punchPosX,"<   Y pos =>", punchPosY,"<   centerPosX =>",centerPosX,"<  centerPosY ==>",centerPosY,"<=="); 
+
+         // In simulation mode : set data to zero 
+         if(VerDef::SimulationMode) {centerPosX = centerPosY = 0;}
+         // Store values
+         arrPunchPositionDevX.AddAsLast(centerPosX);
+         arrPunchPositionDevY.AddAsLast(centerPosY);
+
+Trace("Test: Loop =>",loopCounter + 1,"     Punch X deviation  =>",  arrPunchPositionDevX.GetAt(loopCounter));
+Trace("Test: Loop =>",loopCounter + 1,"     Punch Y deviation  =>",  arrPunchPositionDevY.GetAt(loopCounter));
+
+         // Transport card back to magazine 
+         ML_STAR._356B202E_2016_4457_89D6_BECF5F07C83E( "3f7b5dfc_fcc4_49e5_9d94ae6148c9df03" ); // PunchCardGripPlace
+      }// end of loop
+
+      // Park card handler
+      if( !FW_Command(ML_STAR, "C0BW","",hslTrue, response) ) return(hslFalse);
+      // Move plate transport to safety position   
+      Trace("Test: ",GetFunctionName() ," : Move plate transport to safety position");
+      ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "3cdb230d_4e67_4a24_a73dddcf426b5dc1" ); // PuncherPositionPlate
+
+      return(hslTrue);
+   } // ---- End of function "executePunchProcessing"
+  
+
+	//------------------------------------------------------------------------------
+	// Evaluate data and generate report file
+	private function Evaluate()
+	//------------------------------------------------------------------------------
+	{
+		variable processSummaryState(VerDef::passed);	
+      variable processState(VerDef::passed);	
+      variable SW_version("");
+      variable maxDeviation(0.0),criteria(8.0);
+      variable deviation(""), devCriteria("");
+		variable i, k, c;
+      variable arrNominalCardBarcode[]; 
+		dialog 	userDialog;
+      
+      // expected card barcode definitions
+      arrNominalCardBarcode.SetSize(0);
+      arrNominalCardBarcode.AddAsLast("Check11");
+      arrNominalCardBarcode.AddAsLast("Check12");
+      arrNominalCardBarcode.AddAsLast("Check14");
+      arrNominalCardBarcode.AddAsLast("Check21");
+
+		if(VerDef::isIVD )	RPD::reportTemplateFileName ="Report_easyPunch_IVD_Ver";  // Report_easyPunch_IVD_VerEnu.xls
+		else						RPD::reportTemplateFileName ="Report_easyPunch_Ver";		// Report_easyPunch_VerEnu.xls
+
+   // In simulation mode : define process data by tester
+		if(VerDef::SimulationMode) 
+      {
+         i= 0;	
+         userDialog.SetInputSize( 40);
+			userDialog.SetInputField( i, "Focus process state", 		hslString, focusVerificationState);		i++;
+			userDialog.SetInputField( i, "Aperture process state", 	hslString, apertureVerificationState);		i++;
+
+         for ( k = 0; k < 8 ; k++)
+         {
+            if(arrPunchWellStatus.GetAt(k)) userDialog.SetInputField( i, StrConcat2(k+1,". Punch procesing state"), hslInteger, 1);			
+            else                         userDialog.SetInputField( i, StrConcat2(k+1,". Punch procesing state"), hslInteger, 0);			
+            i++;
+         }      
+
+			userDialog.SetInputField( i, "Card handler X deviation", hslFloat, arrGripperAlignmentDeviations.GetAt(0));			i++;
+			userDialog.SetInputField( i, "Card handler Y deviation", hslFloat, arrGripperAlignmentDeviations.GetAt(1));			i++;
+			userDialog.SetInputField( i, "Card handler Z deviation", hslFloat, arrGripperAlignmentDeviations.GetAt(2));			i++;
+   
+			userDialog.SetInputField( i, "Plate positioning X deviation", hslFloat, arrPlateAlignmentDeviations.GetAt(0));			i++;
+			userDialog.SetInputField( i, "Plate positioning Y deviation", hslFloat, arrPlateAlignmentDeviations.GetAt(1));			i++;
+
+         for ( k = 0; k < 8 ; k++)
+         {
+         	userDialog.SetInputField( i, StrConcat2(k+1,". Punch accuracy X deviation"), hslFloat, arrPunchPositionDevX.GetAt(k));			i++;
+         }      
+         for ( k = 0; k < 8 ; k++)
+         {
+         	userDialog.SetInputField( i, StrConcat2(k+1,". Punch accuracy Y deviation"), hslFloat, arrPunchPositionDevY.GetAt(k));			i++;
+         }      
+         for ( k = 0; k < 8 ; k++)
+         {
+            c = k%4;
+         	userDialog.SetInputField( i, StrConcat2(k+1,". Card Barcode"), hslString, arrNominalCardBarcode.GetAt(c));			i++;
+         }      
+                           
+         // show dialog
+			userDialog.SetInputSize( i);
+			userDialog.ShowInput( "Simulated configuration data", hslInfinite);
+
+			i= 0;			 
+			focusVerificationState					= userDialog.GetInputField( i );	i++;
+			apertureVerificationState				= userDialog.GetInputField( i );	i++;
+
+         for ( k = 0; k < 8 ; k++)
+         {
+            arrPunchWellStatus.SetAt(k, userDialog.GetInputField( i ));       i++;
+         }      
+
+         arrGripperAlignmentDeviations.SetAt(0, userDialog.GetInputField( i ));i++;
+         arrGripperAlignmentDeviations.SetAt(1, userDialog.GetInputField( i ));i++;
+         arrGripperAlignmentDeviations.SetAt(2, userDialog.GetInputField( i ));i++;
+
+         arrPlateAlignmentDeviations.SetAt(0, userDialog.GetInputField( i ));  i++;
+         arrPlateAlignmentDeviations.SetAt(1, userDialog.GetInputField( i ));  i++;
+         for ( k = 0; k < 8 ; k++)
+         {
+            arrPunchPositionDevX.SetAt(k, userDialog.GetInputField( i ));      i++;
+         }      
+         for ( k = 0; k < 8 ; k++)
+         {
+            arrPunchPositionDevY.SetAt(k, userDialog.GetInputField( i ));      i++;
+         }
+         for ( k = 0; k < 8 ; k++)
+         {
+            arrCardBarcode.SetAt(k, userDialog.GetInputField( i ));            i++;
+         }         
+      }
+
+	// Generate report file
+	//------------------------------------------------------------------------------
+		VerTool::CreateReportFile(RPD::reportTemplateFileName);
+
+		// ---  add general data
+		VerTool::WriteCell(4, 4,	VerDef::InstrumentName); 	 			// cell D4: instrument name 
+		VerTool::WriteCell(4, 5,	VerDef::InstrumentSerialNo); 			// cell D5: instrument serial no	
+		SW_version = VerDef::SWReleaseVersion + VerDef::FVK2_ReleaseVersion;
+		StrReplace(SW_version ,"%s1",moduleVersion);
+		VerTool::WriteCell(4, 6, 	SW_version );								// cell D6: user software version / FVK 2 version
+		VerTool::WriteCell(4, 7,	RPD::laboratoryName); 					// cell D7: laboratory name / location
+		VerTool::WriteCell(4, 8,	RPD::operatorName); 						// cell D8: operator name
+		VerTool::WriteCell(4, 9,	RPD::verifcationReason); 				// cell D9: reason for verification
+		VerTool::WriteCell(8, 4, 	GetDate("%Y-%m-%d"));					// cell H4: processed date
+		VerTool::WriteCell(8, 5, 	GetTime("%H:%M"));						// cell H5: processed time
+
+		// ---  add pdf file information close to "header"
+		VerTool::WriteCell(4, 10, 	RPD::pdfReportFileName);				// cell D10: on first page 
+
+
+	   processSummaryState = VerDef::passed;
+   // --- Focus feature     
+      if(focusVerificationState  == VerDef::failed) processSummaryState = VerDef::failed;
+	   VerTool::WriteCell(4, 14, 	focusVerificationState );           // cell D14
+
+   // --- Aperture feature     
+      if(apertureVerificationState  == VerDef::failed) processSummaryState = VerDef::failed;
+	   VerTool::WriteCell(4, 16, 	apertureVerificationState  );       // cell D16
+
+   // --- Punch Processing feature
+      processState = VerDef::passed;	
+      for ( i = 0; i < 8 ; i++)
+      {
+         if(arrPunchWellStatus.GetAt(i) == hslFalse){processState = VerDef::failed;	processSummaryState = VerDef::failed;}
+      }
+	   VerTool::WriteCell(4, 18, 	processState  );                    // cell D18
+
+   // --- Card Identification feature
+      processState = VerDef::passed;	
+      k   = 0;  
+      for ( i = 0; i < 8 ; i++)
+      {
+         k = i%4;
+         if(arrCardBarcode.GetAt(i) != arrNominalCardBarcode.GetAt(k)) 
+         {
+            processState = VerDef::failed;
+            processSummaryState = VerDef::failed;	
+   			FormatTrace(GetFunctionName(),"()",VerDef::CMD_ERRCOMPL,"Wrong card barcode ==> ", arrCardBarcode.GetAt(i),
+                        "<    expected barcode ==>",arrNominalCardBarcode.GetAt(k),"<==");
+        }
+      }
+	   VerTool::WriteCell(4, 20, 	processState  );                    // cell D20
+
+   // --- Card handler alignment
+      processState = VerDef::passed;	
+      // X deviation: criteria <= +/- 0.4mm
+      criteria = 0.4;
+      devCriteria = StrConcat2("<= +/- ", VerTool::FormatNumber_PointAsDecimal(criteria, 1));
+      VerTool::WriteCell(8, 25, 	devCriteria );                        // cell H25
+		deviation = VerTool::FormatNumber_PointAsDecimal(arrGripperAlignmentDeviations.GetAt(0),1);
+      VerTool::WriteCell(6, 25, 	deviation );                          // cell F25
+      if( Util::Abs(FVal(deviation)) > criteria ) processState = VerDef::failed;	
+
+      // Y deviation: criteria <= +/- 0.4mm
+      criteria = 0.4;
+      devCriteria = StrConcat2("<= +/- ", VerTool::FormatNumber_PointAsDecimal(criteria, 1));
+      VerTool::WriteCell(8, 26, 	devCriteria );                        // cell H26
+		deviation = VerTool::FormatNumber_PointAsDecimal(arrGripperAlignmentDeviations.GetAt(1),1);
+      VerTool::WriteCell(6, 26, 	deviation );                          // cell F26
+      if( Util::Abs(FVal(deviation)) > criteria ) processState = VerDef::failed;	
+
+      // Z deviation: criteria <= +/- 0.4mm
+      criteria = 0.4;
+      devCriteria = StrConcat2("<= +/- ", VerTool::FormatNumber_PointAsDecimal(criteria, 1));
+      VerTool::WriteCell(8, 27, 	devCriteria );                        // cell H27
+		deviation = VerTool::FormatNumber_PointAsDecimal(arrGripperAlignmentDeviations.GetAt(2),1);
+      VerTool::WriteCell(6, 27, 	deviation );                          // cell F27
+      if( Util::Abs(FVal(deviation)) > criteria ) processState = VerDef::failed;	
+
+      if(processState  == VerDef::failed) processSummaryState = VerDef::failed;
+		VerTool::WriteCell( 4, 24, processState); 	                     // cell D24: Card handler alignment process status 
+
+   // --- Plate (sledge) positioning alignment
+      processState = VerDef::passed;	
+      // X deviation: criteria <= +/- 0.5mm
+      criteria = 0.5;
+      devCriteria = StrConcat2("<= +/- ", VerTool::FormatNumber_PointAsDecimal(criteria, 1));
+      VerTool::WriteCell(8, 30, 	devCriteria );                        // cell H30
+		deviation = VerTool::FormatNumber_PointAsDecimal(arrPlateAlignmentDeviations.GetAt(0),1);
+      VerTool::WriteCell(6, 30, 	deviation );                          // cell F30
+      if( Util::Abs(FVal(deviation)) > criteria ) processState = VerDef::failed;	
+
+      // Y deviation: criteria <= +/- 0.5mm
+      criteria = 0.5;
+      devCriteria = StrConcat2("<= +/- ", VerTool::FormatNumber_PointAsDecimal(criteria, 1));
+      VerTool::WriteCell(8, 31, 	devCriteria );                        // cell H31
+		deviation = VerTool::FormatNumber_PointAsDecimal(arrPlateAlignmentDeviations.GetAt(1),1);
+      VerTool::WriteCell(6, 31, 	deviation );                          // cell F31
+      if( Util::Abs(FVal(deviation))> criteria ) processState = VerDef::failed;	
+
+      if(processState  == VerDef::failed) processSummaryState = VerDef::failed;
+		VerTool::WriteCell( 4, 29, processState); 	                     // cell D29: Plate positioning alignment process status 
+
+   // --- Punch accuracy
+      processState = VerDef::passed;	
+      // X deviation: criteria <= +/- 0.5mm
+      criteria = 0.5;
+      devCriteria = StrConcat2("<= +/- ", VerTool::FormatNumber_PointAsDecimal(criteria, 1));
+      VerTool::WriteCell(8, 34, 	devCriteria );                        // cell H34
+      maxDeviation = 0;
+      for ( i = 0; i < 8 ; i++)
+      {
+         if(Util::Abs(maxDeviation) < Util::Abs( arrPunchPositionDevX.GetAt(i))) maxDeviation = arrPunchPositionDevX.GetAt(i);
+      }
+      deviation = VerTool::FormatNumber_PointAsDecimal(maxDeviation,1);
+      VerTool::WriteCell(6, 34, 	deviation );                          // cell F34
+      if( Util::Abs(FVal(deviation))> criteria ) processState = VerDef::failed;	
+
+      // Y deviation: criteria <= +/- 0.5mm
+      criteria = 0.5;
+      devCriteria = StrConcat2("<= +/- ", VerTool::FormatNumber_PointAsDecimal(criteria, 1));
+      VerTool::WriteCell(8, 35, 	devCriteria );                        // cell H35
+      maxDeviation = 0;
+      for ( i = 0; i < 8 ; i++)
+      {
+         if(Util::Abs(maxDeviation) < Util::Abs( arrPunchPositionDevY.GetAt(i))) maxDeviation= arrPunchPositionDevY.GetAt(i);
+      }
+      deviation = VerTool::FormatNumber_PointAsDecimal(maxDeviation,1);
+      VerTool::WriteCell(6, 35, 	deviation );                          // cell F35
+      if( Util::Abs(FVal(deviation))> criteria ) processState = VerDef::failed;	
+
+      if(processState  == VerDef::failed) processSummaryState = VerDef::failed;
+		VerTool::WriteCell(4, 33, processState); 	                     // cell D33:Punch accuracy alignment process status 
+
+	// ---  report  summary state
+		VerTool::WriteCell( 4, 40, processSummaryState); 	// cell D40: overall process status 
+
+		if (processSummaryState == VerDef::passed) return(PS::successful);
+		else	
+		{ 
+//			VerTool::VerificationFailedDialog(LdT("'easyPunch' Verification."), "x");
+			return(PS::failed);
+		}
+
+	} // -- end of function "Evaluate"
+
+//==============================================================================
+// main functions
+//==============================================================================
+
+	//------------------------------------------------------------------------------
+	function easyPunch_Verification(device& ML_STAR)
+	//------------------------------------------------------------------------------
+	{
+		variable processState;
+		variable response("");
+  		variable readerUsed(0);
+      variable executionFailedStatus(hslTrue);
+
+      loop(1) // dummy loop
+      {
+
+		// Initialize easyPunch verification 
+		//------------------------------------------------------------------------------	
+			VerTool::InitializeDataVariables();
+
+		// Initialization of ML_STAR
+		// --------------------------------------------------------------------------
+//	Trace("Test: instrumentNo =>",instrumentNo,"<   layoutFileName =>",VerDef::layoutFileName,"<  ML-STAR instrument serial number =>", VerDef::InstrumentSerialNo);
+
+			ML_STAR._1C0C0CB0_7C87_11D3_AD83_0004ACB1DCB2( "b3d4abb0_7e4b_4ad0_94ffdc8b13a2aab9" ); // Initialize
+
+      // get easyPunch configurations
+         if(!InitializeEasyPunch(ML_STAR) ) break;
+ 
+
+		// activate abort handler
+			RegisterAbortHandler("easyP::OnRun_Abort");
+
+
+		// Start dialogs and load labware
+		//------------------------------------------------------------------------------
+			StartDialogEasyPunch(ML_STAR);
+
+		// Verify Punch Gripper Alignment 
+		//------------------------------------------------------------------------------
+        if(!executePunchGripperAlignment(ML_STAR) ) break;
+
+		// Load dialogs and load labware
+		//------------------------------------------------------------------------------
+			LoadDialogEasyPunch(ML_STAR, 1); // load deepwell plate & load camera adjustment tool
+			LoadDialogEasyPunch(ML_STAR, 2); // load card magazine
+
+		// Check if DWP is empty
+		//------------------------------------------------------------------------------
+         if(!CheckEmptyPlate(ML_STAR)) break;
+   
+		// Check camera setting
+		//------------------------------------------------------------------------------
+         if(!executeCameraSetting(ML_STAR) ) break;
+			
+
+		// Verify Plate Alignment 
+		//------------------------------------------------------------------------------
+         if(!executePlateAlignment(ML_STAR) ) break;
+
+
+		// Execute Punch processing incl. Verify Punch Accuracy
+		//------------------------------------------------------------------------------
+         if(!executePunchProcessing(ML_STAR) ) break;
+			
+
+		// Evaluate data and generate report file
+		//------------------------------------------------------------------------------
+			processState = Evaluate();
+
+		// store status on instrument
+		//------------------------------------------------------------------------------
+			VerTool::StoreProcessDataOnInstrument(PID::EasyPunch, processState, ML_STAR );
+
+		// Generate pdf file
+		//------------------------------------------------------------------------------
+			VerTool::GeneratePDF_File();
+
+		// Remove all labware from deck
+		//------------------------------------------------------------------------------
+			UnloadDialogEasyPunch(ML_STAR, processState);
+
+		// Unlock front cover 
+		//------------------------------------------------------------------------------
+			VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+         executionFailedStatus = hslFalse;
+         
+      }
+      if(executionFailedStatus) // If error occurs during execution processing will be  stopped
+		{
+         Trace("Test: Error handling after extraordinary process end. Card in puncher head is =>",cardInPuncherHead,"<===");
+         // table light off
+         FW_Command(ML_STAR, "C0CK","lr0cz000",hslTrue, response);
+         // spot light off
+         FW_Command(ML_STAR, "C0CK","lr1cz000",hslTrue, response);
+
+      	// -----------------------------------------------------------------
+      	//  Park card handler
+      	// -----------------------------------------------------------------		
+         FW_Command(ML_STAR, "CHAA","zv35000",hslTrue, response);
+         if(cardInPuncherHead)
+         { // Move card gripper out of puncher (+50mm )
+           FW_Command(ML_STAR, "C0BX","bc500xd0",hslTrue, response);
+         }
+         FW_Command(ML_STAR, "C0BW","",hslTrue, response) ;
+
+			// Error trace and message
+			FormatTrace(GetFunctionName(),"()",VerDef::CMD_ERRCOMPL," Processing error occured during => ", processStepDescription);
+
+			VerTool::VerificationFailedDialog(LdT("'easyPunch Verification"), "s");
+      }
+      	
+	}  // -- end of function "easyPunch_Verification"
+
+} // end of namespace easyP
+//==============================================================================
+
+// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=3cd27201$$length=088$$

@@ -1,0 +1,276 @@
+/***************************************************************************************************
+*  Library	: HSLVerDevice_PT.hs_
+*  Copyright by HAMILTON Bonaduz AG, CH-7402 Bonaduz
+****************************************************************************************************
+*
+*  Description : // Library for Methods of Microlab® STAR Verification 2
+* 						Placeholder function for partly installed functions of Cooling- Heating- und Shaker-Module
+*						and placeholder for not installed EasyPunch functions
+* ==================================================================================================
+*  ATTENTION: Change this HSL only with HSL Editor of SW Version 3.2!
+*              (Note: This library must run from SW-version 3.2 on)
+* ==================================================================================================
+*  Modification History:
+* ----------------------
+* Rev 1.2 2012-11-20 Erich Caflisch , ECO 13197
+*                New library for easyPunch included
+*                New functions for Inheco Controlled Thermo Shaker" included 
+* --------------------------------------------------------------------------------------------------
+* Rev 1.1 2011-05-08 Erich Caflisch 
+*                New function HSLCatSH10_IVD::GetSerialNumber included 
+* --------------------------------------------------------------------------------------------------
+* Rev 1.0 2010-07-20 Erich Caflisch 
+*                First released version for software version >=3.2.0 
+* --------------------------------------------------------------------------------------------------
+* Rev 0.1 2009-09-07	Erich Caflisch: First version
+*                Following placeholder function installed:
+*						
+*						-	Multiflex Cooling Module (p/n 188046): none
+*						-	Multiflex Heating Module (p/n 188045): none  
+*						-	Teleshaker 220V (p/n 281527) / Teleshaker 110V (p/n 281528):
+*						-	Shaker Heater CAT SH10 IVD:
+*						-	TCC  p/n 182400: => Microlab® STAR standard commands :
+*								- ML_STAR.GetCarrierTemperature()
+*								- ML_STAR.SetCarrierTemperature()
+*						-	Hamilton Heater Shaker (p/n 199000 .. p/n 199008)
+*
+****************************************************************************************************/
+
+
+#ifndef __HSLVerDevice_PT_hsl__
+#define __HSLVerDevice_PT_hsl__	1
+
+
+//--------------------------------------------------------------------------------------------------------------
+// prototype functions of library "HSLShakerVariomag.hs_"
+namespace HSLShakerVariomag
+{
+		function Init(	variable comPort);
+		function Done();
+		function SetRpm(variable shakerId, variable revolution);
+		function GetRpm(variable shakerId, variable& revolution);
+		function SetDirection(variable shakerId,variable direction);
+		function StartShaking(variable shakerId,variable duration);
+		function StopShaking(variable shakerId);
+		function StartAllShaking(variable shakerMask);
+		function StopAllShaking(variable shakerMask);
+		function GetErrorMessage(variable shakerId);
+} // end of namespace HSLShakerVariomag
+
+
+//--------------------------------------------------------------------------------------------------------------
+// prototype functions of library "HSLInhecoTec.hs_"
+namespace HSLInhecoTec
+{
+	namespace Common
+	{
+		function SetSimulation(variable simulate) void;
+		function Initialize(variable comPort, variable traceLevel);
+		function Terminate();
+	} // end of namespace Common
+
+	namespace Shaker
+	{
+		function InitShakers(variable modBusAddr);
+		function SetRpm(variable modBusAddr, variable revolution);
+		function GetRpm(variable modBusAddr, variable& revolution);
+		function SetDirection(variable modBusAddr, variable direction);
+		function StartForEver(variable modBusAddr);
+		function StopShaking(variable modBusAddr);
+	} // end of namespace Shaker
+
+} // end of namespace HSLInhecoTec
+
+//--------------------------------------------------------------------------------------------------------------
+// prototype functions of library "HSLInhecoTecV3.hs_"
+namespace HSLInhecoTecV3
+{
+	namespace Common
+	{
+		function Initialize( variable iComPort, variable iTraceLevel, variable iSimulate ) ;
+		function Terminate();
+	} // end of namespace Common
+
+	namespace Shaker
+	{
+		function InitShakers(variable modBusAddr);
+		function SetRpm(variable modBusAddr, variable revolution);
+		function GetRpm(variable modBusAddr, variable& revolution);
+		function SetDirection(variable modBusAddr, variable direction);
+		function StartForEver(variable modBusAddr);
+		function StopShaking(variable modBusAddr);
+	} // end of namespace Shaker
+
+} // end of namespace HSLInhecoTecV3
+
+	
+//--------------------------------------------------------------------------------------------------------------
+// prototype functions of library "HSLCatSeries.hs_"
+namespace HSLCatSeries
+{
+	function SetSimulation(variable simulate) void;
+	function Initialize(variable comPort, variable devAddr, variable safetyTmp, variable traceLevel);
+	function InitializeComPortOnly(variable comPort, variable devAddr, variable safetyTmp, variable traceLevel);
+	function Terminate(variable devAddr);
+
+   function SetNomRpm(variable devAddr, variable nomRpm);
+   function GetNomRpm(variable devAddr, variable& nomRpm);
+   function GetActRpm(variable devAddr, variable& actRpm);
+   function StartShaker(variable devAddr);
+   function StopShaker(variable devAddr);
+   function SetNomTemp(variable devAddr, variable nomTmp);
+   function GetNomTemp(variable devAddr, variable& nomTmp);
+   function GetActTemp(variable devAddr, variable& actTmp);
+   function StartTempCtrl(variable devAddr);
+   function StopTempCtrl(variable devAddr);
+
+} // end of namespace HSLCatSeries
+
+//--------------------------------------------------------------------------------------------------------------
+// prototype functions of library "HSLCatSH10_IVD.hs_"
+namespace HSLCatSH10_IVD
+{
+   function Initialize(variable comPort, variable devAddr, variable safetyTmp, variable traceLevel);
+   function Terminate(variable devAddr);
+
+   function SetNomRpm(variable devAddr, variable nomRpm);
+   function GetNomRpm(variable devAddr, variable& nomRpm);
+   function GetActRpm(variable devAddr, variable& actRpm);
+   function StartShaker(variable devAddr);
+   function StopShaker(variable devAddr);
+   function SetNomTemp(variable devAddr, variable nomTmp);
+   function GetNomTemp(variable devAddr, variable& nomTmp);
+   function GetActTemp(variable devAddr, variable& actTmp);
+   function StartTempCtrl(variable devAddr);
+   function StopTempCtrl(variable devAddr);
+	function GetSerialNumber(variable devAddr, variable& serialNumber);
+} // end of namespace HSLCatSeries
+
+//--------------------------------------------------------------------------------------------------------------
+// prototype functions of library "HslHamHeaterShakerLib.hs_"
+namespace HSLHamHeaterShaker
+{
+	function CreateStarDevice(		device& starDevice,				// in:  ML_STAR device
+											variable usedNode,					// in:  node ID (1 or 2)
+											variable& deviceNumber);			// out: generated deviceNumber
+	function CreateUsbDevice( 		variable usedNode,				// in:  node ID (1..8)
+											variable& deviceNumber);			// out: generated deviceNumber
+	function Terminate()             void;								// Close the communication
+   function StartShaker(         variable deviceNumber,			// in:  assigned deviceNumber
+											variable shakingSpeed);				// in:  RPM (30..2500)
+   function StopShaker(          variable deviceNumber);			// in:  assigned deviceNumber
+   function StartShakerTimed(    variable deviceNumber,			// in:  assigned deviceNumber
+											variable shakingSpeed,				// in   RPM (30..2500)
+											variable shakingTime);				// in:  time in seconds (1.. 30000)
+   function WaitForShaker(       variable deviceNumber);			// in:  assigned deviceNumber
+   function StartAllShaker(      variable shakingSpeed);			// in   RPM (30..2500)
+   function StartAllShakerTimed( variable shakingSpeed,			// in:  RPM (30..2500)
+											variable shakingTime);				// in:  time in seconds (1.. 30000)
+   function StopAllShaker()         void;										
+   function SetShakerParameter(  variable deviceNumber,			// in:  assigned deviceNumber
+											variable shakingDirection,			// in:  shaking dirction left / right (0 / 1)
+											variable shakingAccRamp) void;	// in:  Defines the acceleration ramp (rpm²) (integer).
+   function GetShakerParameter(  variable deviceNumber,			// in:  assigned deviceNumber
+											variable& shakingDirection,		// out: shaking dirction left / right (0 / 1)
+											variable& shakingAccRamp) void;	// out: Defines the acceleration ramp (rpm²) (integer).
+	function GetShakerSpeed(     	variable deviceNumber,			// in:  assigned deviceNumber
+											variable& shakingSpeed);			// out: current RPM
+   function StartTempCtrl(       variable deviceNumber,			// in:  assigned deviceNumber
+											variable temperature,				// in:  Temperature in 1/10°C. Range 0.0 .. 100.0 (not lower than ambient)
+											variable waitForTempReached);		// in:  no wait / wait (0 / 1)
+   function StopTempCtrl(        variable deviceNumber);			// in:  assigned deviceNumber
+   function WaitForTempCtrl(     variable deviceNumber);			// in:  assigned deviceNumber
+   function GetTemperature(      variable deviceNumber,			// in:  assigned deviceNumber
+											variable& temperature);				// out: current temperature in 1/10°C
+   function GetTemperatureState( variable deviceNumber,			// in:  assigned deviceNumber
+											variable& temperatureState);		// out: temperature state 0..3
+																							//	0 = No error, temperature was always in the defined range.
+																							//	1 = Temperature was or is out of temperature range.
+																							//	2 = Temperature was out of security range. Temperature controlling is switched off now.
+																							//	3 = Temperature time out during start of temperature controlling
+   function SetTempParameter(    variable deviceNumber,			// in:  assigned deviceNumber
+											variable startTimeout,				// in:  Time before start temperature controlling (1..2500)
+											variable toleranceRange,			// in:  Temperature tolerance in 1/10°C. (0.0 .. 100.0), def: 2.0
+											variable securityRange) void;		// in:  Temperature security in 1/10°C. (0.0 .. 100.0), def: 6.0
+   function GetTempParameter(    variable deviceNumber,			// in:  assigned deviceNumber
+                                 variable& startTimeout,				// out: Time before start temperature controlling.
+											variable& toleranceRange,			// out: Temperature tolerance in 1/10°C.
+											variable& securityRange) void;	// out: Temperature security in 1/10°C.
+   function SetPlateLock(        variable deviceNumber,			// in:  assigned deviceNumber
+											variable plateLock);					// in:  unlock / lock (0 / 1)
+   function GetFirmwareVersion(	variable deviceNumber,			// in:  assigned deviceNumber
+											variable& firmwareVersion) void;	// out: Firmware version format: "1.0P 1999-03-10"
+   function GetSerialNumber(		variable deviceNumber,			// in:  assigned deviceNumber
+											variable& serialNumber) void;		// out: Serial number format: "####" 4 digit number
+   function BeginMonitoring(		variable deviceNumber,			// in:  assigned deviceNumber
+											variable shakingToleranceRange,// in:  shaking tolerance
+											variable sampleInterval,			// in:  Interval in sec. for check RPM and temperature
+											variable action) void;				// in:  Continue / Abort (0 / 1)
+																							// Note: Abort will only called on an error after temperature controlling is activated ()
+																							//			An abort will end only the current heater/shaker.
+																							// Note:	heaterMin and heaterMax uses the parameter toleranceRange of SetTempParameter()
+   function EndMonitoring(			variable deviceNumber,			// in:  assigned deviceNumber
+											variable& monitorResult);			// out: Monitored result
+																							//-1 = monitoring has not started or is not initialized
+																							// 0 = all heating and shaking values were within specification
+																							// 1 = heating out of range
+																							// 2 = shaking out of range
+																							// 3 = heating and shaking out of range
+   function SendFirmwareCommand( variable deviceNumber,			// in:  assigned deviceNumber
+											variable command,						// in:  Firmware command e.g. "T1RF"
+											variable parameter);					// in:  Firmware parameter dependent of command
+   function SetSimulation(       variable simulate) void;		// in:  Run / Simulate (0 / 1)
+   function SetUSBTrace(			variable trace) void;			// in:  No trace / trace (0 / 1) Set communication tracing for send and receive message from USB
+
+} // end of namespace HSLHamHeaterShaker
+
+//--------------------------------------------------------------------------------------------------------------
+// prototype functions of library "..\Library\InhecoMTEC\HSLMTecLib.hsl" (Reno:  #define __HSLMTec_Impl__ 1 )
+//#define __HSLMTec_Lib_hsl__ 1
+
+namespace HSLMTecLib
+{ 
+    function InitializeServer() variable { return(0); }
+    function StopServer() variable  { return(0); }
+    function GetDeviceSerialNumber( variable deviceAddres, variable& sn ) { return(0); }
+    function SetTargetTemperature( variable deviceAddres, variable targetTemp ) { return(0); }
+    function StartTemperatureControl( variable deviceAddres ) { return(0); }
+    function StopTemperatureControl( variable deviceAddres ) { return(0); }
+    function SetTargetShakerSpeed( variable deviceAddres, variable rpm ) { return(0); }
+    function SetShakerPattern( variable deviceAddres, variable pattern ) { return(0); }
+    function StartShaker( variable deviceAddres ) { return(0); }
+    function StopShaker( variable deviceAddres ) { return(0); }
+    function StopAll( ){}
+}
+ // end of namespace "HSLMTecLib"
+
+//--------------------------------------------------------------------------------------------------------------
+// prototype functions of library "..\Library\HSLInhecoTEC\HSLInhecoTECLib.hsl"
+//#define __HSLMTec_Lib_hsl__ 1
+namespace HSLInhecoTECLib
+{ 
+    //library functions
+    function Initialize(variable iControllerID,variable iSimulationMode,variable& oErrorCode) {return(0);}
+    function Terminate() {return(0);}
+    function GetDeviceSerialNumber(variable iControllerID, variable iDeviceID, variable& oDeviceSerialNumber, variable& oErrorCode) variable;
+    function StartTemperatureControl(variable iControllerID, variable iDeviceID, variable& oErrorCode) {return(0);}
+    function StopTemperatureControl(variable iControllerID, variable iDeviceID, variable& oErrorCode) {return(0);}
+    function SetTargetTemperature(variable iControllerID,variable iDeviceID,variable iTargetTemperature,variable& oErrorCode) {return(0);}
+    function SetShakerRevolutions(variable iControllerID, variable iDeviceID, variable iShakerRevolutions, variable& oErrorCode) {return(0);}
+    function SetShakerShape(variable iControllerID,variable iDeviceID,variable iShakerShape,variable& oErrorCode) {return(0);}
+    function StartShaker(variable iControllerID, variable iDeviceID, variable& oErrorCode) {return(0);}
+    function StopShaker(variable iControllerID, variable iDeviceID, variable& oErrorCode) {return(0);}
+
+} // end of namespace "HSLInhecoTECLib"
+
+//--------------------------------------------------------------------------------------------------------------
+// prototype functions of library "Verification_2_EasyPunchExecution.hs_"
+namespace easyP
+{
+	function easyPunch_Verification(device& ML_STAR);
+
+} // end of namespace easyP
+
+#endif	// __HslVerTools_A_Lib_hsl__
+
+// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=dfce9049$$length=088$$

@@ -1,0 +1,61 @@
+StartPrompt(Inducer Greadient Plate Prep, C:\Program Files (x86)\HAMILTON\Methods\GSF-IMS Project\Inducer gradient plus 1000x bacteria-list.txt)
+
+NewXML(growth plate prep)
+
+Get(user, user)
+
+Get(media, media)
+
+Get(strain, strain1, Select the strain for bacteria 1:)
+Get(plasmid, plasmid1, Select the plasmid for bacteria 1:)
+
+Get(strain, strain2, Select the strain for bacteria 2:)
+Get(plasmid, plasmid2, Select the plasmid for bacteria 2:)
+
+Get(additive, inducer)
+Get(concentration, inducerStock, Enter the concentration of the {inducer} starting stock:)
+
+Get(note, note)
+
+GetExpID({startDateTime}_{inducer}_gradient)
+
+Set(worklistFile, {dataDirectory}\{experimentId}_growth plate.csv)
+
+//review experiment ok/abort dialog
+Set(msg1, Review the following, then click 'OK' to accept or 'Abort' to abort and start over:\n\n)
+Set(msg2,  \tMedia: \t\t{media}\n\n \tBacteria 1: \t{strain1}, with {plasmid1}\n\n \tBacteria 2: \t{strain2}, with {plasmid2}\n\n)
+Set(msg3,  \tInducer: \t\t{inducer}, stock concentration: {inducerStock}\n\n)
+Set(msg4,  \tExperiment ID: \n\t\t{experimentId}\n \tData directory: \n\t\t{dataDirectory}\n\n \tNotes:\n\t\t{note})
+UserPrompt(Review Protocol Details: {experimentId}, {msg1}{msg2}{msg3}{msg4})
+
+
+//Tip counter check
+UserPrompt(1000 uL Tips, This protocol requires at least 62 high-volume tips in these two racks:, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\tips1000.loc.PNG)
+UserPrompt(300 uL Tips, This protocol requires at least 8 standard-volume tips in these two racks:, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\tips300.loc.PNG)
+Set(msg1, Click 'OK', then verify and, if necessary, reset or update the Hamilton tip counters.)
+UserPrompt(Tip Counters, {msg1})
+
+Hamilton(C:\Program Files (x86)\HAMILTON\Methods\Common\Tip Handling\Edit Tip Counters_300-1000.hsl)
+WaitFor(Hamilton)
+
+Set(msg1, Add 2 mL of Inducer to a FACS tube in position 32 of the left tube rack, and insert bacteria stocks into positions 21 and 22 of the right tube rack (in 14 mL cuture tubes).)
+UserPrompt(Abgene Plate, {msg1}, C:\Program Files (x86)\Hamilton\LMSF_FrontEnd\Image files\Inducer and bacteria.tubes.PNG)
+
+UserPrompt(Media Trough, Media trough requires at least 120 mL of {media} media., C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\Media trough.loc.PNG)
+
+UserPrompt(Growth Plate, One empty 4titude growth plate:, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\Growth1.loc.PNG)
+
+Set(msg1, Close the front cover on the STAR, then click 'OK' to start the method.)
+UserPrompt(Close Cover and Start, {msg1}, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\dialog-warning.png)
+
+//bacteriaNow is a flag to tell Hamilton whether the bacteria will be loaded now or later
+//    now: bacteriaNow=Yes; later: bacteriaNow=No
+Set(bacteriaNow, Yes)
+
+Hamilton(C:\Program Files (x86)\HAMILTON\Methods\GSF-IMS Project\Inducer gradient plus 1000x bacteria.lmsf.hsl)
+
+WaitFor(Hamilton)
+
+AddXML(hamiltonMethod, outputWorklistFile, {worklistFile})
+
+SaveXML()

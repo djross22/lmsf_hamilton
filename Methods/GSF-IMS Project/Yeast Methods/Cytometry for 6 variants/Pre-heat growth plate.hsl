@@ -1,0 +1,128 @@
+ namespace _Method { #include "Common\\Common96HeadSubMethods.hs_" } 
+ namespace _Method { #include "HSLTipCountingLib.hsl" } 
+ namespace _Method { #include "HSLSeqLib.hsl" } 
+ namespace _Method { #include "HSLExtensions\\Directory.hsl" } 
+ namespace _Method { #include "HSLStrLib.hsl" } 
+ namespace _Method { #include "HSLTimLib.hsl" } 
+ namespace _Method { #include "Common\\LMSF_Utilities.hs_" } 
+ namespace _Method { #include "HSLTrcLib.hsl" } 
+ namespace _Method { #include "HSLExtensions\\Dictionary.hsl" } 
+ namespace _Method { #include "HSLExtensions\\String.hsl" } 
+ namespace _Method { #include "HSLExtensions\\File.hsl" } 
+ namespace _Method { #include "Common\\Tip Handling\\With 96-Head\\Tip Handling with 96-Head.hs_" } 
+ namespace _Method { #include "Common\\PlateAndLidMovement.hs_" } 
+ namespace _Method { #include "HSLInhecoTEC\\HSLInhecoTECLib.hsl" } 
+ namespace _Method { #include "HSLML_STARLib.hsl" } 
+#include "Cytometry for 6 variants.res"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+sequence tip_seq_arr[];
+variable tip_counter_array[];
+variable set_temperature;
+variable preheat_time;
+timer timer1;
+variable _intThermoshakeControlID;
+variable blnThermoshakeSuccess;
+variable _blnSimulationMode;
+variable _intThermoshakeDeviceID;
+global device ML_STAR ("Cytometry for 6 variants.lay", "ML_STAR", hslTrue);
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+ namespace _Method { #include "HSLMETEDLib.hs_" } 
+ namespace _Method { #include "HSLMECCLib.hs_" } 
+ namespace _Method { #include "HSLPTLLib.hsl" } 
+// }} ""
+// {{{ 2 "LocalSubmethodInclude" ""
+ namespace _Method {  #include __filename__ ".sub"  } 
+// }} ""
+/* {{ 2 "ProcessInsertLine" "" */ // }} ""
+// {{{ 5 "main" "Begin"
+namespace _Method { method main(  ) void {
+// }} ""
+// {{ 5 "main" "InitLocals"
+// }} ""
+// {{ 2 "AutoInitBlock" ""
+PTL::SetWashingStateDefault("RinseTime1", 5);
+PTL::SetWashingStateDefault("SoakTime1", 5);
+PTL::SetWashingStateDefault("FlowRate1", 11);
+PTL::SetWashingStateDefault("RinseTime2", 0);
+PTL::SetWashingStateDefault("SoakTime2", 0);
+PTL::SetWashingStateDefault("FlowRate2", 11);
+PTL::SetWashingStateDefault("DrainingTime", 10);
+PTL::SetWashingStateDefault("StartWashLiquid", 0);
+PTL::SetLoadingStateDefault("RecoveryOptionContinue", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionExclude", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionDefault", 0);
+PTL::SetLoadingStateDefault("KitLotCheckEnabled", hslFalse);
+COMMON96HEADSUBMETHODS::_InitLibrary();
+LMSF_UTILITIES::_InitLibrary();
+TIP_HANDLING_WITH_96_HEAD::_InitLibrary();
+PLATEANDLIDMOVEMENT::_InitLibrary();
+::RegisterAbortHandler( "OnAbort");
+// }} ""
+// {{{ 1 1 0 "80d11ca0_4156_4ddf_9fff1bd201b2eaeb" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+GetParams();
+// }} ""
+// {{{ 2 1 0 "13323e94_9ffc_4604_96e37fa2d9a0a85e" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+StartUp();
+// }} ""
+// {{{ 3 1 0 "dc49b3f4_b968_4876_89bdf3f699fa7d41" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ThermoShakeInit();
+// }} ""
+// {{ 4 1 0 "8c3b7a68_b245_48d5_8c8d9ae1ba16bc51" "{B31F353E-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == timer1.SetTimer(60) )
+{
+    MECC::RaiseRuntimeErrorEx(-1355939584, MECC::IDS::stepNameTimerStart, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 5 1 0 "0abe8bac_a6f4_42e4_908674313add1246" "{B31F353F-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == timer1.WaitTimer(hslTrue, hslTrue) )
+{
+    MECC::RaiseRuntimeErrorEx(-1339162368, MECC::IDS::stepNameTimerWait, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 6 1 0 "604c6321_cf2c_459b_82dc91769869d724" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 7 1 0 "01551f7f_93a5_4e45_a98a80b707fa73ed" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveGrowthPlateWithLid(ML_STAR.Move_Growth_Plate, ML_STAR.Growth_Plate_lid, ML_STAR.Move_Growth_Plate_preheat, ML_STAR.Growth_Plate_preheating_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 1, 1, ML_STAR);
+// }} ""
+// {{ 8 1 0 "604c6321_cf2c_459b_82dc91769869d724" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 9 1 0 "b8f2ed16_738a_4c3a_ab0c24bb62e4f5ea" "{B31F353E-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == timer1.SetTimer(preheat_time) )
+{
+    MECC::RaiseRuntimeErrorEx(-1355939584, MECC::IDS::stepNameTimerStart, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 10 1 0 "3ac6661e_121d_468e_a0ce164434bece80" "{B31F353F-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == timer1.WaitTimer(hslTrue, hslTrue) )
+{
+    MECC::RaiseRuntimeErrorEx(-1339162368, MECC::IDS::stepNameTimerWait, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 11 1 0 "a302d6cc_badb_48f9_9637aa8fac2fa42f" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 12 1 0 "d55e2259_7c46_445e_bcccdd023ae26a5b" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveGrowthPlateFromThermoShake(ML_STAR.Move_Growth_Plate_preheat, ML_STAR.Growth_Plate_preheating_lid, ML_STAR.Move_Growth_Plate, ML_STAR.Growth_Plate_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 1, 1, ML_STAR);
+// }} ""
+// {{ 13 1 0 "a302d6cc_badb_48f9_9637aa8fac2fa42f" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 14 1 0 "080d1684_f87d_450e_bedcc6f3b4b6b0c5" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+ThermoShakeShutDown();
+// }} ""
+// {{{ 15 1 0 "7d3f1e49_c54d_45ed_b5b3b8eaf0fb5eac" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+CleanUp();
+// }} ""
+// {{ 2 "AutoExitBlock" ""
+COMMON96HEADSUBMETHODS::_ExitLibrary();
+LMSF_UTILITIES::_ExitLibrary();
+TIP_HANDLING_WITH_96_HEAD::_ExitLibrary();
+PLATEANDLIDMOVEMENT::_ExitLibrary();
+// }} ""
+// {{{ 5 "main" "End"
+} }
+// }} ""
+// $$author=Hamilton$$valid=0$$time=2020-02-12 08:25$$checksum=bdaedf95$$length=087$$

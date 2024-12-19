@@ -1,0 +1,86 @@
+Set(defaultDirectory, )
+
+#InsertVariables
+
+Set(dataDirectory, {defaultDirectory})
+
+StartPrompt(Prep Cytometry Plate from Inducer Gradient, C:\Program Files (x86)\HAMILTON\Methods\GSF-IMS Project\Prep cytometer plate from Inducer gradient plate-list.txt)
+
+AppendXML(cytometry plate prep)
+
+Get(user, user)
+
+Set(inputWorklist, {dataDirectory}\\{experimentId}_growth plate.csv)
+Set(outputWorklist, {dataDirectory}\\{experimentId}_cytometry plate.csv)
+
+//Check if user wants to use Gen5 output data for normalization
+GetUserYesNo(gen5, Normalize With OD?, Use Gen5 output file to normalize cell density in cytometry plate?)
+
+///////////////////////////////////////////////////////////
+//Next three lines used to avoid runtime key-not-found error in gen5=No
+Set(gen5File, blank)
+Set(targetOd, 1)
+Set(wavelength, 700)
+/////////////////////////////////////////////////////////
+
+Set(msg1, Copy Reader output files (raw .xpt and exported .txt) into the experiment data directory, {dataDirectory}. \n\n\t\t\t\t\t\tThen Click 'OK'.)
+UserPrompt(Copy Gen5 Files, {msg1})
+If({gen5}==Yes, GetFile(gen5File, Select Gen5 export file for normalization, Gen5 export files (.txt)|*.txt, {dataDirectory}))
+
+//If({gen5}==Yes, Get(number, wavelength, Enter the wavelength for normalization (600 or 700):))
+Set(wavelength, 700)
+If({gen5}==Yes, Get(number, targetOd, Enter the target OD value for normalization (0.2):))
+If({gen5}==Yes, Get(number, targetVolume, Enter the target pipetting volume for normalization (20):))
+
+If({gen5}==No, Get(number, targetVolume, Enter the pipeting volume for the bacteria (bacteria will be pipetted into a total volume of 200 uL):))
+
+Set(minVolume, 5)
+Set(maxVolume, 100)
+
+Get(antibiotic, antibiotic, Select the antibiotic used in the buffer for the cytometry plate:, antibiotic added to buffer to stop transcription and growth for cytometry measurement)
+Get(concentration, bufferAntibiotic, Enter the concentration of the {antibiotic} in the buffer:)
+
+Get(note, note)
+
+//review experiment ok/abort dialog
+Set(msg1, Review the following, then click 'OK' to accept or 'Abort' to abort and start over:\n\n)
+If({gen5}==No, Set(msg2, \tBacteria pipetting volume : \t{targetVolume}\n\n \tAntibiotic: \t\t\t{antibiotic}, concentration in buffer: {bufferAntibiotic}\n\n))
+If({gen5}==No, Set(msg3, \tExperiment ID: \n\t\t{experimentId}\n \tData directory: \n\t\t{dataDirectory}\n))
+If({gen5}==No, Set(msg4, \tInput worklist: \n\t\t{inputWorklist}\n\n \tNotes:\n\t\t{note}))
+If({gen5}==No, Set(msg5, blank))
+If({gen5}==No, UserPrompt(Review Protocol Details: {experimentId}, {msg1} {msg2} {msg3} {msg4}))
+
+If({gen5}==Yes, Set(msg2, \tTarget bacteria pipetting volume: \t\t{targetVolume}\n \tTarget bacteria growth OD: \t\t{targetOd}\n\n))
+If({gen5}==Yes, Set(msg3, \tAntibiotic: \t\t\t\t{antibiotic}, concentration in buffer: {bufferAntibiotic}\n\n \tExperiment ID: \n\t\t{experimentId}\n))
+If({gen5}==Yes, Set(msg4, \tData directory: \n\t\t{dataDirectory}\n \tInput worklist: \n\t\t{inputWorklist}\n))
+If({gen5}==Yes, Set(msg5, \tGen5 file for normalization: \n\t\t{gen5File}\n\n \tNotes:\n\t\t{note}))
+If({gen5}==Yes, UserPrompt(Review Protocol Details: {experimentId}, {msg2} {msg3} {msg4} {msg5}))
+
+//Tip counter check
+UserPrompt(300 uL Tips, This protocol requires at least 84 standard-volume tips in these two racks:, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\tips300.loc.PNG)
+Set(msg1, Click 'OK', then verify and, if necessary, reset or update the Hamilton tip counters.)
+UserPrompt(Tip Counters, {msg1})
+
+Hamilton(C:\Program Files (x86)\HAMILTON\Methods\Common\Tip Handling\Edit Tip Counter_300.hsl)
+WaitFor(Hamilton)
+
+
+UserPrompt(Focusing Fluid, Method requires at least 3 mL of Attune focusing fluid in 14 mL culture tube in position 24 of the left tube rack., C:\Program Files (x86)\Hamilton\LMSF_FrontEnd\Image files\Cytometry plate\Focusing Fluid.PNG)
+UserPrompt(PBS Buffer, Method requires at least 15 mL of PBS with {antibiotic} in 60 mL reagent reservoir \nin the front position of a reagent reservoir rack to the right of the growth plate., C:\Program Files (x86)\Hamilton\LMSF_FrontEnd\Image files\Cytometry plate\PBS.PNG)
+
+UserPrompt(Cytometry Plate, Method requires one empty round-bottom 96-well plate:, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\cytometry plate.loc.PNG)
+UserPrompt(Growth Plate, Method requires one growth plate with inducer gradient and bacteria from growth step:, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\growth plate.loc.PNG)
+
+Set(msg1, Close the front cover on the STAR, then click 'OK' to start the method.)
+UserPrompt(Close Cover and Start, {msg1}, C:\Program Files (x86)\HAMILTON\LMSF_FrontEnd\Image files\dialog-warning.png)
+
+Hamilton(C:\Program Files (x86)\HAMILTON\Methods\GSF-IMS Project\Prep cytometer plate from Inducer gradient plate.lmsf.hsl)
+
+WaitFor(Hamilton)
+
+AddXML(hamiltonMethod, inputWorklistFile, {inputWorklist})
+AddXML(hamiltonMethod, outputWorklistFile, {outputWorklist})
+//If({gen5}==Yes, AddXML(experiment, dataFiles))
+If({gen5}==Yes, AddXML(dataFiles, readerFile, {gen5File}))
+
+SaveXML()
