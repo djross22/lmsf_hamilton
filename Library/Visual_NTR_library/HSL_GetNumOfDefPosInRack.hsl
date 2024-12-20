@@ -1,0 +1,78 @@
+
+   //
+// ******* HSL_GetNumOfDefPosInRack library *******
+// Autor:  Alvaro Cuevas 
+// Date: 31 July 2012
+// Decription:  This library returns the number of positions (holes for containers) in the labware (rack)
+//              at the current position of a given sequence.
+//                
+
+
+
+#ifndef __HSL_GetNumOfDefPosInRack_hsl__
+#define __HSL_GetNumOfDefPosInRack_hsl__ 1
+
+
+
+
+namespace HSL_GetNumOfDefPosInRack
+{
+
+   function GetNumOfDefPosInRack (
+         device& i_myDevice,  
+         sequence& i_tmpSequence , //[in] Sequence with the labware of interest
+         variable& o_positionsInRack) //[out] the number of positions in the rack definition
+	{
+		object deckLayout;
+		object editDeckLayout6;
+		object labware;
+		//>> 20061121
+		object template;
+		//<< 20061121
+		object editLabware5;
+		object defSequence;
+		variable count(0);
+		variable i(0);
+      variable labwareName;
+      variable labID;
+
+		deckLayout = i_myDevice.GetDeckLayoutObject();
+		deckLayout.GetObject2("{FC399424-0445-45FA-BB89-0F43205BB602}", editDeckLayout6);
+      labID = i_tmpSequence.GetLabwareId();
+		labware = editDeckLayout6.Labware(labID);
+		labware.GetObject2("{39A3639F-97AB-444D-86D3-253122BD2202}", editLabware5);
+		//>> 20061121
+		labware.GetObject2("{708F8176-6A33-4C54-BDB4-F0A6845191D8}", template);
+		if (template.IsNull())
+		{
+			// it's not a template
+			//<< 20061121
+			editLabware5.DefaultSequence(defSequence);
+			o_positionsInRack = defSequence.Count;
+        /* 
+			for (i = 1; i <= o_positionsInRack; i++)
+			{
+				object seqItem;
+				seqItem = defSequence.Item(i);
+               
+               arrayPositions.AddAsLast(seqItem.PositionId);
+             
+                // Trace( "Pos " , i, "  ",seqItem.PositionId );
+
+				//defaultSequence.Add(seqItem.ObjectId, seqItem.PositionId);
+            
+			}
+			//defaultSequence.SetCount(defaultSequence.GetTotal());
+			//defaultSequence.SetMax(defaultSequence.GetTotal());
+			//defaultSequence.SetCurrentPosition(1);
+
+         */
+         return(o_positionsInRack);
+       
+			//>> 20061121
+		}
+		//<< 20061121
+	}
+}
+#endif
+// $$author=Cuevas_A$$valid=0$$time=2012-08-04 18:31$$checksum=9416bc17$$length=087$$

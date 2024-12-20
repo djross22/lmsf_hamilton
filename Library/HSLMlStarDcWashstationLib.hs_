@@ -1,0 +1,3050 @@
+// ======================================================================
+// This is a part of the HSL DC-Washer Library.
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+// ======================================================================
+//
+// Modification History
+//   
+//	2003-05-15   ubernhard > first creation
+// 2004-05-07   ubernhard > removed parameter preWash from function NeedleWash()
+//								  > pump of DC-Washstation start/stop with new firmware
+//                          commands C0FA and C0FB instead of I/O Port
+// 2004-05-11   ubernhard > call C0FP (prime DC-Washer) during InitHSLStarDcWasherLib()
+//	2004-05-24   ubernhard > implement function TrackData() for sample tracking support
+//
+//	**********************************************************************
+// This library version supports following hardware:
+//		- DC wash unit PN 186280/02
+//		- Pump unit PN 186375/01
+//	**********************************************************************
+// 2005-02-10	 ubernhard > library function OnAbortNeedleWash() no longer supported
+//								  > implemented library function EmptyFillWashChamber()
+//								  > add new parameter mixCyles within function NeedleWash()
+//								  > changed wash algorithm according new requirements
+//								  > add new parameter immersionDepth within function WashSettings()
+// 2005-03-08	 ubernhard > changed default swapSpeed from 10 to 5 mm/s
+// 2005-06-06	 ubernhard > renamed global declared variabel m_trackerObject to m_dcWashTrackerObject
+// 2005-08-29	 ubernhard > fixed SCR#1054 Dispense of rest volume (set new dispense mode 9 -> blowout tip)
+//								  > defined new constant 'fixHeightOnDefaultWaste' in case of dispense rest volume
+//									 into default waste of ML-STAR
+//	2006-09-14	 ubernhard > fixed SCR#1077 Wrong error message
+//								  > implemented function NeedleWash2()
+//								  > use of HxVectorDB interface instead of HxSampleTracker
+//								  > use HSLUtilLib2 instead of HSLUtilLib
+//
+// ======================================================================
+
+#ifndef __HSLStarDcWasherLibImpl_hsl__
+#define __HSLStarDcWasherLibImpl_hsl__	1
+
+// ----------------------------------------------------------------------------------------------------
+// Includes
+// ----------------------------------------------------------------------------------------------------
+
+#ifndef __HSLStrLib_hsl__
+	#include "HSLStrLib.hsl"
+#endif
+
+#ifndef __HSLSynLib_hsl__
+	#include "HSLSynLib.hsl"
+#endif
+
+#ifndef __HSLUtilLib2_hsl__
+	#include "HSLUtilLib2.hsl"
+#endif
+
+#ifndef __HSLUtilLib2Def_hs___
+	#include "HSLUtilLib2Def.hs_"
+#endif
+
+#ifndef __HSLSeqLib_hsl__
+	#include "HSLSeqLib.hsl"
+#endif
+
+#ifndef __HSLMthLib_hsl__
+	#include "HSLMthLib.hsl"
+#endif
+
+#ifndef __HSLErrLib_hsl__
+	#include "HSLErrLib.hsl"
+#endif
+
+#ifndef __HSLDevLib_hsl__
+	#include "HSLDevLib.hsl"
+#endif
+
+#ifndef __HSLML_STARLib_hsl__
+	#include "HSLML_STARLib.hsl"
+#endif
+
+// ----------------------------------------------------------------------------------------------------
+// Device (for development only! Comment out for release version.)
+// ----------------------------------------------------------------------------------------------------
+//device ML_STAR;
+
+// --------------------------------------------------------------------------------------
+// Implementation of DC-Washer library 
+// --------------------------------------------------------------------------------------
+
+namespace HSLDcWasher
+{	
+	#ifndef __HSLStringTableLib_hsl__
+	#include "HSLStringTableLib.hs_"
+	#endif
+
+	// --------------------------------------------------------------------------------------
+	// Debugging and Developing (for development only! Comment out for release version.)
+	// --------------------------------------------------------------------------------------
+	//#define _DEBUG		1		// specifies the debug version of the HSL DC-Washer library
+	
+	// --------------------------------------------------------------------------------------
+	// Global Data
+	// --------------------------------------------------------------------------------------
+	static global variable m_hslStarDcWasherLibCs(0);				// critical section object for library synchronization 
+	static variable m_initializedLib(hslFalse);						// initialization state of the HSL DC-Washer library
+	static variable m_numberOfChannels(0);								// Number of pipetting channels
+	static variable m_channelPattern("");								// The channel pattern
+	static variable m_numberOfActivatedChannels(0);					// The number of activated channels within the channel pattern
+	static variable m_lastActiveChannel(0);							// The number of the last active channel within the pattern
+	static variable m_usedSeqPosFromStep(0);							// The number of the used sequence positions during the step execution
+	static variable m_isSampleTrackingEnabled(hslFalse);			// true, if sample tracking is ON
+	static variable m_isSimulatorMode(hslFalse);						// true, if simulator mode is ON
+	static global object m_dcWashTrackerObject;						// the one and only HxVectorDB tracking object, instantiated from executor
+	static variable m_isDcWashStationPrimed(hslFalse);				// true, if wash station is primed
+
+	// --------------------------------------------------------------------------------------
+	// Error Ids
+	// --------------------------------------------------------------------------------------
+	namespace IDE
+	{
+		static const variable first(0);											// guard
+		static const variable noError(first);									// No error
+		static const variable fatalError(first + 1);							// General unspecific error
+		static const variable invalidChannelPattern(first + 2);			// The channel pattern is invalid
+		static const variable invalidTipType(first + 3);					// not supported tip type
+		static const variable invalidParameter(first + 4);					// The parameter is invalid
+		static const variable locoNeedleWashFailed(first + 5);			// The executed LOCO needle wash command failed
+		static const variable locoNeedlePickUpFailed(first + 6);			// The executed LOCO needle pick-up command failed
+		static const variable invalidWashSequence(first + 7);				// The wash sequence is invalid
+		static const variable needleEjectFailed(first + 8);				// The executed needle eject command failed
+		static const variable invalidLengthOfChannelPattern(first + 9);// The length of the channel pattern doesn't match to the number of channels
+		static const variable notEnoughSeqPos(first + 10);					// Not enough position within sequence to execute the step
+		static const variable notEnoughSeqPosEx(first + 11);				// Not enough position within sequence to execute the step
+		static const variable hardwareError(first + 12);					// Wash pump or Waste pump does not work properly
+		static const variable noWashFluidError(first + 13);				// No wash liquid available
+		static const variable noElementFound(first + 14);					// The element does not exist or is not accessible
+		static const variable wrongPumpUnitType(first + 15);				// The pump unit is not configured for a DC wash station
+		static const variable errorDuringEmptyFillProcedure(first + 16);	// Error during liquid empty/fill wash chamber command
+		static const variable errorDuringFillProcedure(first + 17);		// Error during liquid fill wash chamber command
+		static const variable errorDuringPrimeProcedure(first + 18);	// Error during prime process of DC wash station
+		static const variable unexpectedError(first + 19);					// Unexpected instrument error
+		static const variable syntaxError(first + 20);						// syntax error --> parameter out of range
+		static const variable canError(first + 21);							// CAN error --> wrong labware (node), wrong instrument settings (node)
+		static const variable parallelismError(first + 22);				// two or more commands send to same control process
+		static const variable missingLabwareProperty(first + 23);		// a labware proprty was not found
+		static const variable last(first + 23);								// guard
+	}
+
+
+	// --------------------------------------------------------------------------------------
+	// String Ids
+	// --------------------------------------------------------------------------------------
+	namespace IDS
+	{
+		static const variable first(IDE::last + 1);					// guard
+		static const variable traceSource(first);						// source for formated trace
+		static const variable traceWashSettings(first + 1);		// action for formated trace
+		static const variable traceNeedleWash(first + 2);			// action for formated trace
+		static const variable helpFileName(first + 3);				// name of help file
+		static const variable titleErrorHandling(first + 4);		// title for error dialogs
+		static const variable noCollisionDanger(first + 5);		// message for error handling
+		static const variable arePositionsFree(first + 6);			// message for error handling
+		static const variable ignoredDispErr(first + 7);			// info for formated trace
+		static const variable traceWasherPrime(first + 8);			// action for formated trace
+		static const variable traceEmptyFillWashChamber(first + 9);	// action for formated trace
+		static const variable errorIgnoredByOperator(first + 10);
+		static const variable errorRetry(first + 11);
+		static const variable traceNeedleWash2(first + 12);		// action for formated trace
+		static const variable titleWrongDispenseModeError(first + 13);
+		static const variable wrongDispenseModeError(first + 14);
+		static const variable last(first + 14);						// guard
+	}
+
+
+	// --------------------------------------------------------------------------------------
+	// Tracing
+	// --------------------------------------------------------------------------------------
+	namespace TraceStatus
+	{
+		static const variable start(1);									// action status for formated trace
+		static const variable complete(2);								// action status for formated trace
+		static const variable error_(3);									// action status for formated trace
+		static const variable progress(4);								// action status for formated trace
+		static const variable completeWithError(5);					// action status for formated trace
+	}
+
+	// --------------------------------------------------------------------------------------
+	// Special characters for text formatting
+	// --------------------------------------------------------------------------------------
+	namespace Format
+	{
+		static const variable lf("\n");
+		static const variable tab("\t");
+	}
+
+
+	// --------------------------------------------------------------------------------------
+	// String Constants
+	// --------------------------------------------------------------------------------------
+	namespace StringConstants
+	{
+		static const variable emptyString("");
+		static const variable blank(" ");
+		static const variable ampersand("&");
+
+		// constants for LOCO wash procedure
+		static const variable LW_th("th2450");							// fix height (minimal traverse height at start of command)
+		static const variable LW_te("te2450");							// fix height (minimal z-Position at end of command)
+
+		// constants for LOCO tip pick up		
+		static const variable TW_tp_needle10("tp2357");				// Begin of tip picking up process
+		static const variable TW_tz_needle10("tz2277");				// End of tip picking up process
+		
+		static const variable TW_tp_needle300("tp2377");			// Begin of tip picking up process
+		static const variable TW_tz_needle300("tz2297");			// End of tip picking up process
+
+		static const variable TW_tp_needle1000("tp2397");			// Begin of tip picking up process
+		static const variable TW_tz_needle1000("tz2297");			// End of tip picking up process
+
+		// constants for tip eject during LOCO wash step
+		static const variable TR_tp_needle10("tp1857");				// Begin of tip deposit process
+		static const variable TR_tz_needle10("tz1757");				// End of tip deposit process
+		
+		static const variable TR_tp_needle300("tp1877");			// Begin of tip deposit process
+		static const variable TR_tz_needle300("tz1777");			// End of tip deposit process
+
+		static const variable TR_tp_needle1000("tp1547");			// Begin of tip deposit process
+		static const variable TR_tz_needle1000("tz1447");			// End of tip deposit process
+
+		// key for labware data
+		static const variable tipRackKey("MlStarTipRack");
+		static const variable isWasteRackKey("MlStarIsWasteRack");
+		static const variable dcWasherRackKey("MlStarIsDCWasherRack");
+		static const variable dcWashChamberKey("MlStarIsDCWashChamber");
+		static const variable dcWasherWasteKey("MlStarIsDCWasherWaste");
+		static const variable pumpStationNumberKey("MlStarPumpStationNumber");
+		static const variable defaultWaste("MlStarIsWasteRack");
+	}
+
+
+	// --------------------------------------------------------------------------------------
+	// Number Constants
+	// --------------------------------------------------------------------------------------
+	namespace NumberConstants
+	{
+		// data
+		static const variable dispMode_BlowoutTip(9);					// used for dispense of restvolume
+
+		static const variable fixHeightFromContainerBottom(45);		// [mm] used for dispense of restvolume into waste of DC washstation
+		static const variable fixHeightOnDefaultWaste(5);				// [mm] used for dispense of restvolume into default waste of ML-STAR
+		static const variable overflowAbs(189);	 						// [mm] absolut z-value of overflow DC wash station 
+
+		// GRU Command error codes
+		static const variable gruMajorCode(40);							// 0x28
+
+		static const variable gruMinorCode_1(1);							// 0x1
+		static const variable gruMinorCode_2(2);				 			// 0x2
+
+		static const variable gruErrorCode_NoAspBeforDisp(2058);		// 0x80A (cannot aspirate before dispense)
+		static const variable gruErrorCode_NoLiquidClassDef(2063);	// 0x80F (liquid class missing)
+		static const variable gruErrorCode_DiffDispMode(2086);		// 0x826 (different dispense mode used)
+
+		static const variable refillOn(1);
+	}
+	
+
+	// --------------------------------------------------------------------------------------
+	// Width of firmware parameters
+	// --------------------------------------------------------------------------------------
+	namespace WidthOfFwParams
+	{
+		static const variable first(1);									// guard
+		static const variable oneChar(first);							// #
+		static const variable twoChars(first + 1);					// ##
+		static const variable threeChars(first + 2);					// ###
+		static const variable fourChars(first + 3);					// ####
+		static const variable fiveChars(first + 4);					// #####
+		static const variable last(first + 4);							// guard
+	}
+
+
+	// --------------------------------------------------------------------------------------
+	// Firmware command
+	// --------------------------------------------------------------------------------------
+	namespace FwCommand
+	{
+		// master
+		static const variable DcWashTipPickUp					("C0TW");
+		static const variable DcWashProcedure					("C0LW");
+		static const variable TipRelease							("C0TR");
+		static const variable PumpUnitPrime						("C0EF");
+		static const variable PumpUnitDrainRefill				("C0EE");
+		static const variable PumpUnitFill						("C0EB");
+		static const variable PumpUnitRequestType				("C0ET");
+		static const variable RequestInitState					("C0QW");
+		static const variable RequestPumpStationPrimeState	("C0QE");
+	}
+
+
+	// --------------------------------------------------------------------------------------
+	// Firmware parameter
+	// --------------------------------------------------------------------------------------
+	namespace FwParam
+	{
+		static const variable as("as");									// aspiration speed
+		static const variable av("av");									// wash volume
+		
+		static const variable ba("ba");									// blow out volume		
+		
+		static const variable dc("dc");									// wash cycles
+		static const variable de("de");									// swap speed
+		static const variable ds("ds");									// dispensation speed
+
+		static const variable ep("ep");									// pump station number
+		static const variable ee("ee");									// refill mode
+		static const variable ef("ef");									// drain mode
+		static const variable et("et");									// pump unit type
+
+		static const variable qw("qw");									// init status
+		static const variable qe("qe");									// pump station prime status
+
+		static const variable sa("sa");									// soak time
+		
+		static const variable te("te");									// minimum z-position at the end of a command
+		static const variable th("th");									// minimum traverse heigth at start of a command
+		static const variable tm("tm");									// tip pattern
+		static const variable tp("tp");									// begin of tip picking up process
+		static const variable tt("tt");									// tip type		
+		static const variable tz("tz");									// end of tip picking up process
+		
+		static const variable xp("xp");									// x-position
+		
+		static const variable yp("yp");									// y-position
+
+		static const variable zl("zl");									// wash position
+	}
+
+	// --------------------------------------------------------------------------------------
+	// Firmware Error codes
+	// --------------------------------------------------------------------------------------
+	namespace C0ErrorCode
+	{
+		// error messages
+		static const variable syntaxError 	   		( 1);
+		static const variable hardwareError    		( 2);
+		static const variable noWashFluidError 		(18);
+		static const variable slaveError 				(99);
+
+		// master error information
+		static const variable canError 					(10);
+		static const variable slaveTimeoutError 		(11);
+		static const variable parameterOutOfRange		(32);
+	}
+
+	namespace DCWasherErrCode
+	{
+		// slave error information
+		static const variable parallelismLevel0		(40);
+		static const variable parallelismLevel1		(41);
+		static const variable ls1NotSwitchToActive	(50);
+		static const variable ls2NotSwitchToActive	(51);
+		static const variable ls1NotSwitchToInactive	(60);
+		static const variable ls2NotSwitchToInactive	(61);
+	}
+
+
+	// --------------------------------------------------------------------------------------
+	// Drain mode
+	// --------------------------------------------------------------------------------------
+	namespace DrainMode
+	{
+		static const variable allChambers("0");
+		static const variable wasteChamberOnly("1");
+		static const variable washChamberOnly("2");
+	}
+
+
+	// --------------------------------------------------------------------------------------
+	// Supported Needle Types
+	// --------------------------------------------------------------------------------------
+	namespace TipType
+	{
+		const variable needle10ul("10ulNeedle");				// low volume needle type
+		const variable needle300ul("300ulNeedle");			// standard volume needle type
+		const variable needle1000ul("1000ulNeedle");			// high volume needle type
+	}
+
+	namespace TipTypeNum
+	{
+		const variable needle10ul("11");							// low volume needle type
+		const variable needle300ul("12");						// standard volume needle type
+		const variable needle1000ul("13");						// high volume needle type
+	}
+
+	// --------------------------------------------------------------------------------------
+	// Channel Use
+	// --------------------------------------------------------------------------------------
+	namespace ChannelUse
+	{
+		static const variable first(1);									// guard
+		static const variable allSequencePositions(first);			// channel use
+		static const variable channelPattern(first + 1);			// channel use
+		static const variable last(first + 1);							// guard
+	}
+
+	// --------------------------------------------------------------------------------------
+	// cLLD sensivity
+	// --------------------------------------------------------------------------------------
+	namespace CLLDSensivity
+	{
+		static const variable first(0);									// guard
+		static const variable off(first);								// cLLDSensivity 
+		static const variable veryHigh(first + 1);					// cLLDSensivity
+		static const variable high(first + 2);							// cLLDSensivity
+		static const variable medium(first + 3);						// cLLDSensivity
+		static const variable low(first + 4);							// cLLDSensivity
+		static const variable last(first + 4);							// guard
+	}
+
+	// --------------------------------------------------------------------------------------
+	// Washing Control Block
+	// --------------------------------------------------------------------------------------
+	namespace WCB
+	{
+		// data
+
+		// Remark: The data is held per unique instrument labware pair.
+
+		// actual washing settings 
+		static global variable dcInstrumentIdArr[];					// instrument id
+		static global variable dcLabwareIdArr[];						// labware id
+
+		static global variable dcWashVolumeArr[];						// wash volume [0.1ul]
+		static global variable dcBlowOutVolumeArr[];					// blow out volume [0.1ul]
+		static global variable dcAspirationFlowRateArr[];			// aspiration flow rate [0.1ul/s]
+		static global variable dcDispensationFlowRateArr[];		// dispensation flow rate [0.1ul/s]
+		static global variable dcSwapSpeedArr[];						// swap speed [0.1mm/s]
+		static global variable dcSoakTimeArr[];						// soak time [0.1s]
+		static global variable dcImmersionDepthArr[];				// immersion depth [mm]
+
+		// default washing settings 
+		namespace Needle10ulDefault
+		{
+			static variable washVolume("00140");						// wash volume [0.1ul]
+			static variable blowOutVolume("0100");						// blow out volume [0.1ul]
+			static variable aspirationFlowRate("0500");				// aspiration flow rate [0.1ul/s]
+			static variable dispensationFlowRate("0500");			// dispensation flow rate [0.1ul/s]
+			static variable swapSpeed("0050");							// swap speed [0.1mm/s]
+			static variable soakTime("0010");							// soak time [0.1s]
+
+			// wash height must be calculated during run time,
+			// therefore the param immersionDepth it's not a normalized default value
+			static variable immersionDepth(5);							// immersion depth [mm]
+		}
+
+		namespace Needle300ulDefault
+		{
+			static variable washVolume("03300");						// wash volume [0.1ul]
+			static variable blowOutVolume("0500");						// blow out volume [0.1ul]
+			static variable aspirationFlowRate("0500");				// aspiration flow rate [0.1ul/s]
+			static variable dispensationFlowRate("0500");			// dispensation flow rate [0.1ul/s]
+			static variable swapSpeed("0050");							// swap speed [0.1mm/s]
+			static variable soakTime("0010");							// soak time [0.1s]
+
+			// wash height must be calculated during run time,
+			// therefore the param immersionDepth it's not a normalized default value
+			static variable immersionDepth(5);							// immersion depth [mm]
+		}
+
+		namespace Needle1000ulDefault
+		{
+			static variable washVolume("11500");						// wash volume [0.1ul]
+			static variable blowOutVolume("0500");						// blow out volume [0.1ul]
+			static variable aspirationFlowRate("0500");				// aspiration flow rate [0.1ul/s]
+			static variable dispensationFlowRate("0500");			// dispensation flow rate [0.1ul/s]
+			static variable swapSpeed("0050");							// swap speed [0.1mm/s]
+			static variable soakTime("0010");							// soak time [0.1s]
+
+			// wash height must be calculated during run time,
+			// therefore the param immersionDepth it's not a normalized default value
+			static variable immersionDepth(5);							// immersion depth [mm]
+		}
+
+		// functions
+		static function IsDcWashStation(									// returns true if given labware is a wash station
+			device& ML_STAR,													// i: the washing device 
+			variable& labId);													// i: labware id
+
+		static function IsNeedleRack(										// returns true if given labware is a needle rack
+			device& ML_STAR,													// i: the washing device 
+			variable& labId);													// i: labware id
+
+		static function IsDcWashChamber(									// returns true if given labware is a DC wash chamber
+			device& ML_STAR,													// i: the washing device 
+			variable& labId);													// i: labware id
+
+		static function IsDcWasherWaste(									// returns true if given labware is a DC washer waste
+			device& ML_STAR,													// i: the washing device 
+			variable& labId);													// i: labware id
+
+		static function GetPumpStationNumber(							// returns the pump station number as string(1..3), "-1" if property not found
+			device& ML_STAR,													// i: the washing device 
+			variable& labId);													// i: labware id
+
+		static function IsDefaultWaste(									// returns true if given labware is a derfault waste
+			device& ML_STAR,													// i: the washing device 
+			variable& labId);													// i: labware id
+	}
+
+
+	// --------------------------------------------------------------------------------------
+	// Function declaration
+	// --------------------------------------------------------------------------------------
+
+	static function ExecuteFirmwareCommand(							// executes a firmware command
+			device& ML_STAR,													// i: pipetting device
+			variable& command,												// i: command (string)
+			variable& parameter);											// i: parameter (string)
+		
+	static function FirmwareErrorCheck(									// return 0, if the result string contains no error
+			string& result);													// otherwise the error code returned from instrument
+
+	static function PrepareChannelPattern(								// returns the prepared pattern ("1011" --> "1 0 1 1")
+			string& channelPattern);										// i: channel pattern
+
+	static function NumberOfActiveChannels(							// returns the number of active channels ("1011"  --> 3)
+			string& channelPattern);										// i: channel pattern
+
+	static function GetLastActiveChannel(								// returns the number of the last active channel ("10110010"  --> 7)
+			string& channelPattern);										// i: channel pattern
+
+	static function PrimeDCWashStation(									// Initialize of DC-Washstation
+			device& ML_STAR,													// i: pipetting device
+			sequence& needleSequence);										// i: needle Sequence
+
+	static function IsSampleTrackerOn();								// Returns true if sample tracker is enabled, else false
+
+	static function CheckPumpStationSettings(							// Returns true, if the pump station is configured as DC wash station
+				device& ML_STAR,												// i: pipetting device
+				variable pumpStationNumber);								// i: pump station Number
+
+	// --------------------------------------------------------------------------------------
+	// Library Initialization
+	// --------------------------------------------------------------------------------------
+	static function InitHSLStarDcWasherLib(device& ML_STAR)
+	{
+		// initialize the HSLMlStarDCWashstation library once only
+		if (!m_initializedLib)
+		{	
+			StringTable::Init("HSLMlStarDCWashstationStringTable");
+			if(0 == m_hslStarDcWasherLibCs)
+				m_hslStarDcWasherLibCs = SynInitializeCriticalSection();
+			
+			m_numberOfChannels = DevGetCfgValueWithKey(ML_STAR, 1);
+
+			if(m_dcWashTrackerObject.IsNull())
+				m_dcWashTrackerObject = GetVectorDbTrackerObject();
+
+			m_isSampleTrackingEnabled = IsSampleTrackerOn();
+
+			m_isSimulatorMode = HSLML_STAR::IsSimulatorMode(ML_STAR);
+
+			m_initializedLib = hslTrue;
+
+			#ifdef _DEBUG
+			Trace("HSLDcWasher library - Number of channels: ", m_numberOfChannels);
+			#endif
+		}
+		
+		return(m_initializedLib);
+	}
+
+
+	// --------------------------------------------------------------------------------------
+	// Exception handling
+	// --------------------------------------------------------------------------------------
+
+	namespace Error
+	{
+		static function Raise(												// raises a runtime error
+			variable errorId,													// i: error id, one of IDE
+			variable& fileName,												// i: file name
+			variable& funcName,												// i: function name
+			variable& lineNumber)											// i: line number
+		{
+			variable description("");
+
+			// set error description
+			if ("" == funcName)
+				description = fileName + "(" + lineNumber + ") : " + StringTable::Load(errorId);
+			else
+				description = fileName + "(" + lineNumber + ") : " + funcName + "()\n" + StringTable::Load(errorId);
+			err.SetDescription(description);
+
+			// raise error
+			err.Raise(errorId, err.GetDescription(), StringTable::Load(IDS::helpFileName));
+		}
+
+		static function RaiseEx(											// raises a runtime error
+			variable errorId,													// i: error id, one of IDE
+			variable errorDesc,												// i: error description
+			variable& fileName,												// i: file name
+			variable& funcName,												// i: function name
+			variable& lineNumber)											// i: line number
+		{
+			variable description("");
+
+			// set error description
+			if ("" == funcName)
+				description = fileName + "(" + lineNumber + ") : " + errorDesc;
+			else
+				description = fileName + "(" + lineNumber + ") : " + funcName + "()\n" + errorDesc;
+			err.SetDescription(description);
+
+			// raise error
+			err.Raise(errorId, err.GetDescription(), StringTable::Load(IDS::helpFileName));
+		}
+
+		static function RaiseLast()										// re-throws the last runtime error
+		{
+			// re-raise error
+			err.Raise();
+		}
+	}
+
+
+	// --------------------------------------------------------------------------------------
+	// Implementation 
+	// --------------------------------------------------------------------------------------
+
+
+	//***************************************************************************************
+	static function IsSampleTrackerOn()
+	{
+		variable isOn(hslFalse);		// if 'true', the tracker is switched ON
+		variable retVal;
+		
+		retVal = m_dcWashTrackerObject.Enabled();
+
+		if(retVal == 1)
+			isOn = hslTrue;
+
+		return(isOn);
+	}
+
+
+	//***************************************************************************************
+	static function NormalizeParam(								// returns the given parameter normalized for firmware command as string
+			variable param,											// i: the paramter to normalize as float or integer
+			variable strWidth)										// i: the width to be filled (integer)
+	{
+		string sParam; 
+		sParam = IStr(Floor(MthRound(param*10, 0)));
+		StrFillLeft(sParam, "0", strWidth);
+		return (sParam);
+	}
+
+
+	//***************************************************************************************
+	static function NumberOfActiveChannels(
+		string& channelPattern)
+	{
+		variable index;
+		variable length;
+		variable numberOfActiveChannels(0);
+
+		length = channelPattern.GetLength();
+		for (index = 0; index < length; index++)
+		{
+			if ("1" == channelPattern.Mid(index, 1))
+				numberOfActiveChannels++;
+		}
+		return(numberOfActiveChannels);
+	}
+
+
+	//***************************************************************************************
+	static function GetLastActiveChannel(
+			string& channelPattern)
+	{
+		variable index;
+		variable length;
+		variable lastActiveChannel(0);
+	
+		length = channelPattern.GetLength();
+		for (index = 0; index < length; index++)
+		{
+			if ("1" == channelPattern.Mid(index, 1))
+				lastActiveChannel = index + 1;
+		}
+		return(lastActiveChannel);
+	}
+
+
+	//***************************************************************************************
+	static function PrepareChannelPattern(
+		string& channelPattern)
+	{
+		variable index;
+		string fwChnPattern;
+		
+		for (index = 0; index < m_numberOfChannels; index++)
+		{	
+			string temp;
+			temp = channelPattern.Mid(index, 1);
+
+			if(IVal(temp) != 0 && IVal(temp) != 1)
+				Error::Raise(IDE::invalidChannelPattern, GetFileName(), GetFunctionName(), GetLineNumber());
+
+			if(index + 1 != m_numberOfChannels)
+				fwChnPattern = fwChnPattern + temp + StringConstants::blank;
+			else
+				fwChnPattern = fwChnPattern + temp;
+		}
+		return(fwChnPattern);		
+	}
+	
+	//***************************************************************************************
+	static function ExecuteFirmwareCommand(
+		device& ML_STAR,
+		variable& command,
+		variable& parameter)
+	{
+		variable rc[];
+
+		rc = ML_STAR.FirmwareCommand( "8bf8a31d_f78b_4c7d_a51d14e50983a3d1" );
+		
+		return (rc);
+	}
+
+
+	//***************************************************************************************
+	static function FirmwareErrorCheck(string& result) // result string from firmware
+	{
+		variable index;
+		
+		if(m_isSimulatorMode)
+			return (0);
+
+		#ifdef _DEBUG
+		Trace("HSLDcWasher library - FirmwareErrorCheck - start");
+		#endif
+
+		// lookup for "er" in the result string
+		// (note: not all firmware commands response with an error information in the result string)
+		// if there is an error information within the result string it starts on index 0 
+		// e.g. "er00"
+		index = result.Find("er");
+
+		if(index == 0)
+		{
+			string errorNr;
+
+			errorNr = result.Mid(2, 2);
+
+			#ifdef _DEBUG
+			Trace("HSLDcWasher library - FirmwareErrorCheck --> Master Error Number: ", errorNr);
+			#endif
+
+			// trim leading zeros
+			errorNr = StrTrimLeft(errorNr, "0");
+			
+			// look up for slave error
+			if(IVal(errorNr) == C0ErrorCode::slaveError)
+			{
+				index = result.Find(StringConstants::blank);
+				errorNr = result.Mid(index+6, 2);
+
+				#ifdef _DEBUG
+				Trace("HSLDcWasher library - FirmwareErrorCheck --> Slave Error Number: ", errorNr);
+				#endif
+
+				// trim leading zeros
+				errorNr = StrTrimLeft(errorNr, "0");
+			}
+
+			if( errorNr.Compare(StringConstants::emptyString) != 0)
+				return (IVal(errorNr));
+		}
+
+		#ifdef _DEBUG
+		Trace("HSLDcWasher library - FirmwareErrorCheck - complete (no firmware error found).");
+		#endif
+		
+		return (0);
+	}
+
+
+	//***************************************************************************************
+	static function RequestWashChamberInitStatus(
+				device& ML_STAR,							// i: pipetting device
+				variable pumpUnitNode)					// i: pump unit node
+	{
+		variable isInitialized(hslFalse);
+		variable rc[];										// place to hold the result values of firmware command step
+		string result;										// firmware result string
+		variable fwParam("");							// parameter of firmware command
+		variable errCode(0);								// error code extracted out from firmware result string
+		variable index(0);
+
+		// setup firmware param
+		fwParam = FwParam::ep + pumpUnitNode;
+
+		// request init status of wash chamber
+		rc = ExecuteFirmwareCommand(ML_STAR, FwCommand::RequestPumpStationPrimeState, fwParam);
+
+		result = rc.GetAt(rc.GetSize() - 1);
+		errCode = FirmwareErrorCheck(result);
+		
+		if(errCode != 0)
+		{
+			string s;
+			
+			if(errCode == C0ErrorCode::canError)
+			{
+				s = StringTable::Load(IDE::canError);
+				StrReplace(s, "%s", result);
+				Error::RaiseEx(IDE::canError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+			}
+
+			s = StringTable::Load(IDE::unexpectedError);
+			StrReplace(s, "%s", result);
+			Error::RaiseEx(IDE::unexpectedError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+	
+		index = result.Find(FwParam::qe);
+		if("1" == result.Mid(index+2, 1))
+		{
+			isInitialized = hslTrue;
+		}
+		
+		return(isInitialized);
+	}
+
+	//***************************************************************************************
+	static function PrimeDCWashStation(				// Initialize of DC-Washstation
+				device& ML_STAR,							// i: pipetting device
+				sequence& needleSequence)				// i: needle Sequence
+	{
+		variable traceSource;							// source for formated trace
+		variable traceAction;							// action for formated trace
+		variable rc[];										// place to hold the result values of firmware command step
+		string result;										// firmware result string
+		variable errCode(0);								// error code extracted out from firmware result string
+		variable loopCounter(0);		
+		variable bRepeat(hslTrue);						// true if command shall be repeated
+		variable fwParam("");							// parameter of firmware command
+		variable pumpUnitNode;
+		variable index(0);
+
+		//	prime the DC Wash station once only
+		if(m_isDcWashStationPrimed)
+			return;
+
+		traceSource = StringTable::Load(IDS::traceSource);
+		traceAction = StringTable::Load(IDS::traceWasherPrime);
+		
+		FormatTrace(traceSource, traceAction, TraceStatus::start);
+
+		// look up for pump unit node (used for prime command)
+		pumpUnitNode = WCB::GetPumpStationNumber(ML_STAR, needleSequence.GetLabwareId());
+		if(pumpUnitNode == StringConstants::emptyString)
+		{
+			string s;			
+			s = StringTable::Load(IDE::missingLabwareProperty);
+			StrReplace(s, "%s1", StringConstants::pumpStationNumberKey);
+			StrReplace(s, "%s2", needleSequence.GetLabwareId());
+			Error::RaiseEx(IDE::missingLabwareProperty, s, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+		
+		if(!CheckPumpStationSettings(ML_STAR, pumpUnitNode))
+		{
+			// wrong configured pump station
+			Error::Raise(IDE::wrongPumpUnitType, GetFileName(), GetFunctionName(), GetLineNumber());				
+		}
+
+		if(!RequestWashChamberInitStatus(ML_STAR, pumpUnitNode))
+		{		
+			// setup firmware parameter
+			fwParam = FwParam::ep + pumpUnitNode;
+
+			while(bRepeat)
+			{
+				if(loopCounter != 0)
+					FormatTrace(traceSource, traceAction, TraceStatus::start);
+
+				rc = ExecuteFirmwareCommand(ML_STAR, FwCommand::PumpUnitPrime, fwParam);
+
+				result = rc.GetAt(rc.GetSize() - 1);
+				errCode = FirmwareErrorCheck(result);
+
+				if(errCode == 0)
+				{
+					bRepeat = hslFalse;
+				}
+				else
+				{
+					variable message, messageEx, title, type, answer;
+
+					message = StringTable::Load(IDE::errorDuringPrimeProcedure) + Format::lf + Format::lf;
+			
+					// look up for syntax error
+					if(errCode == C0ErrorCode::syntaxError)
+					{
+						string s;
+						s = StringTable::Load(IDE::syntaxError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::syntaxError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					else
+					if(errCode == C0ErrorCode::hardwareError ||
+						errCode == DCWasherErrCode::ls1NotSwitchToInactive ||
+						errCode == DCWasherErrCode::ls2NotSwitchToInactive)
+					{
+						messageEx = StringTable::Load(IDE::hardwareError);
+						message = message + messageEx;
+						FormatTrace(traceSource, traceAction, TraceStatus::error_, StringTable::Load(IDE::hardwareError));
+					}
+
+					else
+					if(errCode == C0ErrorCode::noWashFluidError ||
+						errCode == DCWasherErrCode::ls1NotSwitchToActive ||
+						errCode == DCWasherErrCode::ls2NotSwitchToActive)
+					{
+						messageEx = StringTable::Load(IDE::noWashFluidError);
+						message = message + messageEx;
+						FormatTrace(traceSource, traceAction, TraceStatus::error_, StringTable::Load(IDE::noWashFluidError));
+					}
+
+					else
+					if(errCode == C0ErrorCode::canError)
+					{
+						string s;
+						s = StringTable::Load(IDE::canError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::canError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					else
+					if(errCode == DCWasherErrCode::parallelismLevel0 ||
+						errCode == DCWasherErrCode::parallelismLevel1)
+					{
+						string s;
+						s = StringTable::Load(IDE::parallelismError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::parallelismError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					// any other, unexpected error
+					else
+					if(errCode != 0)
+					{
+						string s;
+						s = StringTable::Load(IDE::unexpectedError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::unexpectedError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					title = StringTable::Load(IDS::titleErrorHandling);
+					type = hslAbortRetryIgnore | hslError | hslDefButton2;
+
+					// ask user how to handle the error
+					answer = MessageBox(message, title, type);
+				
+					if(hslAbort == answer)
+					{
+						abort;
+					}
+
+					if(hslRetry == answer)
+					{
+						// trace error handling retry
+						FormatTrace(traceSource, traceAction, TraceStatus::progress, StringTable::Load(IDS::errorRetry));				
+					}
+
+					if(hslIgnore == answer)
+					{
+						// trace error ignored by user
+						FormatTrace(traceSource, traceAction, TraceStatus::completeWithError, StringTable::Load(IDS::errorIgnoredByOperator));
+						return;
+					}
+				}
+			}
+		}
+		
+		m_isDcWashStationPrimed = hslTrue;
+		FormatTrace(traceSource, traceAction, TraceStatus::complete);
+
+		return;
+	}
+
+
+	//***************************************************************************************
+	static function WCB::IsNeedleRack(
+		device& ML_STAR,
+		variable& labId)
+	{
+		variable propertyValue("0");			// value of property 
+		variable isNeedleRack(hslFalse);		// if 'true', the given labware is a needle rack
+		variable propertyKeys[];				// place to hold property keys
+		variable propertyValues[];				//	place to hold property values
+
+		propertyKeys.AddAsLast(StringConstants::tipRackKey);
+		ML_STAR.GetLabwareData(labId, propertyKeys, propertyValues);
+		if (0 < propertyValues.GetSize())
+		{
+			// the labware supports the key MlStarTipRack
+			propertyValue = propertyValues.GetAt(0);
+			isNeedleRack = (TipTypeNum::needle10ul == propertyValue || 
+								 TipTypeNum::needle300ul == propertyValue ||
+								 TipTypeNum::needle1000ul == propertyValue);
+		}
+		return(isNeedleRack);
+	}
+
+
+	//***************************************************************************************
+	function WCB::IsDcWashStation(
+		device& ML_STAR,
+		variable& labId)
+	{
+		variable propertyValue("0");			// value of property  
+		variable isDcWashStation(hslFalse);	// if 'true', the given labware is a DC wash station
+		variable propertyKeys[];				// place to hold property keys
+		variable propertyValues[];				//	place to hold property values
+
+		propertyKeys.AddAsLast(StringConstants::dcWasherRackKey);
+		ML_STAR.GetLabwareData(labId, propertyKeys, propertyValues);
+		if (0 < propertyValues.GetSize())
+		{
+			// the labware supports the key MlStarIsDCWasherRack
+			propertyValue = propertyValues.GetAt(0);
+			isDcWashStation = (propertyValue == "1");
+		}
+		return(isDcWashStation);
+	}
+
+
+	//***************************************************************************************
+	function WCB::IsDcWashChamber(
+		device& ML_STAR,
+		variable& labId)
+	{
+		variable propertyValue("0");			// value of property  
+		variable isWashChamber(hslFalse);	// if 'true', the given labware is a DC wash chamber
+		variable propertyKeys[];				// place to hold property keys
+		variable propertyValues[];				//	place to hold property values
+
+		propertyKeys.AddAsLast(StringConstants::dcWashChamberKey);
+		ML_STAR.GetLabwareData(labId, propertyKeys, propertyValues);
+		if (0 < propertyValues.GetSize())
+		{
+			// the labware supports the key MlStarIsDCWashChamber
+			propertyValue = propertyValues.GetAt(0);
+			isWashChamber = (propertyValue == "1");
+		}
+		return(isWashChamber);
+	}
+
+
+	//***************************************************************************************
+	function WCB::IsDcWasherWaste(
+		device& ML_STAR,
+		variable& labId)
+	{
+		variable propertyValue("0");			// value of property  
+		variable isWasherWaste(hslFalse);	// if 'true', the given labware is a DC wash chamber
+		variable propertyKeys[];				// place to hold property keys
+		variable propertyValues[];				//	place to hold property values
+
+		propertyKeys.AddAsLast(StringConstants::dcWasherWasteKey);
+		ML_STAR.GetLabwareData(labId, propertyKeys, propertyValues);
+		if (0 < propertyValues.GetSize())
+		{
+			// the labware supports the key MlStarIsDCWasherWaste
+			propertyValue = propertyValues.GetAt(0);
+			isWasherWaste = (propertyValue == "1");
+		}
+		return(isWasherWaste);
+	}
+
+
+	//***************************************************************************************
+	function WCB::IsDefaultWaste(
+		device& ML_STAR,
+		variable& labId)
+	{
+		variable propertyValue("0");			// value of property  
+		variable isDefaultWaste(hslFalse);	// if 'true', the given labware is a default waste
+		variable propertyKeys[];				// place to hold property keys
+		variable propertyValues[];				//	place to hold property values
+
+		propertyKeys.AddAsLast(StringConstants::defaultWaste);
+		ML_STAR.GetLabwareData(labId, propertyKeys, propertyValues);
+		if (0 < propertyValues.GetSize())
+		{
+			// the labware supports the key MlStarIsWasteRack
+			propertyValue = propertyValues.GetAt(0);
+			isDefaultWaste = (propertyValue == "1");
+		}
+		return(isDefaultWaste);
+	}
+
+
+	//***************************************************************************************
+	function WCB::GetPumpStationNumber(
+			device& ML_STAR,
+			variable& labId)
+	{
+		variable propertyValue("-1");			// value of property  
+		variable propertyKeys[];				// place to hold property keys
+		variable propertyValues[];				//	place to hold property values
+
+		propertyKeys.AddAsLast(StringConstants::pumpStationNumberKey);
+
+		ML_STAR.GetLabwareData(labId, propertyKeys, propertyValues);
+		if (0 < propertyValues.GetSize())
+		{
+			// the labware supports the key MlStarPumpStationNumber
+			propertyValue = propertyValues.GetAt(0);
+		}
+		return(propertyValue);
+	}
+
+
+	//***************************************************************************************
+	static function CheckPumpStationSettings(
+				device& ML_STAR,						// i: pipetting device
+				variable pumpStationNumber)		// i: pump station Number
+	{
+		variable isDcWashStaion(hslFalse);
+		variable rc[];										// place to hold the result values of firmware command step
+		string result;										// firmware result string
+		variable index;
+		variable fwParam("");							// parameter of firmware command
+		variable errCode(0);								// error code extracted out from firmware result string
+				
+		if(m_isSimulatorMode)
+			return(hslTrue);
+
+		fwParam = FwParam::ep + pumpStationNumber;		
+
+		rc = ExecuteFirmwareCommand(ML_STAR, FwCommand::PumpUnitRequestType, fwParam);
+		result = rc.GetAt(rc.GetSize() - 1);
+
+		errCode = FirmwareErrorCheck(result);
+		if(errCode != 0)
+		{
+			if(errCode == C0ErrorCode::canError)
+			{
+				string s;
+				s = StringTable::Load(IDE::canError);
+				StrReplace(s, "%s", result);
+				Error::RaiseEx(IDE::canError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+			}
+			return(hslFalse);
+		}
+
+		index = result.Find(FwParam::et);
+
+		if("1" == result.Mid(index+2, 1))
+			isDcWashStaion = hslTrue;
+
+		return(isDcWashStaion);
+	}
+
+
+	//***************************************************************************************
+	static function GetWashSettings(
+		device& ML_STAR,
+		variable& labId,
+		variable& blowOutVol,
+		variable& washVol,
+		variable& aspSpeed,
+		variable& dispSpeed,
+		variable& swapSpeed,
+		variable& soakTime,
+		variable& immersionDepth,
+		variable tipType)
+	{
+		// initialize output parameters
+		blowOutVol = "";
+		washVol = "";
+		aspSpeed = "";
+		dispSpeed = "";
+		swapSpeed = "";
+		soakTime = "";
+
+		// check if the labware is a wash station
+		if (WCB::IsDcWashStation(ML_STAR, labId))
+		{
+			variable index;											// loop counter
+			variable size;												// array size
+			variable instrumentId("");								// instrument id
+
+			// get instrument name 
+			instrumentId = ML_STAR.GetInstrumentName();
+
+			// activate error handler
+			onerror goto Unexpected;
+
+			// verify array sizes
+			size = dcInstrumentIdArr.GetSize();
+
+			// the labware is a wash station
+			// iterate over instrument labware pairs
+			for (index = 0; index < size; index++)
+			{
+				if (dcInstrumentIdArr.GetAt(index) == instrumentId && 
+					dcLabwareIdArr.GetAt(index) == labId)
+					// found a matching instrument labware pair
+					break;
+			}
+			if (index < size && 0 < size)
+			{
+				// get the settings for the instrument labware pair
+				blowOutVol = dcBlowOutVolumeArr.GetAt(index);
+				washVol = dcWashVolumeArr.GetAt(index);
+				aspSpeed = dcAspirationFlowRateArr.GetAt(index);
+				dispSpeed = dcDispensationFlowRateArr.GetAt(index);
+				swapSpeed = dcSwapSpeedArr.GetAt(index);
+				soakTime = dcSoakTimeArr.GetAt(index);
+				immersionDepth = dcImmersionDepthArr.GetAt(index);
+
+				return(hslTrue);
+			}
+			else
+			{
+				// set default values depending of tip type
+				if(tipType == TipType::needle10ul)
+				{
+					blowOutVol = WCB::Needle10ulDefault::blowOutVolume;
+					washVol = WCB::Needle10ulDefault::washVolume;
+					aspSpeed = WCB::Needle10ulDefault::aspirationFlowRate;
+					dispSpeed = WCB::Needle10ulDefault::dispensationFlowRate;
+					swapSpeed = WCB::Needle10ulDefault::swapSpeed;
+					soakTime = WCB::Needle10ulDefault::soakTime;
+					immersionDepth = WCB::Needle10ulDefault::immersionDepth;
+
+					return(hslTrue);
+				}
+				else if(tipType == TipType::needle300ul)
+				{
+					blowOutVol = WCB::Needle300ulDefault::blowOutVolume;
+					washVol = WCB::Needle300ulDefault::washVolume;
+					aspSpeed = WCB::Needle300ulDefault::aspirationFlowRate;
+					dispSpeed = WCB::Needle300ulDefault::dispensationFlowRate;
+					swapSpeed = WCB::Needle300ulDefault::swapSpeed;
+					soakTime = WCB::Needle300ulDefault::soakTime;
+					immersionDepth = WCB::Needle300ulDefault::immersionDepth;
+
+					return(hslTrue);
+				}
+				else if(tipType == TipType::needle1000ul)
+				{
+					blowOutVol = WCB::Needle1000ulDefault::blowOutVolume;
+					washVol = WCB::Needle1000ulDefault::washVolume;
+					aspSpeed = WCB::Needle1000ulDefault::aspirationFlowRate;
+					dispSpeed = WCB::Needle1000ulDefault::dispensationFlowRate;
+					swapSpeed = WCB::Needle1000ulDefault::swapSpeed;
+					soakTime = WCB::Needle1000ulDefault::soakTime;
+					immersionDepth = WCB::Needle1000ulDefault::immersionDepth;
+
+					return(hslTrue);
+				}
+			}
+		}
+
+		return(hslTrue);
+
+		Unexpected:
+		{			
+			Error::RaiseLast();
+		}
+	}
+
+
+	//***************************************************************************************
+	static function GetTipType(			// returns the tip type if supported, else an error raises
+		device& ML_STAR,
+		sequence& tipPickupSequence)
+	{
+		// synthesize tip type out of labware contained in tipPickupSequence
+
+		variable index;					// loop counter
+		variable tipType("");			// tip type
+		variable labwareId("");			// labware id
+		variable currentPosBak;			// backup of current position
+		variable propertyKeys[];		// place to hold property keys
+		variable propertyValues[];		// place to hold property values
+
+		// backup current position
+		currentPosBak = tipPickupSequence.GetCurrentPosition();
+
+		// iterate over labware contained in tipPickupSequence
+		propertyKeys.AddAsLast(StringConstants::tipRackKey);
+		for (index = tipPickupSequence.SetCurrentPosition(1); 
+			  0 < index; 
+			  index = tipPickupSequence.Increment(tipPickupSequence.GetPositionCountForCurrLabware()))
+		{
+			labwareId = tipPickupSequence.GetLabwareId();
+			ML_STAR.GetLabwareData(labwareId, propertyKeys, propertyValues);
+			if (0 < propertyValues.GetSize())
+			{
+				// found a labware supporting key MlStarTipRack
+				variable propertyValue;
+				propertyValue = propertyValues.GetAt(0);
+				
+				if (TipTypeNum::needle10ul == propertyValue)
+				{
+					tipType = TipType::needle10ul;
+					break;
+				}
+				if (TipTypeNum::needle300ul == propertyValue)
+				{
+					tipType = TipType::needle300ul;
+					break;
+				}
+				if (TipTypeNum::needle1000ul == propertyValue)
+				{
+					tipType = TipType::needle1000ul;
+					break;
+				}
+			}
+		}
+
+		// restore current position 
+		tipPickupSequence.SetCurrentPosition(currentPosBak);
+
+		if ("" == tipType)
+			// tip type not supported
+			Error::Raise(IDE::invalidTipType, GetFileName(), GetFunctionName(), GetLineNumber());
+
+		return (tipType);
+	}
+
+
+	//***************************************************************************************
+	static function LocoTipPickUp(
+		device& ML_STAR,
+		sequence& needleSequence,
+		variable& channelPattern,
+		variable channelUse,
+		variable blowOutVol,
+		variable& tipType)
+	{
+		variable xPos[];									// place to hold the x value of sequence position
+		variable yPos[];									// place to hold the y value of sequence position
+		variable chnActiv[];								// place to hold the channel pattern
+		variable index;									
+		variable length;									// the length of a string
+		string chnPattern("");							// channel pattern as string
+		variable fwParam("");							// parameter of firmware command
+		variable tempStr("");							
+		variable tempStr2("");
+		variable chnCount(0);							
+		variable rc[];										// place to hold the result values of firmware command step
+		string result;										// firmware result string
+		variable errCode(0);								// error code extracted out from firmware result string
+		variable currentPosBak;							// backup of current sequence position
+		variable nbrOfUsedPos(0);						// number of position, used for the step
+
+		// Look up for activated channels
+		chnPattern = channelPattern;
+		length = chnPattern.GetLength();
+		for (index = 0; index < m_numberOfChannels; index++)
+		{
+			if ("1" == chnPattern.Mid(index, 1))
+				chnActiv.AddAsLast(1);
+			else if ("0" == chnPattern.Mid(index, 1))
+				chnActiv.AddAsLast(0);
+			else
+				Error::Raise(IDE::invalidChannelPattern, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+
+		// backup current position
+		currentPosBak = needleSequence.GetCurrentPosition();
+
+		// get positions of needle sequence for all channels
+		for(index = 0; index < m_usedSeqPosFromStep; index++)
+		{
+			variable pos[];
+			pos.SetSize(0);
+		
+			ML_STAR.GetLabwarePosition( needleSequence.GetLabwareId(), pos, needleSequence.GetPositionId() );
+			xPos.AddAsLast( NormalizeParam(pos.GetAt(0), WidthOfFwParams::fiveChars) );
+			yPos.AddAsLast( NormalizeParam(pos.GetAt(1), WidthOfFwParams::fourChars) );
+
+			needleSequence.Increment(1);
+		}
+
+		// restore current position
+		needleSequence.SetCurrentPosition(currentPosBak);
+
+		fwParam = "";
+		
+		// setup tip pattern
+		fwParam = FwParam::tm + PrepareChannelPattern(channelPattern);
+		 
+		// setup tip type and params for begin and end of tip picking up process
+		if(tipType == TipType::needle10ul)
+		{
+			fwParam = 	fwParam +
+							FwParam::tt + TipTypeNum::needle10ul +
+							StringConstants::TW_tp_needle10 +
+							StringConstants::TW_tz_needle10;
+		}
+		else if(tipType == TipType::needle300ul)
+		{
+			fwParam = 	fwParam +
+							FwParam::tt + TipTypeNum::needle300ul +
+							StringConstants::TW_tp_needle300 +
+							StringConstants::TW_tz_needle300;
+		}
+		else if(tipType == TipType::needle1000ul)
+		{
+			fwParam = 	fwParam +
+							FwParam::tt + TipTypeNum::needle1000ul +
+							StringConstants::TW_tp_needle1000 +
+							StringConstants::TW_tz_needle1000;
+		}
+
+		// setup x- and y-position
+		tempStr = FwParam::xp;
+		tempStr2 = FwParam::yp;
+
+		for(index = 0; index < m_numberOfChannels; index++)
+		{
+			if(chnActiv.GetAt(index) == 1)
+			{
+				if(channelUse == ChannelUse::channelPattern)
+				{
+					tempStr = tempStr + xPos.GetAt(index);
+					tempStr2 = tempStr2 + yPos.GetAt(index);
+				}
+				else
+				{									
+					tempStr = tempStr + xPos.GetAt(chnCount);
+					tempStr2 = tempStr2 + yPos.GetAt(chnCount);
+					chnCount++;
+				}
+			}
+			else
+			{
+				tempStr = tempStr + NormalizeParam(0, WidthOfFwParams::fiveChars);
+				tempStr2 = tempStr2 + NormalizeParam(0, WidthOfFwParams::fourChars);
+			}
+
+			if((index + 1) < m_numberOfChannels)
+			{
+				tempStr = tempStr + StringConstants::blank;
+				tempStr2 = tempStr2 + StringConstants::blank;
+			}
+		}
+
+		fwParam = 	fwParam + 
+						tempStr +
+						tempStr2 +
+						FwParam::ba + blowOutVol + StringConstants::ampersand +
+						StringConstants::LW_th;
+
+		// LOCO Needle Pick up step C0TW
+		rc = ExecuteFirmwareCommand(ML_STAR, FwCommand::DcWashTipPickUp, fwParam);
+		result = rc.GetAt(rc.GetSize() - 1);
+		errCode = FirmwareErrorCheck(result);
+
+		return (errCode);
+	}
+
+
+	//***************************************************************************************
+	static function LocoTipEject(
+		device& ML_STAR,
+		sequence& needleSequence,
+		variable& channelPattern,
+		variable channelUse,
+		variable blowOutVol,
+		variable& tipType)
+	{
+		variable xPos[];									// place to hold the x value of sequence position
+		variable yPos[];									// place to hold the y value of sequence position
+		variable chnActiv[];								// place to hold the channel pattern
+		variable index;									
+		variable length;									// the length of a string
+		string chnPattern("");							// channel pattern as string
+		variable fwParam("");							// parameter of firmware command
+		variable tempStr("");							
+		variable tempStr2("");
+		variable chnCount(0);							
+		variable rc[];										// place to hold the result values of firmware command step
+		string result;										// firmware result string
+		variable errCode(0);								// error code extracted out from firmware result string
+		variable currentPosBak;							// backup of current sequence position
+
+		// Look up for activated channels
+		chnPattern = channelPattern;
+		length = chnPattern.GetLength();
+		for (index = 0; index < m_numberOfChannels; index++)
+		{
+			if ("1" == chnPattern.Mid(index, 1))
+				chnActiv.AddAsLast(1);
+			else if ("0" == chnPattern.Mid(index, 1))
+				chnActiv.AddAsLast(0);
+			else
+				Error::Raise(IDE::invalidChannelPattern, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+
+		// backup current position
+		currentPosBak = needleSequence.GetCurrentPosition();
+
+		// get positions of needle sequence
+		for(index = 0; index < m_usedSeqPosFromStep; index++)
+		{
+			variable pos[];
+			pos.SetSize(0);
+		
+			ML_STAR.GetLabwarePosition( needleSequence.GetLabwareId(), pos, needleSequence.GetPositionId() );
+			xPos.AddAsLast( NormalizeParam(pos.GetAt(0), WidthOfFwParams::fiveChars) );
+			yPos.AddAsLast( NormalizeParam(pos.GetAt(1), WidthOfFwParams::fourChars) );
+
+			needleSequence.Increment(1);
+		}
+
+		// restore current position
+		needleSequence.SetCurrentPosition(currentPosBak);
+
+		fwParam = "";
+		
+		// setup tip pattern
+		fwParam = FwParam::tm + PrepareChannelPattern(channelPattern);
+		 
+		// setup params for begin and end of tip deposit process
+		if(tipType == TipType::needle10ul)
+		{
+			fwParam = 	fwParam +
+							StringConstants::TR_tp_needle10 +
+							StringConstants::TR_tz_needle10;
+		}
+		else if(tipType == TipType::needle300ul)
+		{
+			fwParam = 	fwParam +
+							StringConstants::TR_tp_needle300 +
+							StringConstants::TR_tz_needle300;
+		}
+		else if(tipType == TipType::needle1000ul)
+		{
+			fwParam = 	fwParam +
+							StringConstants::TR_tp_needle1000 +
+							StringConstants::TR_tz_needle1000;
+		}
+
+		// setup x- and y-position
+		tempStr = FwParam::xp;
+		tempStr2 = FwParam::yp;
+
+		for(index = 0; index < m_numberOfChannels; index++)
+		{
+			if(chnActiv.GetAt(index) == 1)
+			{
+				if(channelUse == ChannelUse::channelPattern)
+				{
+					tempStr = tempStr + xPos.GetAt(index);
+					tempStr2 = tempStr2 + yPos.GetAt(index);
+				}
+				else
+				{									
+					tempStr = tempStr + xPos.GetAt(chnCount);
+					tempStr2 = tempStr2 + yPos.GetAt(chnCount);
+					chnCount++;
+				}
+			}
+			else
+			{
+				tempStr = tempStr + NormalizeParam(0, WidthOfFwParams::fiveChars);
+				tempStr2 = tempStr2 + NormalizeParam(0, WidthOfFwParams::fourChars);
+			}
+
+			if((index + 1) < m_numberOfChannels)
+			{
+				tempStr = tempStr + StringConstants::blank;
+				tempStr2 = tempStr2 + StringConstants::blank;
+			}
+		}
+
+		fwParam = 	fwParam + 
+						tempStr +
+						tempStr2 +
+						FwParam::ba + blowOutVol + StringConstants::ampersand +
+						StringConstants::LW_th;
+
+		// Execute Tip Eject step C0TR
+		rc = ExecuteFirmwareCommand(ML_STAR, FwCommand::TipRelease, fwParam);
+		result = rc.GetAt(rc.GetSize() - 1);
+		errCode = FirmwareErrorCheck(result);
+
+		return (errCode);
+	}
+
+
+	//***************************************************************************************
+	static function LocoNeedleWash(
+		device& ML_STAR,
+		sequence& washSequence, 
+		variable& channelPattern,
+		variable channelUse,
+		variable washCycles,
+		variable blowOutVol,
+		variable washVol,
+		variable aspSpeed,
+		variable dispSpeed,
+		variable swapSpeed,
+		variable soakTime,
+		variable washHeight)
+	{
+		variable xPos[];									// place to hold the x value of sequence position
+		variable yPos[];									// place to hold the y value of sequence position
+		variable chnActiv[];								// place to hold the channel pattern
+		variable index;									
+		variable length;									// the length of a string
+		string chnPattern("");							// channel pattern as string
+		variable fwParam("");							// parameter of firmware command
+		variable tempStr("");							
+		variable tempStr2("");
+		variable chnCount(0);							
+		variable rc[];										// place to hold the result values of firmware command step
+		string result;										// firmware result string
+		variable errCode(0);								// error code extracted out from firmware result string
+		variable currentPosBak;							// backup of current sequence position
+		variable tipType;									// tip type
+
+		// Look up for activated channels within the pattern
+		chnPattern = channelPattern;
+
+		for (index = 0; index < m_numberOfChannels; index++)
+		{
+			if ("1" == chnPattern.Mid(index, 1))
+				chnActiv.AddAsLast(1);
+			else if ("0" == chnPattern.Mid(index, 1))
+				chnActiv.AddAsLast(0);
+			else
+				Error::Raise(IDE::invalidChannelPattern, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+	
+		// backup current position
+		currentPosBak = washSequence.GetCurrentPosition();
+		
+		// get positions of wash sequence
+		for(index = 0; index < m_usedSeqPosFromStep; index++)
+		{
+			variable pos[];
+			pos.SetSize(0);
+		
+			ML_STAR.GetLabwarePosition( washSequence.GetLabwareId(), pos, washSequence.GetPositionId() );
+			xPos.AddAsLast( NormalizeParam(pos.GetAt(0), WidthOfFwParams::fiveChars) );
+			yPos.AddAsLast( NormalizeParam(pos.GetAt(1), WidthOfFwParams::fourChars) );
+
+			washSequence.Increment(1);
+		}
+
+		// restore current position
+		washSequence.SetCurrentPosition(currentPosBak);
+
+		fwParam = "";
+		
+		// setup tip pattern
+		fwParam = FwParam::tm + PrepareChannelPattern(channelPattern);
+
+		// setup x- and y-position
+		tempStr = FwParam::xp;
+		tempStr2 = FwParam::yp;
+
+		for(index = 0; index < m_numberOfChannels; index++)
+		{
+			if(chnActiv.GetAt(index) == 1)
+			{
+				if(channelUse == ChannelUse::channelPattern)
+				{
+					tempStr = tempStr + xPos.GetAt(index);
+					tempStr2 = tempStr2 + yPos.GetAt(index);
+				}
+				else
+				{									
+					tempStr = tempStr + xPos.GetAt(chnCount);
+					tempStr2 = tempStr2 + yPos.GetAt(chnCount);
+					chnCount++;
+				}
+			}
+			else
+			{
+				tempStr = tempStr + NormalizeParam(0, WidthOfFwParams::fiveChars);
+				tempStr2 = tempStr2 + NormalizeParam(0, WidthOfFwParams::fourChars);
+			}
+
+			if((index + 1) < m_numberOfChannels)
+			{
+				tempStr = tempStr + StringConstants::blank;
+				tempStr2 = tempStr2 + StringConstants::blank;
+			}
+		}
+
+		fwParam = 	fwParam + 
+						tempStr +
+						tempStr2 +
+						StringConstants::LW_th +
+						FwParam::zl + washHeight + StringConstants::ampersand +
+						FwParam::av + washVol + StringConstants::ampersand +
+						FwParam::as + aspSpeed + StringConstants::ampersand +
+						FwParam::ds + dispSpeed + StringConstants::ampersand +
+						FwParam::de + swapSpeed + StringConstants::ampersand +
+						FwParam::sa + soakTime + 
+						FwParam::dc + washCycles +						
+						StringConstants::LW_te;
+		
+		// LOCO Wash step C0LW
+		rc = ExecuteFirmwareCommand(ML_STAR, FwCommand::DcWashProcedure, fwParam);
+		result = rc.GetAt(rc.GetSize() - 1);
+		errCode = FirmwareErrorCheck(result);
+	
+		return (errCode);
+	}
+
+	//***************************************************************************************
+	static function DispenseRestVol(
+		device& ML_STAR,
+		sequence& needleSequence, 
+		sequence& restVolSequence,
+		variable& channelPattern,
+		variable channelUse)
+	{
+		variable traceSource;							// source for formated trace
+		variable traceAction;							// action for formated trace
+		
+		variable capacitiveLLD (0);
+		variable fixHeight(0);
+		variable dispenseMode(NumberConstants::dispMode_BlowoutTip);	
+
+		traceSource = StringTable::Load(IDS::traceSource);
+		traceAction = StringTable::Load(IDS::traceNeedleWash);
+
+		// activate error handler
+		onerror goto DispenseErr;
+
+		// balance needle and waste sequence (current restVolSequence = current needleSequence)
+		// only if the rest volume sequence is the waste from the double chamber wash station
+		if(WCB::IsDcWasherWaste(ML_STAR, restVolSequence.GetLabwareId()) )
+		{
+			restVolSequence.SetCurrentPosition(needleSequence.GetCurrentPosition() );
+			capacitiveLLD = 0;	// disable capacitiveLLD
+			fixHeight = NumberConstants::fixHeightFromContainerBottom;
+		}
+		else
+		if(WCB::IsDefaultWaste(ML_STAR, restVolSequence.GetLabwareId()) )
+		{
+			capacitiveLLD = 0;	// disable capacitiveLLD
+			fixHeight = NumberConstants::fixHeightOnDefaultWaste;
+		}
+		else // dispense to source sequence
+		{
+			capacitiveLLD = 2;	// enable capacitiveLLD	
+			fixHeight = 0;
+		}
+		
+		// Restvolume dispense
+		// ****!!! DO NOT EDIT THIS DISPENSE STEP (V 3.2) !!!**** 
+		// since V4.0 the HxGruCommand module is rather restrictive (liquid class -> dispense mode must match)
+		ML_STAR.Dispense( "8cd2f1cd_ae26_4223_9afcc3ca42f0b4e2" );
+
+		return;
+		
+		DispenseErr:
+		{
+			variable major, minor, _error;
+
+			//	handled GRU Command Errors:
+			// Error code  0x28 - 0x2 - 0x80a (Cannot dispense before aspiration. One or more channels were not used in the previous aspiration
+			// Error code  0x28 - 0x1 - 0x80f (Definition for liquid class '' is missing)  
+			// Error code	0x28 - 0x1 - 0x826 (Different dispense mode used...)
+
+			major = ErrMajor(err.GetId());
+			minor = ErrMinor(err.GetId());
+			_error = ErrCode(err.GetId());
+
+			#ifdef _DEBUG
+			Trace("HSLDcWasher library - DispenseErr - Major: ", major);
+			Trace("HSLDcWasher library - DispenseErr - Minor: ", minor);
+			Trace("HSLDcWasher library - DispenseErr - ErrCode: ", _error);
+			#endif
+			
+			if(NumberConstants::gruMajorCode == major &&
+				NumberConstants::gruMinorCode_2 == minor &&
+				NumberConstants::gruErrorCode_NoAspBeforDisp == _error)
+			{
+				FormatTrace(traceSource, traceAction, TraceStatus::progress, StringTable::Load(IDS::ignoredDispErr));
+				resume next;
+			}
+
+			if(NumberConstants::gruMajorCode == major &&
+				NumberConstants::gruMinorCode_1 == minor &&
+				NumberConstants::gruErrorCode_NoLiquidClassDef == _error)
+			{
+				FormatTrace(traceSource, traceAction, TraceStatus::progress, StringTable::Load(IDS::ignoredDispErr));
+				resume next;
+			}
+
+			if(NumberConstants::gruMajorCode == major &&
+				NumberConstants::gruMinorCode_1 == minor &&
+				NumberConstants::gruErrorCode_DiffDispMode == _error)
+			{
+				MessageBox(StringTable::Load(IDS::wrongDispenseModeError), 
+					StringTable::Load(IDS::titleWrongDispenseModeError), hslError);
+			}
+
+			Error::RaiseLast();
+		}
+	}
+
+	//***************************************************************************************
+	static function TrackData(variable& channelPattern, variable actionState, variable instrumentName)
+	{
+		if(m_isSampleTrackingEnabled)
+		{
+			variable index;
+			variable chnActiv[];
+			variable elementId;
+			variable elementAccessName;
+			string sChnPattern(channelPattern);
+			object actionWash; 						// HxPars object
+			variable actionCount(0); 				// number of actions to be tracked
+
+			actionWash.CreateObject("HXPARAMSLib.HxPars");
+
+			for (index = 0; index < m_numberOfChannels; index++)
+			{
+				if ("1" == sChnPattern.Mid(index, 1))
+					chnActiv.AddAsLast(1);
+				else if ("0" == sChnPattern.Mid(index, 1))
+					chnActiv.AddAsLast(0);
+				else
+					Error::Raise(IDE::invalidChannelPattern, GetFileName(), GetFunctionName(), GetLineNumber());
+			}
+
+			for(index = 0; index < m_numberOfChannels; index++)
+			{
+				if(chnActiv.GetAt(index) == 1)
+				{
+					elementAccessName = instrumentName + "\\" + "Channel\\" + IStr(index + 1);
+					
+					elementId = m_dcWashTrackerObject.GetElementID(elementAccessName);
+					
+					if(elementId > 0)
+					{
+						actionCount++;
+
+						// add tracker data to pars package
+						actionWash.Add(actionCount, m_dcWashTrackerObject.HxVectorDbParsKey_ActionPars_ActionCount);
+
+						actionWash.Add(elementAccessName,
+													m_dcWashTrackerObject.HxVectorDbParsKey_ActionPars_Actions,
+													actionCount,
+													m_dcWashTrackerObject.HxVectorDbParsKey_ActionPars_Target);
+
+						actionWash.Add(m_dcWashTrackerObject.HxVectorDbLabwareHandling_IfNotExists_Error,
+													m_dcWashTrackerObject.HxVectorDbParsKey_ActionPars_Actions,
+													actionCount,
+													m_dcWashTrackerObject.HxVectorDbParsKey_ActionPars_TargetLabwareHandling);
+			
+						actionWash.Add(actionState,
+													m_dcWashTrackerObject.HxVectorDbParsKey_ActionPars_Actions,
+													actionCount,
+													m_dcWashTrackerObject.HxVectorDbParsKey_ActionPars_ActionState);
+			
+						actionWash.Add(hslFalse,
+													m_dcWashTrackerObject.HxVectorDbParsKey_ActionPars_Actions,
+													actionCount,
+													m_dcWashTrackerObject.HxVectorDbParsKey_ActionPars_ErrorAvailable);
+					}
+					else
+						Error::Raise(IDE::noElementFound, GetFileName(), GetFunctionName(), GetLineNumber());
+				}
+			}
+
+			if(actionWash.Count > 0)
+				m_dcWashTrackerObject.TrackAction_Wash(actionWash);
+		}
+	}
+
+	/****************************************************************************************
+	 *	
+	 * Interface functions
+	 *
+	 ****************************************************************************************/
+
+	/****************************************************************************************
+	 * DC Washstation needle wash settings
+	 ****************************************************************************************/
+
+	function WashSettings(
+		device& ML_STAR,
+		sequence& needleSequence,
+		variable washVolume,
+		variable blowOutVolume,
+		variable aspirationFlowRate,
+		variable dispensationFlowRate,
+		variable swapSpeed,
+		variable soakTime,
+		variable immersionDepth) 
+	{
+		variable labwareIds[];										// place to hold unique labware ids of the sequence 
+		variable index1;												// loop counter
+		variable index2;												// loop counter
+		variable size1;												// array size
+		variable size2;												// array size
+		variable instrumentId("");									// instrument id
+		variable labId("");											// labware id
+
+		variable isWashStation(hslFalse);						// if 'true', the given labware is a wash station
+		variable isNeedleRack(hslFalse);							// if 'true', the given labware is a needle rack
+
+		variable traceSource;										// source for formated trace
+		variable traceAction;										// action for formated trace
+
+		InitHSLStarDcWasherLib(ML_STAR);
+		PrimeDCWashStation(ML_STAR, needleSequence);
+
+		// activate error handler
+		onerror goto Unexpected;
+
+		// get access to global data
+		SynEnterCriticalSection(m_hslStarDcWasherLibCs);
+
+		traceSource = StringTable::Load(IDS::traceSource);
+		traceAction = StringTable::Load(IDS::traceWashSettings);
+		FormatTrace(traceSource, traceAction, TraceStatus::start);
+		
+		// parameter check
+		Util2::CheckValueTypeAndRange(
+			washVolume, Util2::ValueType::Float, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "washVolume");
+
+		Util2::CheckValueTypeAndRange(
+			blowOutVolume, Util2::ValueType::Float, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "blowOutVolume");
+
+		Util2::CheckValueTypeAndRange(
+			aspirationFlowRate, Util2::ValueType::Float, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "aspirationFlowRate");
+
+		Util2::CheckValueTypeAndRange(
+			dispensationFlowRate, Util2::ValueType::Float, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "dispensationFlowRate");
+
+		Util2::CheckValueTypeAndRange(
+			swapSpeed, Util2::ValueType::Float, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "swapSpeed");
+
+		Util2::CheckValueTypeAndRange(
+			soakTime, Util2::ValueType::Integer, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "soakTime");
+
+		Util2::CheckValueTypeAndRange(
+			immersionDepth, Util2::ValueType::Float, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "immersionDepth");
+
+		// look up for supported needle type
+		GetTipType(ML_STAR, needleSequence);
+		
+		// get instrument name 
+		instrumentId = ML_STAR.GetInstrumentName();
+
+		// get unique labware ids of the sequence 
+		needleSequence.GetLabwareIds(labwareIds);
+
+		// verify array sizes
+		size1 = labwareIds.GetSize();
+		size2 = dcInstrumentIdArr.GetSize();
+		
+		// iterate over unique labware ids of the sequence 
+		for (index1 = 0; index1 < size1; index1++)
+		{
+
+			labId = labwareIds.GetAt(index1);
+			
+			isWashStation = WCB::IsDcWashStation(ML_STAR, labId);
+			isNeedleRack = WCB::IsNeedleRack(ML_STAR, labId);
+
+			// check if the labware is a wash station or a needle rack
+			if (isWashStation || isNeedleRack)
+			{
+				// the labware is a wash station or a needle rack,
+				// iterate over instrument labware pairs
+				for (index2 = 0; index2 < size2; index2++)
+				{
+					if (dcInstrumentIdArr.GetAt(index2) == instrumentId && 
+						dcLabwareIdArr.GetAt(index2) == labId)
+						// found a matching instrument labware pair
+						break;
+				}
+				if (size2 <= index2)
+				{
+					// didn't found a matching instrument labware pair,
+					// register new instrument labware pair
+					dcInstrumentIdArr.AddAsLast(instrumentId);
+					dcLabwareIdArr.AddAsLast(labId);
+					dcWashVolumeArr.AddAsLast(NormalizeParam(washVolume, WidthOfFwParams::fiveChars));
+					dcBlowOutVolumeArr.AddAsLast(NormalizeParam(blowOutVolume, WidthOfFwParams::fourChars));
+					dcAspirationFlowRateArr.AddAsLast(NormalizeParam(aspirationFlowRate, WidthOfFwParams::fourChars));
+					dcDispensationFlowRateArr.AddAsLast(NormalizeParam(dispensationFlowRate, WidthOfFwParams::fourChars));
+					dcSwapSpeedArr.AddAsLast(NormalizeParam(swapSpeed, WidthOfFwParams::fourChars));
+					dcSoakTimeArr.AddAsLast(NormalizeParam(soakTime, WidthOfFwParams::fourChars));
+					// do not normalize immersion depth!
+					dcImmersionDepthArr.AddAsLast(immersionDepth);
+
+					size2 = dcInstrumentIdArr.GetSize();
+				}
+				else // set the settings for the instrument labware pair
+				{
+					dcWashVolumeArr.SetAt(index2, NormalizeParam(washVolume, WidthOfFwParams::fiveChars));
+					dcBlowOutVolumeArr.SetAt(index2, NormalizeParam(blowOutVolume, WidthOfFwParams::fourChars));
+					dcAspirationFlowRateArr.SetAt(index2, NormalizeParam(aspirationFlowRate, WidthOfFwParams::fourChars));
+					dcDispensationFlowRateArr.SetAt(index2, NormalizeParam(dispensationFlowRate, WidthOfFwParams::fourChars));
+					dcSwapSpeedArr.SetAt(index2, NormalizeParam(swapSpeed, WidthOfFwParams::fourChars));
+					dcSoakTimeArr.SetAt(index2, NormalizeParam(soakTime, WidthOfFwParams::fourChars));
+					// do not normalize immersion depth!
+					dcImmersionDepthArr.AddAsLast(immersionDepth);
+				}
+				FormatTrace(traceSource, traceAction, TraceStatus::progress, labId);
+			}
+		}
+
+		// release access to global data
+		SynLeaveCriticalSection(m_hslStarDcWasherLibCs);
+
+		FormatTrace(traceSource, traceAction, TraceStatus::complete);
+
+		return;
+
+		Unexpected:
+		{
+			// release access to global data
+			SynLeaveCriticalSection(m_hslStarDcWasherLibCs);
+		
+			FormatTrace(traceSource, traceAction, TraceStatus::completeWithError);
+			Error::RaiseLast();
+		}
+	}
+
+
+	/****************************************************************************************
+	 * DC Washstation empty and/or fill up wash chamber
+	 ****************************************************************************************/
+	function EmptyFillWashChamber(
+		device& ML_STAR,
+		sequence& needleSequence,
+		variable refill)
+	{
+		variable traceSource;							// source for formated trace
+		variable traceAction;							// action for formated trace
+		string errorMsg;									// error message
+
+		variable fwParam("");							// parameter of firmware command
+		variable pumpUnitNode("");						// node of installed dc wash pump unit
+		variable bSucceeded(hslFalse);				// true if function succeeds
+		variable bRepeat(hslTrue);						// true if command shall be repeated
+		variable errCode(0);								// error code extracted out from firmware result string
+		variable rc[];										// place to hold the result values of firmware command step
+		string result;										// firmware result string
+
+		InitHSLStarDcWasherLib(ML_STAR);
+
+		// activate error handler
+		onerror goto Unexpected;
+
+		traceSource = StringTable::Load(IDS::traceSource);
+		traceAction = StringTable::Load(IDS::traceEmptyFillWashChamber);
+		FormatTrace(traceSource, traceAction, TraceStatus::start);
+
+		// parameter check
+		Util2::CheckValueTypeAndRange(
+			refill, Util2::ValueType::Integer, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "refill");
+		
+		if(!WCB::IsDcWashStation(ML_STAR, needleSequence.GetLabwareId()))
+		{
+			// it's not a DC wash station
+			Error::Raise(IDE::missingLabwareProperty, GetFileName(), GetFunctionName(), GetLineNumber());		
+		}
+
+		pumpUnitNode = WCB::GetPumpStationNumber(ML_STAR, needleSequence.GetLabwareId());
+		if(pumpUnitNode == StringConstants::emptyString)
+		{
+			string s;			
+			s = StringTable::Load(IDE::missingLabwareProperty);
+			StrReplace(s, "%s1", StringConstants::pumpStationNumberKey);
+			StrReplace(s, "%s2", needleSequence.GetLabwareId());
+			Error::RaiseEx(IDE::missingLabwareProperty, s, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+
+		// request pump settings
+		if(!CheckPumpStationSettings(ML_STAR, pumpUnitNode))
+		{
+			// wrong configured pump station
+			Error::Raise(IDE::wrongPumpUnitType, GetFileName(), GetFunctionName(), GetLineNumber());				
+		}
+
+		// setup firmware parameter
+		fwParam = FwParam::ep + pumpUnitNode + FwParam::ee + IStr(refill) + FwParam::ef + DrainMode::allChambers;
+
+		while(bRepeat)
+		{
+
+			rc = ExecuteFirmwareCommand(ML_STAR, FwCommand::PumpUnitDrainRefill, fwParam);
+			result = rc.GetAt(rc.GetSize() - 1);
+			errCode = FirmwareErrorCheck(result);
+
+			if(errCode == 0)
+			{
+				bRepeat = hslFalse;
+				bSucceeded = hslTrue;
+				FormatTrace(traceSource, traceAction, TraceStatus::complete);
+			}
+			else
+			{
+				variable message, messageEx, title, type, answer;
+
+				message = StringTable::Load(IDE::errorDuringEmptyFillProcedure) + Format::lf + Format::lf;
+			
+				// look up for syntax error
+				if(errCode == C0ErrorCode::syntaxError)
+				{
+					string s;
+					s = StringTable::Load(IDE::syntaxError);
+					StrReplace(s, "%s", result);
+					Error::RaiseEx(IDE::syntaxError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+				}
+
+				else
+				if(errCode == C0ErrorCode::hardwareError ||
+					errCode == DCWasherErrCode::ls1NotSwitchToInactive ||
+					errCode == DCWasherErrCode::ls2NotSwitchToInactive)
+				{
+					messageEx = StringTable::Load(IDE::hardwareError);
+					message = message + messageEx;
+					FormatTrace(traceSource, traceAction, TraceStatus::error_, StringTable::Load(IDE::hardwareError));
+				}
+
+				else
+				if(errCode == C0ErrorCode::noWashFluidError ||
+					errCode == DCWasherErrCode::ls1NotSwitchToActive ||
+					errCode == DCWasherErrCode::ls2NotSwitchToActive)
+				{
+					messageEx = StringTable::Load(IDE::noWashFluidError);
+					message = message + messageEx;
+					FormatTrace(traceSource, traceAction, TraceStatus::error_, StringTable::Load(IDE::noWashFluidError));
+				}
+
+				else
+				if(errCode == C0ErrorCode::canError)
+				{
+					string s;
+					s = StringTable::Load(IDE::canError);
+					StrReplace(s, "%s", result);
+					Error::RaiseEx(IDE::canError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+				}
+
+				else
+				if(errCode == DCWasherErrCode::parallelismLevel0 ||
+					errCode == DCWasherErrCode::parallelismLevel1)
+				{
+					string s;
+					s = StringTable::Load(IDE::parallelismError);
+					StrReplace(s, "%s", result);
+					Error::RaiseEx(IDE::parallelismError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+				}
+
+				// any other, unexpected error
+				else
+				if(errCode != 0)
+				{
+					string s;
+					s = StringTable::Load(IDE::unexpectedError);
+					StrReplace(s, "%s", result);
+					Error::RaiseEx(IDE::unexpectedError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+				}
+
+				title = StringTable::Load(IDS::titleErrorHandling);
+				type = hslAbortRetryIgnore | hslError | hslDefButton2;
+
+				// ask user how to handle the error
+				answer = MessageBox(message, title, type);
+				
+				if(hslAbort == answer)
+				{
+					abort;
+				}
+
+				if(hslRetry == answer)
+				{
+					// trace error handling retry
+					FormatTrace(traceSource, traceAction, TraceStatus::progress, StringTable::Load(IDS::errorRetry));				
+				}
+
+				if(hslIgnore == answer)
+				{
+					// trace error ignored by user
+					FormatTrace(traceSource, traceAction, TraceStatus::completeWithError, StringTable::Load(IDS::errorIgnoredByOperator));
+					bRepeat = hslFalse;
+				}
+			}
+		}
+
+		return(bSucceeded);
+
+		Unexpected:
+		{
+			FormatTrace(traceSource, traceAction, TraceStatus::error_);
+			Error::RaiseLast();
+		}
+	}
+
+
+	/****************************************************************************************
+	 * DC Washstation needle wash
+	 ****************************************************************************************/
+	function NeedleWash(
+		device& ML_STAR,
+		sequence& needleSequence, 
+		sequence& washSequence,
+		sequence& restVolSequence,
+		variable& channelPattern,
+		variable channelUse,
+		variable fastWash,
+		variable washCycles,
+		variable mixCycles)
+	{
+		variable traceSource;							// source for formated trace
+		variable traceAction;							// action for formated trace
+		string errorMsg;									// error message
+		
+		// wash settings
+		variable blowOutVol;								// blow out volume
+		variable washVol;									// wash volume
+		variable aspSpeed;								// aspiration speed
+		variable dispSpeed;								// dispensation speed
+		variable swapSpeed;								// swap speed on leaving the liquid
+		variable soakTime;								// soak time
+		variable immersionDepth;						// immersion depth relativ from liquid level
+		variable washHeight(0.0);						// fix height where the needles will be washed within wash-chamber
+
+		variable tipType;									// tip type
+		variable rVal;										// return value of a called function
+		variable isLOCOneedlePickUp(hslFalse);		// true if the step is currently activ
+		variable isValidNeedleSequence(hslFalse);	// true if needle sequence is valid
+		variable isValidWashSequence(hslFalse);	// true if wash sequence is valid
+		variable pumpUnitNode("");						// node of installed dc wash pump unit
+		variable userIntervention(hslFalse);		// true if an error was ignored within error handling
+
+		InitHSLStarDcWasherLib(ML_STAR);
+		PrimeDCWashStation(ML_STAR, needleSequence);
+
+		// activate error handler
+		onerror goto Unexpected;
+
+		// get access to global data
+		SynEnterCriticalSection(m_hslStarDcWasherLibCs);
+
+		traceSource = StringTable::Load(IDS::traceSource);
+		traceAction = StringTable::Load(IDS::traceNeedleWash);
+		FormatTrace(traceSource, traceAction, TraceStatus::start);
+
+		// Get tip type (used for LOCO tip pick up)
+		tipType = GetTipType(ML_STAR, needleSequence);
+
+		// is valid wash sequence
+		if(!WCB::IsDcWashChamber(ML_STAR, washSequence.GetLabwareId()))
+			Error::Raise(IDE::invalidWashSequence, GetFileName(), GetFunctionName(), GetLineNumber());
+
+		// look up for pump unit node (used for refill wash chamber command)
+		pumpUnitNode = WCB::GetPumpStationNumber(ML_STAR, needleSequence.GetLabwareId());
+		if(pumpUnitNode == StringConstants::emptyString)
+		{
+			string s;			
+			s = StringTable::Load(IDE::missingLabwareProperty);
+			StrReplace(s, "%s1", StringConstants::pumpStationNumberKey);
+			StrReplace(s, "%s2", needleSequence.GetLabwareId());
+			Error::RaiseEx(IDE::missingLabwareProperty, s, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+		
+		// request pump settings
+		if(!CheckPumpStationSettings(ML_STAR, pumpUnitNode))
+		{
+			// wrong configured pump station
+			Error::Raise(IDE::wrongPumpUnitType, GetFileName(), GetFunctionName(), GetLineNumber());				
+		}
+
+		// parameter check
+		Util2::CheckValueTypeAndRange(
+			channelPattern, Util2::ValueType::String, Util2::ValueCheck::RangeStringNotEmpty, "channelPattern");
+
+		if(channelPattern != StringConstants::emptyString)
+		{
+			variable index;
+			string sChnPattern, temp;
+			
+			// check length of channel pattern (minimum = m_numberOfChannels)
+			sChnPattern = channelPattern;
+			if(sChnPattern.GetLength() < m_numberOfChannels)
+				Error::Raise(IDE::invalidLengthOfChannelPattern, GetFileName(), GetFunctionName(), GetLineNumber());
+
+			for (index = 0; index < sChnPattern.GetLength(); index++)
+			{	
+				temp = sChnPattern.Mid(index, 1);
+
+				if(IVal(temp) != 0 && IVal(temp) != 1)
+					Error::Raise(IDE::invalidChannelPattern, GetFileName(), GetFunctionName(), GetLineNumber());
+			}
+			
+			m_channelPattern = channelPattern;
+		}
+		else // activate all channels
+		{	
+			variable i;
+			for(i = 1; i <= m_numberOfChannels; i++)
+				m_channelPattern = m_channelPattern + "1";
+		}
+
+		// look up for activated channels
+		m_numberOfActivatedChannels = NumberOfActiveChannels(channelPattern);
+		// look up for the last active channel within the pattern
+		m_lastActiveChannel = GetLastActiveChannel(channelPattern);
+
+		Util2::CheckValueTypeAndRangeMinMax(
+			channelUse, Util2::ValueType::Integer, ChannelUse::first, ChannelUse::last, "channelUse");
+
+		Util2::CheckValueTypeAndRange(
+			fastWash, Util2::ValueType::Integer, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "fastWash");
+
+		Util2::CheckValueTypeAndRange(
+			washCycles, Util2::ValueType::Integer, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "washCycles");
+
+		Util2::CheckValueTypeAndRange(
+			mixCycles, Util2::ValueType::Integer, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "mixCycles");
+
+		// check if there are enough sequence positions available for this step
+		if(channelUse == ChannelUse::allSequencePositions)
+			m_usedSeqPosFromStep = m_numberOfActivatedChannels;
+		else
+			m_usedSeqPosFromStep = m_lastActiveChannel;
+
+		if( needleSequence.GetMax() - (needleSequence.GetCurrentPosition()-1) < m_usedSeqPosFromStep )
+		{
+			errorMsg = StringTable::Load(IDE::notEnoughSeqPosEx);
+			StrReplace(errorMsg, "%s", needleSequence.GetName());
+			Error::RaiseEx(IDE::notEnoughSeqPos ,errorMsg, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+
+		if( washSequence.GetMax() - (washSequence.GetCurrentPosition()-1) < m_usedSeqPosFromStep )
+		{
+			errorMsg = StringTable::Load(IDE::notEnoughSeqPosEx);
+			StrReplace(errorMsg, "%s", washSequence.GetName());
+			Error::RaiseEx(IDE::notEnoughSeqPos ,errorMsg, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+
+		if( restVolSequence.GetMax() - (restVolSequence.GetCurrentPosition()-1) < m_usedSeqPosFromStep )
+		{
+			errorMsg = StringTable::Load(IDE::notEnoughSeqPosEx);
+			StrReplace(errorMsg, "%s", restVolSequence.GetName());
+			Error::RaiseEx(IDE::notEnoughSeqPos ,errorMsg, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+			
+		// dispense rest volume
+		DispenseRestVol(ML_STAR, needleSequence, restVolSequence, m_channelPattern, channelUse);
+
+		if(!RequestWashChamberInitStatus(ML_STAR, pumpUnitNode))
+		{
+			variable fwParam("");							// parameter of firmware command
+			variable errCode(0);								// error code extracted out from firmware result string
+			variable bRepeat(hslTrue);						// true if command shall be repeated
+			variable rc[];										// place to hold the result values of firmware command step
+			string result;										// firmware result string
+
+			// fill wash chamber
+			fwParam = FwParam::ep + pumpUnitNode;
+
+			while(bRepeat)
+			{
+				rc = ExecuteFirmwareCommand(ML_STAR, FwCommand::PumpUnitFill, fwParam);
+				result = rc.GetAt(rc.GetSize() - 1);
+				errCode = FirmwareErrorCheck(result);
+
+				if(errCode == 0)
+				{
+					bRepeat = hslFalse;
+				}
+				else
+				{
+					variable message, messageEx, title, type, answer;
+
+					message = StringTable::Load(IDE::errorDuringFillProcedure) + Format::lf + Format::lf;
+			
+					// look up for syntax error
+					if(errCode == C0ErrorCode::syntaxError)
+					{
+						string s;
+						s = StringTable::Load(IDE::syntaxError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::syntaxError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					else
+					if(errCode == C0ErrorCode::hardwareError ||
+						errCode == DCWasherErrCode::ls1NotSwitchToInactive ||
+						errCode == DCWasherErrCode::ls2NotSwitchToInactive)
+					{
+						messageEx = StringTable::Load(IDE::hardwareError);
+						message = message + messageEx;
+						FormatTrace(traceSource, traceAction, TraceStatus::error_, StringTable::Load(IDE::hardwareError));
+					}
+
+					else
+					if(errCode == C0ErrorCode::noWashFluidError ||
+						errCode == DCWasherErrCode::ls1NotSwitchToActive ||
+						errCode == DCWasherErrCode::ls2NotSwitchToActive)
+					{
+						messageEx = StringTable::Load(IDE::noWashFluidError);
+						message = message + messageEx;
+						FormatTrace(traceSource, traceAction, TraceStatus::error_, StringTable::Load(IDE::noWashFluidError));
+					}
+
+					else
+					if(errCode == C0ErrorCode::canError)
+					{
+						string s;
+						s = StringTable::Load(IDE::canError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::canError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					else
+					if(errCode == DCWasherErrCode::parallelismLevel0 ||
+						errCode == DCWasherErrCode::parallelismLevel1)
+					{
+						string s;
+						s = StringTable::Load(IDE::parallelismError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::parallelismError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					// any other, unexpected error
+					else
+					if(errCode != 0)
+					{
+						string s;
+						s = StringTable::Load(IDE::unexpectedError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::unexpectedError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					title = StringTable::Load(IDS::titleErrorHandling);
+					type = hslAbortRetryIgnore | hslError | hslDefButton2;
+
+					// ask user how to handle the error
+					answer = MessageBox(message, title, type);
+				
+					if(hslAbort == answer)
+					{
+						abort;
+					}
+
+					if(hslRetry == answer)
+					{
+						// trace error handling retry
+						FormatTrace(traceSource, traceAction, TraceStatus::progress, StringTable::Load(IDS::errorRetry));				
+					}
+
+					if(hslIgnore == answer)
+					{
+						// trace error ignored by user
+						FormatTrace(traceSource, traceAction, TraceStatus::completeWithError, StringTable::Load(IDS::errorIgnoredByOperator));
+						bRepeat = hslFalse;
+						userIntervention = hslTrue;
+					}
+				}
+			} // end while
+		} //end if
+		
+		// Get wash settings
+		GetWashSettings(ML_STAR, SeqGetLabwareId(needleSequence), blowOutVol, washVol, aspSpeed,
+					dispSpeed, swapSpeed, soakTime, immersionDepth, tipType);
+
+		// calculate height within wash chamber
+		washHeight = NumberConstants::overflowAbs - immersionDepth;			
+
+		// Fast washing disabled
+		if(fastWash == 0)
+		{
+			// Decouple needles from channel 
+			// --> Firmware command used, otherwise the command will forget that the channels have picked up needles
+			rVal = LocoTipEject(ML_STAR, needleSequence, channelPattern, channelUse, blowOutVol, tipType);
+			
+			if(rVal != 0)
+			{	
+				// raise an error
+				Error::Raise(IDE::needleEjectFailed, GetFileName(), GetFunctionName(), GetLineNumber());
+			}
+
+			// LOCO Tip pick-up C0TW
+			isLOCOneedlePickUp = hslTrue;
+			rVal = LocoTipPickUp(ML_STAR, needleSequence, channelPattern, channelUse, blowOutVol, tipType);
+			
+			if(rVal != 0)
+			{	
+				// raise an error
+				Error::Raise(IDE::locoNeedlePickUpFailed, GetFileName(), GetFunctionName(), GetLineNumber());
+			}
+		}
+
+		// loop over wash cycles
+		while(washCycles != 0)
+		{
+			rVal = LocoNeedleWash(ML_STAR, washSequence, channelPattern, channelUse, StrFillLeft(IStr(mixCycles), "0", WidthOfFwParams::twoChars),
+							blowOutVol, washVol, aspSpeed, dispSpeed, swapSpeed, soakTime, NormalizeParam(washHeight, WidthOfFwParams::fourChars));
+
+			if(washCycles > 1)
+			{
+				if(!EmptyFillWashChamber(ML_STAR, needleSequence, NumberConstants::refillOn))
+					userIntervention = hslTrue;
+			}
+
+			washCycles--;
+		}
+
+		if(rVal != 0 || userIntervention == hslTrue)
+		{
+			// track data
+			TrackData(channelPattern, m_dcWashTrackerObject.HxVectorDbActionState_Error, ML_STAR.GetInstrumentName());
+
+			if(rVal != 0)
+				Error::Raise(IDE::locoNeedleWashFailed, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+		else
+			// track data
+			TrackData(channelPattern, m_dcWashTrackerObject.HxVectorDbActionState_NoError, ML_STAR.GetInstrumentName());
+	
+		FormatTrace(traceSource, traceAction, TraceStatus::complete, needleSequence.GetLabwareId());
+
+		// release access to global data
+		SynLeaveCriticalSection(m_hslStarDcWasherLibCs);
+
+		return;
+
+		Unexpected:
+		{
+			// the tip were picked up with a LOCO tip pick up, therefore the command does not handle the
+			// tip eject of the needles
+			if(isLOCOneedlePickUp)
+			{
+				// ask user for no collision in x
+				variable message, title, type, answer, i;
+				string channelPos;
+
+				title = StringTable::Load(IDS::titleErrorHandling);
+				message = StringTable::Load(IDS::noCollisionDanger);
+				type = hslYesNo | hslExclamation;
+
+				answer = MessageBox(message, title, type);
+				if (hslYes == answer)
+				{
+					// release access to global data
+					SynLeaveCriticalSection(m_hslStarDcWasherLibCs);
+					FormatTrace(traceSource, traceAction, TraceStatus::completeWithError);
+					Error::RaiseLast();
+				}
+
+				// ask user for free position in the needle rack
+				if(channelUse == ChannelUse::allSequencePositions)
+				{
+					for(i = 1; i <= m_numberOfActivatedChannels; i++)
+					{
+						channelPos = channelPos + IStr(i);
+						
+						if(i < m_numberOfActivatedChannels)
+							channelPos = channelPos + ", ";					
+					}
+				}
+				else // set up the positions as used in channel pattern
+				{
+					for(i = 1; i <= m_numberOfActivatedChannels; i++)
+					{
+						variable length;
+						string sChnPattern;
+
+						sChnPattern = channelPattern;
+							
+						length = sChnPattern.GetLength();
+						
+						if ("1" == sChnPattern.Mid(i-1, 1))
+						{
+							channelPos = channelPos + IStr(i);		
+
+							if(i < m_numberOfActivatedChannels)
+								channelPos = channelPos + ", ";
+						}
+					}				
+				}
+				
+				message = StringTable::Load(IDS::arePositionsFree);
+				StrReplace(message, "%s", channelPos);
+
+				answer = MessageBox(message, title, type);
+				if (hslNo == answer)
+				{
+					// release access to global data
+					SynLeaveCriticalSection(m_hslStarDcWasherLibCs);
+					FormatTrace(traceSource, traceAction, TraceStatus::completeWithError);
+					Error::RaiseLast();
+				}
+				
+				ML_STAR.TipEject( "d71ec272_f257_486b_bb6462023b1bd898" );
+			}
+			// release access to global data
+			SynLeaveCriticalSection(m_hslStarDcWasherLibCs);
+			FormatTrace(traceSource, traceAction, TraceStatus::completeWithError);
+			Error::RaiseLast();
+		}	
+	}
+
+	/****************************************************************************************
+	 * DC Washstation needle wash 2
+	 ****************************************************************************************/
+	function NeedleWash2(
+		device& ML_STAR,
+		sequence& needleSequence, 
+		sequence& washSequence,
+		sequence& restVolSequence,
+		variable restVolLiquidClass,
+		variable restVolFixHeightFromBottom,
+		variable restVolClldSensitivity,
+		variable restVolSubmergeDepth,
+		variable restVolLiquidFollowing,
+		variable& channelPattern,
+		variable channelUse,
+		variable fastWash,
+		variable washCycles,
+		variable mixCycles)
+	{
+		variable traceSource;							// source for formated trace
+		variable traceAction;							// action for formated trace
+		string errorMsg;									// error message
+		
+		// wash settings
+		variable blowOutVol;								// blow out volume
+		variable washVol;									// wash volume
+		variable aspSpeed;								// aspiration speed
+		variable dispSpeed;								// dispensation speed
+		variable swapSpeed;								// swap speed on leaving the liquid
+		variable soakTime;								// soak time
+		variable immersionDepth;						// immersion depth relativ from liquid level
+		variable washHeight(0.0);						// fix height where the needles will be washed within wash-chamber
+
+		variable tipType;									// tip type
+		variable rVal;										// return value of a called function
+		variable isLOCOneedlePickUp(hslFalse);		// true if the step is currently activ
+		variable isValidNeedleSequence(hslFalse);	// true if needle sequence is valid
+		variable isValidWashSequence(hslFalse);	// true if wash sequence is valid
+		variable pumpUnitNode("");						// node of installed dc wash pump unit
+		variable userIntervention(hslFalse);		// true if an error was ignored within error handling
+
+		InitHSLStarDcWasherLib(ML_STAR);
+		PrimeDCWashStation(ML_STAR, needleSequence);
+
+		// activate error handler
+		onerror goto Unexpected;
+
+		// get access to global data
+		SynEnterCriticalSection(m_hslStarDcWasherLibCs);
+
+		traceSource = StringTable::Load(IDS::traceSource);
+		traceAction = StringTable::Load(IDS::traceNeedleWash2);
+		FormatTrace(traceSource, traceAction, TraceStatus::start);
+
+		// Get tip type (used for LOCO tip pick up)
+		tipType = GetTipType(ML_STAR, needleSequence);
+
+		// is valid wash sequence
+		if(!WCB::IsDcWashChamber(ML_STAR, washSequence.GetLabwareId()))
+			Error::Raise(IDE::invalidWashSequence, GetFileName(), GetFunctionName(), GetLineNumber());
+
+		// look up for pump unit node (used for refill wash chamber command)
+		pumpUnitNode = WCB::GetPumpStationNumber(ML_STAR, needleSequence.GetLabwareId());
+		if(pumpUnitNode == StringConstants::emptyString)
+		{
+			string s;			
+			s = StringTable::Load(IDE::missingLabwareProperty);
+			StrReplace(s, "%s1", StringConstants::pumpStationNumberKey);
+			StrReplace(s, "%s2", needleSequence.GetLabwareId());
+			Error::RaiseEx(IDE::missingLabwareProperty, s, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+		
+		// request pump settings
+		if(!CheckPumpStationSettings(ML_STAR, pumpUnitNode))
+		{
+			// wrong configured pump station
+			Error::Raise(IDE::wrongPumpUnitType, GetFileName(), GetFunctionName(), GetLineNumber());				
+		}
+
+		// parameter check
+		Util2::CheckValueType(
+			restVolLiquidClass, Util2::ValueType::String, "restVolLiquidClass"); // may be empty
+
+		Util2::CheckValueTypeAndRange(
+			restVolFixHeightFromBottom, Util2::ValueType::Float, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "restVolFixHeightFromBottom");
+
+		Util2::CheckValueTypeAndRangeMinMax(
+			restVolClldSensitivity, Util2::ValueType::Integer, CLLDSensivity::first, CLLDSensivity::last, "restVolClldSensitivity");
+
+		Util2::CheckValueType(
+			restVolSubmergeDepth, Util2::ValueType::Float, "restVolSubmergeDepth");
+
+		Util2::CheckValueTypeAndRangeMinMax(
+			restVolLiquidFollowing, Util2::ValueType::Integer, CLLDSensivity::first, CLLDSensivity::last, "restVolLiquidFollowing");
+
+		Util2::CheckValueTypeAndRange(
+			channelPattern, Util2::ValueType::String, Util2::ValueCheck::RangeStringNotEmpty, "channelPattern");
+
+		if(channelPattern != StringConstants::emptyString)
+		{
+			variable index;
+			string sChnPattern, temp;
+			
+			// check length of channel pattern (minimum = m_numberOfChannels)
+			sChnPattern = channelPattern;
+			if(sChnPattern.GetLength() < m_numberOfChannels)
+				Error::Raise(IDE::invalidLengthOfChannelPattern, GetFileName(), GetFunctionName(), GetLineNumber());
+
+			for (index = 0; index < sChnPattern.GetLength(); index++)
+			{	
+				temp = sChnPattern.Mid(index, 1);
+
+				if(IVal(temp) != 0 && IVal(temp) != 1)
+					Error::Raise(IDE::invalidChannelPattern, GetFileName(), GetFunctionName(), GetLineNumber());
+			}
+			
+			m_channelPattern = channelPattern;
+		}
+		else // activate all channels
+		{	
+			variable i;
+			for(i = 1; i <= m_numberOfChannels; i++)
+				m_channelPattern = m_channelPattern + "1";
+		}
+
+		// look up for activated channels
+		m_numberOfActivatedChannels = NumberOfActiveChannels(channelPattern);
+		// look up for the last active channel within the pattern
+		m_lastActiveChannel = GetLastActiveChannel(channelPattern);
+
+		Util2::CheckValueTypeAndRangeMinMax(
+			channelUse, Util2::ValueType::Integer, ChannelUse::first, ChannelUse::last, "channelUse");
+
+		Util2::CheckValueTypeAndRange(
+			fastWash, Util2::ValueType::Integer, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "fastWash");
+
+		Util2::CheckValueTypeAndRange(
+			washCycles, Util2::ValueType::Integer, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "washCycles");
+
+		Util2::CheckValueTypeAndRange(
+			mixCycles, Util2::ValueType::Integer, Util2::ValueCheck::RangeNumberGreaterOrEqualToZero, "mixCycles");
+
+		// check if there are enough sequence positions available for this step
+		if(channelUse == ChannelUse::allSequencePositions)
+			m_usedSeqPosFromStep = m_numberOfActivatedChannels;
+		else
+			m_usedSeqPosFromStep = m_lastActiveChannel;
+
+		if( needleSequence.GetMax() - (needleSequence.GetCurrentPosition()-1) < m_usedSeqPosFromStep )
+		{
+			errorMsg = StringTable::Load(IDE::notEnoughSeqPosEx);
+			StrReplace(errorMsg, "%s", needleSequence.GetName());
+			Error::RaiseEx(IDE::notEnoughSeqPos ,errorMsg, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+
+		if( washSequence.GetMax() - (washSequence.GetCurrentPosition()-1) < m_usedSeqPosFromStep )
+		{
+			errorMsg = StringTable::Load(IDE::notEnoughSeqPosEx);
+			StrReplace(errorMsg, "%s", washSequence.GetName());
+			Error::RaiseEx(IDE::notEnoughSeqPos ,errorMsg, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+
+		if( restVolSequence.GetMax() - (restVolSequence.GetCurrentPosition()-1) < m_usedSeqPosFromStep )
+		{
+			errorMsg = StringTable::Load(IDE::notEnoughSeqPosEx);
+			StrReplace(errorMsg, "%s", restVolSequence.GetName());
+			Error::RaiseEx(IDE::notEnoughSeqPos ,errorMsg, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+			
+		// dispense rest volume
+		if( restVolLiquidClass != "" )
+			ML_STAR.Dispense( "dd213548_aef3_45dc_94d7b3e9e9132fc7" );
+
+		if(!RequestWashChamberInitStatus(ML_STAR, pumpUnitNode))
+		{
+			variable fwParam("");							// parameter of firmware command
+			variable errCode(0);								// error code extracted out from firmware result string
+			variable bRepeat(hslTrue);						// true if command shall be repeated
+			variable rc[];										// place to hold the result values of firmware command step
+			string result;										// firmware result string
+
+			// fill wash chamber
+			fwParam = FwParam::ep + pumpUnitNode;
+
+			while(bRepeat)
+			{
+				rc = ExecuteFirmwareCommand(ML_STAR, FwCommand::PumpUnitFill, fwParam);
+				result = rc.GetAt(rc.GetSize() - 1);
+				errCode = FirmwareErrorCheck(result);
+
+				if(errCode == 0)
+				{
+					bRepeat = hslFalse;
+				}
+				else
+				{
+					variable message, messageEx, title, type, answer;
+
+					message = StringTable::Load(IDE::errorDuringFillProcedure) + Format::lf + Format::lf;
+			
+					// look up for syntax error
+					if(errCode == C0ErrorCode::syntaxError)
+					{
+						string s;
+						s = StringTable::Load(IDE::syntaxError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::syntaxError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					else
+					if(errCode == C0ErrorCode::hardwareError ||
+						errCode == DCWasherErrCode::ls1NotSwitchToInactive ||
+						errCode == DCWasherErrCode::ls2NotSwitchToInactive)
+					{
+						messageEx = StringTable::Load(IDE::hardwareError);
+						message = message + messageEx;
+						FormatTrace(traceSource, traceAction, TraceStatus::error_, StringTable::Load(IDE::hardwareError));
+					}
+
+					else
+					if(errCode == C0ErrorCode::noWashFluidError ||
+						errCode == DCWasherErrCode::ls1NotSwitchToActive ||
+						errCode == DCWasherErrCode::ls2NotSwitchToActive)
+					{
+						messageEx = StringTable::Load(IDE::noWashFluidError);
+						message = message + messageEx;
+						FormatTrace(traceSource, traceAction, TraceStatus::error_, StringTable::Load(IDE::noWashFluidError));
+					}
+
+					else
+					if(errCode == C0ErrorCode::canError)
+					{
+						string s;
+						s = StringTable::Load(IDE::canError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::canError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					else
+					if(errCode == DCWasherErrCode::parallelismLevel0 ||
+						errCode == DCWasherErrCode::parallelismLevel1)
+					{
+						string s;
+						s = StringTable::Load(IDE::parallelismError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::parallelismError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					// any other, unexpected error
+					else
+					if(errCode != 0)
+					{
+						string s;
+						s = StringTable::Load(IDE::unexpectedError);
+						StrReplace(s, "%s", result);
+						Error::RaiseEx(IDE::unexpectedError, s, GetFileName(), GetFunctionName(), GetLineNumber());
+					}
+
+					title = StringTable::Load(IDS::titleErrorHandling);
+					type = hslAbortRetryIgnore | hslError | hslDefButton2;
+
+					// ask user how to handle the error
+					answer = MessageBox(message, title, type);
+				
+					if(hslAbort == answer)
+					{
+						abort;
+					}
+
+					if(hslRetry == answer)
+					{
+						// trace error handling retry
+						FormatTrace(traceSource, traceAction, TraceStatus::progress, StringTable::Load(IDS::errorRetry));				
+					}
+
+					if(hslIgnore == answer)
+					{
+						// trace error ignored by user
+						FormatTrace(traceSource, traceAction, TraceStatus::completeWithError, StringTable::Load(IDS::errorIgnoredByOperator));
+						bRepeat = hslFalse;
+						userIntervention = hslTrue;
+					}
+				}
+			} // end while
+		} //end if
+		
+		// Get wash settings
+		GetWashSettings(ML_STAR, SeqGetLabwareId(needleSequence), blowOutVol, washVol, aspSpeed,
+					dispSpeed, swapSpeed, soakTime, immersionDepth, tipType);
+
+		// calculate height within wash chamber
+		washHeight = NumberConstants::overflowAbs - immersionDepth;			
+
+		// Fast washing disabled
+		if(fastWash == 0)
+		{
+			// Decouple needles from channel 
+			// --> Firmware command used, otherwise the command will forget that the channels have picked up needles
+			rVal = LocoTipEject(ML_STAR, needleSequence, channelPattern, channelUse, blowOutVol, tipType);
+			
+			if(rVal != 0)
+			{	
+				// raise an error
+				Error::Raise(IDE::needleEjectFailed, GetFileName(), GetFunctionName(), GetLineNumber());
+			}
+
+			// LOCO Tip pick-up C0TW
+			isLOCOneedlePickUp = hslTrue;
+			rVal = LocoTipPickUp(ML_STAR, needleSequence, channelPattern, channelUse, blowOutVol, tipType);
+			
+			if(rVal != 0)
+			{	
+				// raise an error
+				Error::Raise(IDE::locoNeedlePickUpFailed, GetFileName(), GetFunctionName(), GetLineNumber());
+			}
+		}
+
+		// loop over wash cycles
+		while(washCycles != 0)
+		{
+			rVal = LocoNeedleWash(ML_STAR, washSequence, channelPattern, channelUse, StrFillLeft(IStr(mixCycles), "0", WidthOfFwParams::twoChars),
+							blowOutVol, washVol, aspSpeed, dispSpeed, swapSpeed, soakTime, NormalizeParam(washHeight, WidthOfFwParams::fourChars));
+
+			if(washCycles > 1)
+			{
+				if(!EmptyFillWashChamber(ML_STAR, needleSequence, NumberConstants::refillOn))
+					userIntervention = hslTrue;
+			}
+
+			washCycles--;
+		}
+
+		if(rVal != 0 || userIntervention == hslTrue)
+		{
+			// track data
+			TrackData(channelPattern, m_dcWashTrackerObject.HxVectorDbActionState_Error, ML_STAR.GetInstrumentName());
+
+			if(rVal != 0)
+				Error::Raise(IDE::locoNeedleWashFailed, GetFileName(), GetFunctionName(), GetLineNumber());
+		}
+		else
+			// track data
+			TrackData(channelPattern, m_dcWashTrackerObject.HxVectorDbActionState_NoError, ML_STAR.GetInstrumentName());
+	
+		FormatTrace(traceSource, traceAction, TraceStatus::complete, needleSequence.GetLabwareId());
+
+		// release access to global data
+		SynLeaveCriticalSection(m_hslStarDcWasherLibCs);
+
+		return;
+
+		Unexpected:
+		{
+			// the tip were picked up with a LOCO tip pick up, therefore the command does not handle the
+			// tip eject of the needles
+			if(isLOCOneedlePickUp)
+			{
+				// ask user for no collision in x
+				variable message, title, type, answer, i;
+				string channelPos;
+
+				title = StringTable::Load(IDS::titleErrorHandling);
+				message = StringTable::Load(IDS::noCollisionDanger);
+				type = hslYesNo | hslExclamation;
+
+				answer = MessageBox(message, title, type);
+				if (hslYes == answer)
+				{
+					// release access to global data
+					SynLeaveCriticalSection(m_hslStarDcWasherLibCs);
+					FormatTrace(traceSource, traceAction, TraceStatus::completeWithError);
+					Error::RaiseLast();
+				}
+
+				// ask user for free position in the needle rack
+				if(channelUse == ChannelUse::allSequencePositions)
+				{
+					for(i = 1; i <= m_numberOfActivatedChannels; i++)
+					{
+						channelPos = channelPos + IStr(i);
+						
+						if(i < m_numberOfActivatedChannels)
+							channelPos = channelPos + ", ";					
+					}
+				}
+				else // set up the positions as used in channel pattern
+				{
+					for(i = 1; i <= m_numberOfActivatedChannels; i++)
+					{
+						variable length;
+						string sChnPattern;
+
+						sChnPattern = channelPattern;
+							
+						length = sChnPattern.GetLength();
+						
+						if ("1" == sChnPattern.Mid(i-1, 1))
+						{
+							channelPos = channelPos + IStr(i);		
+
+							if(i < m_numberOfActivatedChannels)
+								channelPos = channelPos + ", ";
+						}
+					}				
+				}
+				
+				message = StringTable::Load(IDS::arePositionsFree);
+				StrReplace(message, "%s", channelPos);
+
+				answer = MessageBox(message, title, type);
+				if (hslNo == answer)
+				{
+					// release access to global data
+					SynLeaveCriticalSection(m_hslStarDcWasherLibCs);
+					FormatTrace(traceSource, traceAction, TraceStatus::completeWithError);
+					Error::RaiseLast();
+				}
+
+				ML_STAR.TipEject( "5b7636ef_fcc9_407a_8d4fa5d9f94c1b4d" );
+			}
+			// release access to global data
+			SynLeaveCriticalSection(m_hslStarDcWasherLibCs);
+			FormatTrace(traceSource, traceAction, TraceStatus::completeWithError);
+			Error::RaiseLast();
+		}	
+	}
+
+} // end of namespace HSLDcWasherLib
+
+#endif  /* end of '#ifndef __HSLStarDcWasherLibImpl_hsl__' */
+// $$author=wbarmettler$$valid=1$$time=2017-03-14 13:14$$checksum=fae4cbb8$$length=090$$

@@ -1,0 +1,1132 @@
+// This library contains common functionality used by all modern HSL drivers.
+// Majority of logic was taken from Hamilton Bonaduz AG ASW Global and Driver 
+// Tools libaries.
+// Copyright (C) by Hamilton Company
+// All rights reserved.
+
+#ifndef __HAMILTON_HEATERCOOLERSTAR_DRIVER_DEPENDENCIES_hsl__
+#define __HAMILTON_HEATERCOOLERSTAR_DRIVER_DEPENDENCIES_hsl__	1
+
+namespace HAMILTON_HEATERCOOLERSTAR_DEPENDENCIES
+{
+    // --------------------------------------------------------------------------------------
+    // public constant declarations
+    // --------------------------------------------------------------------------------------
+   
+    namespace BOOL
+    {
+      const variable FALSE(hslFalse);
+      const variable TRUE(hslTrue);
+
+      const variable NO(hslFalse);
+      const variable YES(hslTrue);
+
+      const variable OFF(hslFalse);
+      const variable ON(hslTrue);
+    }
+
+    namespace TRACE_LEVEL
+    {
+      const variable NONE                 (0);
+      const variable RELEASE              (1);
+      const variable DEBUG                (2);
+    }
+
+    namespace ACTION
+    {
+      const variable START                (1);
+      const variable COMPLETE             (2);
+      const variable ERROR                (3);
+      const variable PROGRESS             (4);
+      const variable COMPLETE_WITH_ERROR  (5);
+    }
+
+    namespace VALUE_RANGE
+    {
+      const variable POSITIVE_ZERO        (0);
+      const variable POSITIVE             (1);
+      const variable NEGATIVE_ZERO        (2);
+      const variable NEGATIVE             (3);
+    }
+
+    // --------------------------------------------------------------------------------------
+    // task-local variable declarations
+    // --------------------------------------------------------------------------------------
+
+    static variable _strStringIdentifier                  ("");
+    static variable _strActionStartIdentifier             ("");
+    static variable _strActionCompleteIdentifier          ("");
+    static variable _strActionErrorIdentifier             ("");
+    static variable _strActionProgressIdentifier          ("");
+    static variable _strActionCompleteWithErrorIdentifier ("");
+    static string   _strComma                             ("");
+
+    // --------------------------------------------------------------------------------------
+    // global constant/variable declarations
+    // --------------------------------------------------------------------------------------
+
+    const static variable HAMILTON_HEATERCOOLERSTAR_Deps_ModuleName     ("Hamilton HeaterCoolerStar Driver Dependencies");
+
+    static global variable gHAMILTON_HEATERCOOLERSTAR_intTraceLevel     (TRACE_LEVEL::DEBUG);
+
+    // --------------------------------------------------------------------------------------
+    // function declarations
+    // --------------------------------------------------------------------------------------
+
+    function GetTraceLevel() variable;
+
+    function SetTraceLevel(variable i_intTraceLevel) void;
+
+    function SetStringIndicator(variable i_strStringIndicator) void;
+
+    function TraceArray(variable i_intTraceLevel,
+                        variable i_strDescription,
+                        variable i_arrvarToTrace[]) void;
+
+    function StatusTrace(variable i_intState,
+                         variable i_intTraceLevel,
+                         variable i_strMessage,
+                         variable i_strFunctionName,
+                         variable i_intReferenceTraceLevel,
+                         variable i_strReferenceModuleName) variable;
+
+    function StatusTraceArray(variable i_intState,
+                              variable i_intTraceLevel,
+                              variable i_arrvarToTrace[],
+                              variable i_strDescription,
+                              variable i_strFunctionName,
+                              variable i_intReferenceTraceLevel,
+                              variable i_strReferenceModuleName) variable;
+
+    function ExtractFunctionName(variable i_strFunctionName,
+                                 variable& o_strExtractedFunctionName,
+                                 variable i_strReferenceModuleName) variable;
+
+    // Check functions
+    function CheckInteger(variable i_varVariableToCheck,
+                          variable i_strTraceEntry,
+                          variable i_strFunctionName,
+                          variable i_strReferenceModuleName) variable;
+
+    function CheckIntegerRange(variable i_varVariableToCheck,
+                               variable i_strTraceEntry,
+                               variable i_intMin,
+                               variable i_intMax,
+                               variable i_strFunctionName,
+                               variable i_strReferenceModuleName) variable;
+
+    function CheckIntegerInArray(variable i_varVariableToCheck,
+                                 variable i_strTraceEntry,
+                                 variable i_arrintAllowedValues[],
+                                 variable i_strFunctionName,
+                                 variable i_strReferenceModuleName) variable;
+
+    function CheckIntegerValue(variable i_varVariableToCheck,
+                               variable i_strTraceEntry,
+                               variable i_intValueRange,
+                               variable i_strFunctionName,
+                               variable i_strReferenceModuleName) variable;
+
+    function CheckBool(variable i_varVariableToCheck,
+                       variable i_strTraceEntry,
+                       variable i_strFunctionName,
+                       variable i_strReferenceModuleName) variable;
+
+    function CheckFloat(variable i_varVariableToCheck,
+                        variable i_strTraceEntry,
+                        variable i_strFunctionName,
+                        variable i_strReferenceModuleName) variable;
+
+    function CheckFloatRange(variable i_varVariableToCheck,
+                             variable i_strTraceEntry,
+                             variable i_fltMin,
+                             variable i_fltMax,
+                             variable i_strFunctionName,
+                             variable i_strReferenceModuleName) variable;
+
+    function CheckFloatValue(variable i_varVariableToCheck,
+                             variable i_strTraceEntry,
+                             variable i_intValueRange,
+                             variable i_strFunctionName,
+                             variable i_strReferenceModuleName) variable;
+
+    function CheckFloatFactorRange(variable i_varVariableToCheck,
+                                   variable i_strTraceEntry,
+                                   variable i_fltMin,
+                                   variable i_fltMax,
+                                   variable i_fltFactor,
+                                   variable i_strFunctionName,
+                                   variable i_strReferenceModuleName) variable;
+
+    // string functions   
+    function CheckString(variable i_varVariableToCheck,
+                         variable i_strTraceEntry,
+                         variable i_strFunctionName,
+                         variable i_strReferenceModuleName) variable;
+
+    function ReverseFind(variable i_strStringToParse,
+                         variable i_strSubstringToFind,
+                         variable i_strFunctionName,
+                         variable i_strReferenceModuleName)variable;
+                         
+                         
+    function TrimRight(variable i_strStringToTrim,
+                       variable i_strToRemove,
+                       variable i_strFunctionName,
+                       variable i_strReferenceModuleName) variable;
+
+
+
+    // declarations of private functions
+    private function _CheckBool(variable i_varVariableToCheck,
+                                variable i_strTraceEntry,
+                                variable i_strFunctionName,
+                                variable i_strReferenceModuleName) variable;
+
+    private function _CheckInteger(variable i_varVariableToCheck,
+                                   variable i_strTraceEntry,
+                                   variable i_strFunctionName,
+                                   variable i_strReferenceModuleName) variable;
+
+    private function _CheckIntegerRange(variable i_varVariableToCheck,
+                                        variable i_strTraceEntry,
+                                        variable i_intMin,
+                                        variable i_intMax,
+                                        variable i_strFunctionName,
+                                        variable i_strReferenceModuleName) variable;
+
+    private function _CheckFloat(variable i_varVariableToCheck,
+                                 variable i_strTraceEntry,
+                                 variable i_strFunctionName,
+                                 variable i_strReferenceModuleName) variable;
+
+    private function _CheckString(variable i_varVariableToCheck,
+                                  variable i_strTraceEntry,
+                                  variable i_strFunctionName,
+                                  variable i_strReferenceModuleName) variable;
+
+    private function _CheckTraceStrings(variable i_strReferenceModuleName,
+                                        variable i_strFunctionName) variable;
+
+    private function _ToString(variable i_varValue) variable;
+
+    private function _TraceArray(variable i_strFunctionName,
+                                 variable i_strDescription,
+                                 variable i_arrvarToTrace[]) void;
+
+    private function _TraceSequence(variable i_strFunctionName,
+                                    sequence i_seqToTrace) void;
+
+    private function _Trace(variable i_strFunctionName,
+                            variable i_strToTrace) void;
+
+    private function _LongestElementSize(variable i_arrvarToCheck[]) variable;
+
+    private function _TrimRight(string i_strToTrim,
+                                string i_strToRemove) variable;
+
+    private function _FillLeft(string i_strStringToFill,
+                               variable i_strFillCharacter,
+                               variable i_intLength) variable;
+
+    private function _FillRight(string i_strStringToFill,
+                                variable i_strFillCharacter,
+                                variable i_intLength) variable;
+
+    private function _StringLength(string i_strStringToCheck) variable;
+
+    private function _ToStringWithIndicator(variable i_varValue,
+                               variable i_blnUseStringIndicator) variable;
+
+    private function _ToInteger(variable i_varValue) variable;
+
+    private function _ExtractFunctionName(variable i_strFunctionName) variable;
+
+    private function _ExtractMethodName(variable i_strMethodName) variable;
+
+    private function _ReverseFind(string i_strStringToParse,
+                                  string i_strSubstringToFind) variable;
+
+    private function _GetComma() string;
+
+    //***************************************************************************************
+    //* functions
+    //***************************************************************************************
+
+    // --------------------------------------------------------------------------------------
+    // function GetTraceLevel
+    // --------------------------------------------------------------------------------------
+    function GetTraceLevel() variable
+    {
+      return(gHAMILTON_HEATERCOOLERSTAR_intTraceLevel);
+    } // GetTraceLevel
+
+    // --------------------------------------------------------------------------------------
+    // function SetTraceLevel
+    // --------------------------------------------------------------------------------------
+    function SetTraceLevel(variable i_intTraceLevel) void
+    {
+      variable strDescription("");
+
+      gHAMILTON_HEATERCOOLERSTAR_intTraceLevel = _ToInteger(i_intTraceLevel);
+
+      if(gHAMILTON_HEATERCOOLERSTAR_intTraceLevel > TRACE_LEVEL::DEBUG) gHAMILTON_HEATERCOOLERSTAR_intTraceLevel = TRACE_LEVEL::DEBUG;
+      if(gHAMILTON_HEATERCOOLERSTAR_intTraceLevel < TRACE_LEVEL::NONE) gHAMILTON_HEATERCOOLERSTAR_intTraceLevel = TRACE_LEVEL::NONE;
+
+      if(gHAMILTON_HEATERCOOLERSTAR_intTraceLevel == TRACE_LEVEL::DEBUG) strDescription = "TRACE_LEVEL::DEBUG";
+      if(gHAMILTON_HEATERCOOLERSTAR_intTraceLevel == TRACE_LEVEL::RELEASE) strDescription = "TRACE_LEVEL::RELEASE";
+      if(gHAMILTON_HEATERCOOLERSTAR_intTraceLevel == TRACE_LEVEL::NONE) strDescription = "TRACE_LEVEL::NONE";
+
+      _Trace("SetTraceLevel", "Trace level set to " + strDescription);
+    } // SetTraceLevel
+
+    // --------------------------------------------------------------------------------------
+    // function TraceArray
+    // --------------------------------------------------------------------------------------
+    function TraceArray(variable i_intTraceLevel,
+                        variable i_strDescription,
+                        variable i_arrvarToTrace[]) void
+    {
+      if(gHAMILTON_HEATERCOOLERSTAR_intTraceLevel < _ToInteger(i_intTraceLevel)) return;
+
+      _TraceArray("TraceArray", i_strDescription, i_arrvarToTrace);
+    } // TraceArray
+
+    // --------------------------------------------------------------------------------------
+    // function TraceAction
+    // --------------------------------------------------------------------------------------
+    function TraceAction(variable i_intTraceLevel,
+                         variable i_intAction,
+                         variable i_strFunctionName,
+                         variable i_strMethodName,
+                         variable i_strComment) void
+    {
+      string strMethodName("");
+      variable strIndicator("");
+
+      if(gHAMILTON_HEATERCOOLERSTAR_intTraceLevel < _ToInteger(i_intTraceLevel)) return;
+
+      i_intAction = _ToInteger(i_intAction);
+
+      if(i_intAction > ACTION::COMPLETE_WITH_ERROR) i_intAction = ACTION::COMPLETE_WITH_ERROR;
+      if(i_intAction < ACTION::START) i_intAction = ACTION::START;
+
+      strMethodName = _ToStringWithIndicator(i_strMethodName, hslFalse);
+      strMethodName = _ExtractMethodName(strMethodName);
+      strMethodName.MakeUpper();
+
+      if(i_intAction == ACTION::START) strIndicator = _strActionStartIdentifier;
+      if(i_intAction == ACTION::COMPLETE) strIndicator = _strActionCompleteIdentifier;
+      if(i_intAction == ACTION::ERROR) strIndicator = _strActionErrorIdentifier;
+      if(i_intAction == ACTION::PROGRESS) strIndicator = _strActionProgressIdentifier;
+      if(i_intAction == ACTION::COMPLETE_WITH_ERROR) strIndicator = _strActionCompleteWithErrorIdentifier;
+      if(strIndicator != "")
+      {
+        strIndicator = _FillRight(strIndicator, strIndicator, 100);
+        FormatTrace(strMethodName, _ExtractFunctionName(_ToStringWithIndicator(i_strFunctionName, hslFalse)), i_intAction, strIndicator);
+      }
+      FormatTrace(strMethodName, _ExtractFunctionName(_ToStringWithIndicator(i_strFunctionName, hslFalse)), i_intAction, i_strComment);
+      if(strIndicator != "")
+        FormatTrace(strMethodName, _ExtractFunctionName(_ToStringWithIndicator(i_strFunctionName, hslFalse)), i_intAction, strIndicator);
+    } // TraceAction
+
+    // --------------------------------------------------------------------------------------
+    // function SetActionIndicator
+    // --------------------------------------------------------------------------------------
+    function SetActionIndicator(variable i_intAction,
+                                variable i_strIndicator) void
+    {
+      if(GetType(i_strIndicator) == "s")
+      {
+        if(i_intAction == ACTION::START) _strActionStartIdentifier = i_strIndicator;
+        if(i_intAction == ACTION::COMPLETE) _strActionCompleteIdentifier = i_strIndicator;
+        if(i_intAction == ACTION::ERROR) _strActionErrorIdentifier = i_strIndicator;
+        if(i_intAction == ACTION::PROGRESS) _strActionProgressIdentifier = i_strIndicator;
+        if(i_intAction == ACTION::COMPLETE_WITH_ERROR) _strActionCompleteWithErrorIdentifier = i_strIndicator;
+      }
+    } // SetActionIndicator
+
+    //----------------------------------------------------------------------------------------------
+    // function StatusTrace
+    //----------------------------------------------------------------------------------------------
+    function StatusTrace(variable i_intState,
+                         variable i_intTraceLevel,
+                         variable i_strMessage,
+                         variable i_strFunctionName,
+                         variable i_intReferenceTraceLevel,
+                         variable i_strReferenceModuleName) variable
+    {
+      variable strFunctionName("");
+
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      strFunctionName = i_strFunctionName + " - " + HAMILTON_HEATERCOOLERSTAR_Deps_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
+      if(!_CheckIntegerRange(i_intState, "i_intState", ACTION::START, ACTION::COMPLETE_WITH_ERROR, strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckIntegerRange(i_intTraceLevel, "i_intTraceLevel", TRACE_LEVEL::NONE, TRACE_LEVEL::DEBUG, strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strMessage, "i_strMessage", strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strFunctionName, "i_strFunctionName", strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckIntegerRange(i_intReferenceTraceLevel, "i_intReferenceTraceLevel", TRACE_LEVEL::NONE, TRACE_LEVEL::DEBUG, strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strReferenceModuleName, "i_strReferenceModuleName", strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      if(i_intTraceLevel <= i_intReferenceTraceLevel)
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, i_intState, " ", i_strMessage);
+      return(BOOL::TRUE);
+    } // _StatusTrace
+
+    //----------------------------------------------------------------------------------------------
+    // function StatusTraceArray
+    //----------------------------------------------------------------------------------------------
+    function StatusTraceArray(variable i_intState,
+                              variable i_intTraceLevel,
+                              variable i_arrvarToTrace[],
+                              variable i_strDescription,
+                              variable i_strFunctionName,
+                              variable i_intReferenceTraceLevel,
+                              variable i_strReferenceModuleName) variable
+    {
+      variable intActualPosition, intArraySize, intFillupSize;
+      variable strFunctionName("");
+
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      strFunctionName = i_strFunctionName + " - " + HAMILTON_HEATERCOOLERSTAR_Deps_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
+      if(!_CheckIntegerRange(i_intState, "i_intState", ACTION::START, ACTION::COMPLETE_WITH_ERROR, strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckIntegerRange(i_intTraceLevel, "i_intTraceLevel", TRACE_LEVEL::NONE, TRACE_LEVEL::DEBUG, strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strDescription, "i_strDescription", strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckIntegerRange(i_intReferenceTraceLevel, "i_intReferenceTraceLevel", TRACE_LEVEL::NONE, TRACE_LEVEL::DEBUG, strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, i_intState, "Tracing contents of " + i_strDescription);
+
+      if(i_intTraceLevel <= i_intReferenceTraceLevel)
+      {
+        intArraySize = i_arrvarToTrace.GetSize();
+        intFillupSize = _StringLength(IStr(intArraySize));
+        for(intActualPosition = 0; intActualPosition < intArraySize; intActualPosition++)
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, i_intState,
+                      i_strDescription + " [" + _FillLeft(IStr(intActualPosition), "0", intFillupSize) + "] : ",
+                      i_arrvarToTrace.GetAt(intActualPosition));
+      }
+      return(BOOL::TRUE);
+    } // StatusTraceArray
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckInteger
+    //----------------------------------------------------------------------------------------------
+    function CheckInteger(variable i_varVariableToCheck,
+                          variable i_strTraceEntry,
+                          variable i_strFunctionName,
+                          variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      if(GetType(i_varVariableToCheck) == "i")
+        return (BOOL::TRUE);
+      else
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type integer !");
+      return(BOOL::FALSE);
+    } // CheckInteger
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckIntegerRange
+    //----------------------------------------------------------------------------------------------
+    function CheckIntegerRange(variable i_varVariableToCheck,
+                               variable i_strTraceEntry,
+                               variable i_intMin,
+                               variable i_intMax,
+                               variable i_strFunctionName,
+                               variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckInteger(i_intMin, "i_intMin", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckInteger(i_intMax, "i_intMax", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      if(GetType(i_varVariableToCheck) == "i")
+        if(i_varVariableToCheck >= i_intMin && i_varVariableToCheck <= i_intMax)
+          return (BOOL::TRUE);
+        else
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry +
+                      "'  Value " + IStr(i_varVariableToCheck) + " is out of range (" + IStr(i_intMin) + ".." + IStr(i_intMax) + ") !");
+      else
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type integer !");
+      return(BOOL::FALSE);
+    } // CheckIntegerRange
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckFloat
+    //----------------------------------------------------------------------------------------------
+    function CheckFloat(variable i_varVariableToCheck,
+                        variable i_strTraceEntry,
+                        variable i_strFunctionName,
+                        variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      if(GetType(i_varVariableToCheck) == "f")
+        return (BOOL::TRUE);
+      else
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type float !");
+      return(BOOL::FALSE);
+    } // CheckFloat
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckFloatRange
+    //----------------------------------------------------------------------------------------------
+    function CheckFloatRange(variable i_varVariableToCheck,
+                             variable i_strTraceEntry,
+                             variable i_fltMin,
+                             variable i_fltMax,
+                             variable i_strFunctionName,
+                             variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckFloat(i_fltMin, "i_fltMin", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckFloat(i_fltMax, "i_fltMax", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      if(GetType(i_varVariableToCheck) == "f")
+        if(i_varVariableToCheck >= i_fltMin && i_varVariableToCheck <= i_fltMax)
+          return (BOOL::TRUE);
+        else
+          FormatTrace("LIBRARY: Hamilton HSL Tools", i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "'  is out of range ("
+                      + FStr(i_fltMin) + ".." + FStr(i_fltMax) + ") !");
+      else
+        FormatTrace("LIBRARY: Hamilton HSL Tools", i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type float !");
+      return (BOOL::FALSE);
+    } // CheckFloatRange
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckFloatFactorRange
+    //----------------------------------------------------------------------------------------------
+    function CheckFloatFactorRange(variable i_varVariableToCheck,
+                                   variable i_strTraceEntry,
+                                   variable i_fltMin,
+                                   variable i_fltMax,
+                                   variable i_fltFactor,
+                                   variable i_strFunctionName,
+                                   variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckFloat(i_fltMin, "i_fltMin", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckFloat(i_fltMax, "i_fltMax", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckFloat(i_fltFactor, "i_fltFactor", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      if(GetType(i_varVariableToCheck) == "f")
+        if(i_varVariableToCheck >= i_fltMin && i_varVariableToCheck <= i_fltMax)
+          if(i_varVariableToCheck % i_fltFactor == 0.0)
+            return (BOOL::TRUE);
+          else
+          FormatTrace("LIBRARY: Hamilton HSL Tools", i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "': outside factor ("
+                      + FStr(i_fltFactor)) + ")";
+        else
+          FormatTrace("LIBRARY: Hamilton HSL Tools", i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "'  is out of range ("
+                      + FStr(i_fltMin) + ".." + FStr(i_fltMax) + ") !");
+      else
+        FormatTrace("LIBRARY: Hamilton HSL Tools", i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type float !");
+      return (BOOL::FALSE);
+    } // CheckFloatFactorRange
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckString
+    //----------------------------------------------------------------------------------------------
+    function CheckString(variable i_varVariableToCheck,
+                         variable i_strTraceEntry,
+                         variable i_strFunctionName,
+                         variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      if(GetType(i_varVariableToCheck) == "s")
+        return (BOOL::TRUE);
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
+                  "Parameter '", i_strTraceEntry, "' is not of type string !");
+      return (BOOL::FALSE);
+    } // CheckString
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckBool
+    //----------------------------------------------------------------------------------------------
+    function CheckBool(variable i_varVariableToCheck,
+                       variable i_strTraceEntry,
+                       variable i_strFunctionName,
+                       variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      if(GetType(i_varVariableToCheck) == "i")
+        if(i_varVariableToCheck == BOOL::TRUE || i_varVariableToCheck == BOOL::FALSE)
+          return (BOOL::TRUE);
+        else
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
+                      "Parameter '", i_strTraceEntry, "' Value ", i_varVariableToCheck, " is not of type bool !");
+      else
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
+                    "Parameter '", i_strTraceEntry, "' is not of type bool !");
+      return(BOOL::FALSE);
+    } // CheckBool
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckIntegerValue
+    //----------------------------------------------------------------------------------------------
+    function CheckIntegerValue(variable i_varVariableToCheck,
+                               variable i_strTraceEntry,
+                               variable i_intValueRange,
+                               variable i_strFunctionName,
+                               variable i_strReferenceModuleName) variable
+    {
+      variable strTemp("");
+
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckIntegerRange(i_intValueRange, "i_intValueRange", VALUE_RANGE::POSITIVE_ZERO, VALUE_RANGE::NEGATIVE,i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      strTemp = GetType(i_varVariableToCheck);
+      if(strTemp == "i")
+        if((i_intValueRange == VALUE_RANGE::POSITIVE_ZERO && i_varVariableToCheck >= 0) ||
+           (i_intValueRange == VALUE_RANGE::NEGATIVE_ZERO && i_varVariableToCheck <= 0) ||
+           (i_intValueRange == VALUE_RANGE::POSITIVE && i_varVariableToCheck > 0) ||
+           (i_intValueRange == VALUE_RANGE::NEGATIVE && i_varVariableToCheck < 0))
+          return (BOOL::TRUE);
+        else
+        {
+          strTemp = strTemp = "Parameter '" + i_strTraceEntry + "' with value of " + IStr(i_varVariableToCheck) + " is out of allowed range ";
+          if(i_intValueRange == VALUE_RANGE::POSITIVE_ZERO) strTemp = strTemp + "(>= 0)";
+          if(i_intValueRange == VALUE_RANGE::POSITIVE) strTemp = strTemp + "(> 0)";
+          if(i_intValueRange == VALUE_RANGE::NEGATIVE_ZERO) strTemp = strTemp + "(<= 0)";
+          if(i_intValueRange == VALUE_RANGE::NEGATIVE) strTemp = strTemp + "(< 0)";
+        }
+      else
+        strTemp = "Parameter '" + i_strTraceEntry + "' is not of type integer";
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", strTemp + " !");
+      return(BOOL::FALSE);
+    } // CheckIntegerValue
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckFloatValue
+    //----------------------------------------------------------------------------------------------
+    function CheckFloatValue(variable i_varVariableToCheck,
+                             variable i_intValueRange,
+                             variable i_strTraceEntry,
+                             variable i_strFunctionName,
+                             variable i_strReferenceModuleName) variable
+    {
+      variable strTemp("");
+
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      if(!_CheckIntegerRange(i_intValueRange, "i_intValueRange", VALUE_RANGE::POSITIVE_ZERO, VALUE_RANGE::NEGATIVE,i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      strTemp = GetType(i_varVariableToCheck);
+      if(strTemp == "f")
+        if((i_intValueRange == VALUE_RANGE::POSITIVE_ZERO && i_varVariableToCheck >= 0) ||
+           (i_intValueRange == VALUE_RANGE::NEGATIVE_ZERO && i_varVariableToCheck <= 0) ||
+           (i_intValueRange == VALUE_RANGE::POSITIVE && i_varVariableToCheck > 0) ||
+           (i_intValueRange == VALUE_RANGE::NEGATIVE && i_varVariableToCheck < 0))
+          return (BOOL::TRUE);
+        else
+        {
+          strTemp = strTemp = "Parameter '" + i_strTraceEntry + "' with value of " + FStr(i_varVariableToCheck) + " is out of allowed range ";
+          if(i_intValueRange == VALUE_RANGE::POSITIVE_ZERO) strTemp = strTemp + "(>= 0)";
+          if(i_intValueRange == VALUE_RANGE::POSITIVE) strTemp = strTemp + "(> 0)";
+          if(i_intValueRange == VALUE_RANGE::NEGATIVE_ZERO) strTemp = strTemp + "(<= 0)";
+          if(i_intValueRange == VALUE_RANGE::NEGATIVE) strTemp = strTemp + "(< 0)";
+        }
+      else
+        strTemp = "Parameter '" + i_strTraceEntry + "' is not of type float !";
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", strTemp + " !");
+      return(BOOL::FALSE);
+    } // CheckFloatValue
+
+    //-----------------------------------------------------------------------------------------------
+    //private function _CheckTraceStrings
+    //-----------------------------------------------------------------------------------------------
+    private function _CheckTraceStrings(variable i_strReferenceModuleName,
+                                        variable i_strFunctionName) variable
+    {
+      if(GetType(i_strReferenceModuleName) != "s")
+      {
+        if(GetType(i_strFunctionName) != "s")
+        {
+          FormatTrace("call to LIBRARY: Hamilton DriverTools", "_CheckTraceStrings", ACTION::COMPLETE_WITH_ERROR, " ", "Parameter 'i_strReferenceModuleName' and 'i_strFunctionName' are not of type string!");
+          return(hslFalse);
+        }
+        else
+        {
+          FormatTrace("call to LIBRARY: Hamilton DriverTools", i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter 'i_strReferenceModuleName' is not of type string!");
+          return(hslFalse);
+        }
+      }
+      else
+      {
+        if(GetType(i_strFunctionName) != "s")
+        {
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, "_CheckTraceStrings", ACTION::COMPLETE_WITH_ERROR, " ", "Parameter 'i_strFunctionName' is not of type string!");
+          return(hslFalse);
+        }
+      }
+      return(hslTrue);
+    } // _CheckTraceStrings
+
+    //----------------------------------------------------------------------------------------------
+    // function ExtractFunctionName
+    //----------------------------------------------------------------------------------------------
+    function ExtractFunctionName(variable i_strFunctionName,
+                                 variable& o_strExtractedFunctionName,
+                                 variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+
+      o_strExtractedFunctionName = _ExtractFunctionName(i_strFunctionName);
+
+      return (BOOL::TRUE);
+    } // ExtractFunctionName
+
+    //----------------------------------------------------------------------------------------------
+    // function IsDigit
+    //----------------------------------------------------------------------------------------------
+    function IsDigit(variable i_strCharacter,
+                     variable i_strTraceEntry,
+                     variable i_strFunctionName,
+                     variable i_strReferenceModuleName) variable
+    {
+      string strDigits("0123456789");
+
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      i_strFunctionName = i_strFunctionName + " - " + HAMILTON_HEATERCOOLERSTAR_Deps_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
+      if(!_CheckString(i_strCharacter, "i_strCharacter", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      if(_StringLength(i_strCharacter) == 1)
+        if(strDigits.Find(i_strCharacter) != -1)
+          return(BOOL::TRUE);
+        else
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is no digit");
+      else
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "': not a single character!");
+      return(BOOL::FALSE);
+    } // IsDigit
+
+    //----------------------------------------------------------------------------------------------
+    // function Delay
+    //----------------------------------------------------------------------------------------------
+    function Delay(variable i_fltDelayTime,
+                   variable i_strFunctionName,
+                   variable i_strReferenceModuleName) variable
+    {
+      timer hdlDelay;
+
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      i_strFunctionName = i_strFunctionName + " - " + HAMILTON_HEATERCOOLERSTAR_Deps_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
+      if(!_CheckFloat(i_fltDelayTime, "i_fltDelayTime", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      hdlDelay.SetTimer(i_fltDelayTime);
+      hdlDelay.WaitTimer(hslFalse, hslFalse);
+      
+      return(BOOL::TRUE);
+    } // Delay
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckSimulationMode
+    //----------------------------------------------------------------------------------------------
+    function CheckSimulationMode(variable i_blnReferenceSimulationMode,
+                                 variable i_strFunctionName,
+                                 variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      i_strFunctionName = i_strFunctionName + " - " + HAMILTON_HEATERCOOLERSTAR_Deps_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
+      if(!_CheckBool(i_blnReferenceSimulationMode, "i_blnReferenceSimulationMode", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      if(i_blnReferenceSimulationMode == BOOL::TRUE) 
+      {
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE, " ", "Library is used in simulation mode!");
+        return(BOOL::TRUE);
+      }
+      else
+      {
+        return(BOOL::FALSE);
+      }
+    } // CheckSimulationMode
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckInitialization
+    //----------------------------------------------------------------------------------------------
+
+    function CheckInitialization(variable i_blnReferenceLibraryInitialized,
+                                 variable i_strFunctionName,
+                                 variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName)) return(BOOL::FALSE);
+      i_strFunctionName = i_strFunctionName + " - " + HAMILTON_HEATERCOOLERSTAR_Deps_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
+      if(!_CheckBool(i_blnReferenceLibraryInitialized, "i_blnReferenceLibraryInitialized", i_strFunctionName, i_strReferenceModuleName)) return(BOOL::FALSE);
+
+      if(i_blnReferenceLibraryInitialized == BOOL::TRUE) return(BOOL::TRUE);
+      else
+      {
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Library is not Initialized!");
+      return(BOOL::FALSE);
+      }
+    }// CheckInitialization
+
+
+    // --------------------------------------------------------------------------------------
+    // private function _TraceArray
+    // --------------------------------------------------------------------------------------
+    private function _TraceArray(variable i_strFunctionName,
+                                 variable i_strDescription,
+                                 variable i_arrvarToTrace[]) void
+    {
+      variable intActualPosition(0), intArraySize(0), intFillupSize(0), intMaxLength(0);
+
+      i_strDescription = _ToStringWithIndicator(i_strDescription, hslFalse);
+
+      intArraySize = i_arrvarToTrace.GetSize();
+      intFillupSize = _StringLength(IStr(intArraySize));
+
+      if(intArraySize == 0)
+      {
+        _Trace(i_strFunctionName, _ToStringWithIndicator(i_strDescription, hslFalse) + ": empty array");
+        return;
+      }
+
+      intMaxLength = _LongestElementSize(i_arrvarToTrace);
+      intMaxLength = intMaxLength + _StringLength(i_strDescription) + intFillupSize;
+
+      FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::START, _FillRight("   ", "-", intMaxLength + 8));
+      for(intActualPosition = 0; intActualPosition < intArraySize; intActualPosition++)
+        FormatTrace("TRACELEVEL",
+                    i_strFunctionName,
+                    ACTION::PROGRESS,
+                    i_strDescription,
+                     " [",
+                    _FillLeft(IStr(intActualPosition + 1), "0", intFillupSize),
+                    "]: ",
+                    _ToStringWithIndicator(i_arrvarToTrace.GetAt(intActualPosition), hslTrue));
+      FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::COMPLETE, _FillRight("", "-", intMaxLength + 5));
+    }// _TraceArray
+
+    // --------------------------------------------------------------------------------------
+    // private function _TraceSequence
+    // --------------------------------------------------------------------------------------
+    private function _TraceSequence(variable i_strFunctionName,
+                                    sequence i_seqToTrace) void
+    {
+      variable intCurrentPosition(0);
+      sequence seqTemp;
+      variable arrTemp[];
+
+      seqTemp = i_seqToTrace;
+
+      seqTemp.SetCurrentPosition(1);
+      seqTemp.SetCount(i_seqToTrace.GetTotal());
+      for(intCurrentPosition = 0;intCurrentPosition < seqTemp.GetTotal(); intCurrentPosition++)
+      {
+        arrTemp.AddAsLast("LabwareID: " + seqTemp.GetLabwareId() + ", PositionID : " + seqTemp.GetPositionId());
+        seqTemp.Increment(1);
+      }
+
+      FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::START, _FillRight("   ", "-", _LongestElementSize(arrTemp) + 3));
+      FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::PROGRESS, "Name:    " + i_seqToTrace.GetName());
+      FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::PROGRESS, "Current: " + IStr(i_seqToTrace.GetCurrentPosition()));
+      FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::PROGRESS, "Count:   " + IStr(i_seqToTrace.GetCount()));
+      FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::PROGRESS, "Total:   " + IStr(i_seqToTrace.GetTotal()));
+      FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::PROGRESS, "Max:     " + IStr(i_seqToTrace.GetMax()));
+      FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::PROGRESS, "Used:    " + IStr(i_seqToTrace.GetUsedPositions()));
+
+      for(intCurrentPosition = 0;intCurrentPosition < arrTemp.GetSize(); intCurrentPosition++)
+        FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::PROGRESS, arrTemp.GetAt(intCurrentPosition));
+
+      FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::COMPLETE, _FillRight("", "-", _LongestElementSize(arrTemp)));
+    } // _TraceSequence
+
+    // --------------------------------------------------------------------------------------
+    // private function _Trace
+    // --------------------------------------------------------------------------------------
+    private function _Trace(variable i_strFunctionName,
+                            variable i_strToTrace) void
+    {
+      FormatTrace("TRACELEVEL", i_strFunctionName, ACTION::COMPLETE, i_strToTrace);
+    } // _Trace
+
+    // --------------------------------------------------------------------------------------
+    // private function _LongestElementSize
+    // --------------------------------------------------------------------------------------
+    private function _LongestElementSize(variable i_arrvarToCheck[]) variable
+    {
+      variable intActualPosition(0), intArraySize(0), intMaxLength(0);
+      string strTemp;
+
+      intArraySize = i_arrvarToCheck.GetSize();
+
+      for(intActualPosition = 0; intActualPosition < intArraySize; intActualPosition++)
+      {
+        strTemp = _ToStringWithIndicator(i_arrvarToCheck.GetAt(intActualPosition), hslTrue);
+        if(strTemp.GetLength() > intMaxLength) intMaxLength = strTemp.GetLength();
+      }
+      return(intMaxLength);
+    } // _LongestElementSize
+
+    // --------------------------------------------------------------------------------------
+    // private function _TrimRight
+    // --------------------------------------------------------------------------------------
+    private function _TrimRight(string i_strToTrim,
+                                string i_strToRemove) variable
+    {
+      variable strReturn("");
+      variable intLength(0), intRemoveLength(0), intCount(0);
+      string strTemp("");
+
+      strReturn = i_strToTrim;
+      intLength = i_strToTrim.GetLength();
+      intRemoveLength = i_strToRemove.GetLength();
+
+      for(intCount = intLength - intRemoveLength; intCount > 0; intCount = intCount - intRemoveLength)
+      {
+        strTemp = i_strToTrim.Mid(intCount, intRemoveLength);
+        if(strTemp.Compare(i_strToRemove) != 0) break;
+        strReturn = i_strToTrim.Mid(0, intCount);
+      }
+
+      return(strReturn);
+    } // _TrimRight
+
+    //----------------------------------------------------------------------------------------------
+    // private function _FillLeft
+    //----------------------------------------------------------------------------------------------
+    private function _FillLeft(string i_strStringToFill,
+                               variable i_strFillCharacter,
+                               variable i_intLength) variable
+    {
+      variable strReturn("");
+      variable intCount(0);
+
+      strReturn = i_strStringToFill;
+      for(intCount = i_strStringToFill.GetLength(); intCount < i_intLength; intCount++) strReturn = i_strFillCharacter + strReturn;
+      return(strReturn);
+    } // _FillLeft
+
+    //----------------------------------------------------------------------------------------------
+    // private function _FillRight
+    //----------------------------------------------------------------------------------------------
+    private function _FillRight(string i_strStringToFill,
+                                variable i_strFillCharacter,
+                                variable i_intLength) variable
+    {
+      variable strReturn("");
+      variable intLength(0), intCount(0);
+
+      strReturn = i_strStringToFill;
+      intLength = i_strStringToFill.GetLength();
+      for(intCount = intLength; intCount < i_intLength; intCount++) strReturn = strReturn + i_strFillCharacter;
+      return(strReturn);
+    } // _FillRight
+
+    //----------------------------------------------------------------------------------------------
+    // private function _StringLength
+    //----------------------------------------------------------------------------------------------
+    private function _StringLength(string i_strStringToCheck) variable
+    {
+      return(i_strStringToCheck.GetLength());
+    } // _StringLength
+
+    //----------------------------------------------------------------------------------------------
+    // private function _ToStringWithIndicator
+    //----------------------------------------------------------------------------------------------
+    private function _ToStringWithIndicator(variable i_varValue,
+                               variable i_blnUseStringIndicator) variable
+    {
+      string strVariableType(""), strTempFloat(""), strComma("");
+
+      strVariableType = GetType(i_varValue);
+      if(strVariableType.Compare(hslString) == 0)
+        if(i_blnUseStringIndicator)
+          return(_strStringIdentifier + i_varValue + _strStringIdentifier);
+        else
+          return(i_varValue);
+      if(strVariableType.Compare(hslInteger) == 0) return(IStr(i_varValue));
+      if(strVariableType.Compare(hslFloat) == 0)
+      {
+        strComma = _GetComma();
+        strTempFloat = FStr(i_varValue, hslTrue, 1000);
+        if(strTempFloat.Find(strComma) == -1)
+        {
+          strTempFloat = strTempFloat + strComma;
+          strTempFloat = strTempFloat + "0";
+        }
+        return(strTempFloat);
+      }
+      return("");
+    } // _ToStringWithIndicator
+
+    //----------------------------------------------------------------------------------------------
+    // private function _ToInteger
+    //----------------------------------------------------------------------------------------------
+    private function _ToInteger(variable i_varValue) variable
+    {
+      string strVariableType("");
+
+      strVariableType = GetType(i_varValue);
+      if(strVariableType.Compare(hslInteger) == 0) return(i_varValue);
+      if(strVariableType.Compare(hslString) == 0) return(IVal(i_varValue));
+      if(strVariableType.Compare(hslFloat) == 0) return(Floor(i_varValue));
+      return(0);
+    } // _ToInteger
+
+    //----------------------------------------------------------------------------------------------
+    // private function _ExtractFunctionName
+    //----------------------------------------------------------------------------------------------
+    private function _ExtractFunctionName(variable i_strFunctionName) variable
+    {
+      string strFunctionName("");
+
+      strFunctionName = i_strFunctionName;
+      return(strFunctionName.Mid(_ReverseFind(i_strFunctionName, ":") + 1, strFunctionName.GetLength()));
+    } // _ExtractFunctionName
+
+    //----------------------------------------------------------------------------------------------
+    // private function _ExtractMethodName
+    //----------------------------------------------------------------------------------------------
+    private function _ExtractMethodName(variable i_strMethodName) variable
+    {
+      string strMethodName("");
+      variable intCutPosition(0);
+
+      strMethodName = i_strMethodName;
+      intCutPosition = _ReverseFind(i_strMethodName, "\\") + 1;
+      return(strMethodName.Mid(intCutPosition, _ReverseFind(i_strMethodName, ".") - intCutPosition));
+    } // _ExtractMethodName
+
+    //----------------------------------------------------------------------------------------------
+    // private function _ReverseFind
+    //----------------------------------------------------------------------------------------------
+    private function _ReverseFind(string i_strStringToParse,
+                                  string i_strSubstringToFind) variable
+    {
+      variable intIndex(0), intResult(-1), intStringLength(0);
+      string strTempString("");
+
+      strTempString = i_strStringToParse;
+      intStringLength = strTempString.GetLength();
+      for (intIndex = strTempString.Find(i_strSubstringToFind); intIndex != -1; intIndex = strTempString.Find(i_strSubstringToFind))
+      {
+        intResult = intResult + intIndex + 1;
+        strTempString = strTempString.Mid(intIndex + 1, intStringLength);
+      }
+      return(intResult);
+    } // _ReverseFind
+
+    //----------------------------------------------------------------------------------------------
+    // private function _GetComma
+    //----------------------------------------------------------------------------------------------
+    private function _GetComma() string
+    {
+      if(_strComma.Compare("") == 0)
+      {
+        _strComma = FStr(1.2, hslTrue);
+        _strComma = _strComma.Mid(1,1);
+      }
+      return(_strComma);
+    } // _GetComma
+
+    //----------------------------------------------------------------------------------------------
+    // private function _CheckBool
+    //----------------------------------------------------------------------------------------------
+    private function _CheckBool(variable i_varVariableToCheck,
+                                variable i_strTraceEntry,
+                                variable i_strFunctionName,
+                                variable i_strReferenceModuleName) variable
+    {
+      if(GetType(i_varVariableToCheck) == "i")
+        if(i_varVariableToCheck == BOOL::TRUE || i_varVariableToCheck == BOOL::FALSE)
+          return (hslTrue);
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry +  "' is not of type boolean!");
+      return (hslFalse);
+    } // _CheckBool
+
+    //----------------------------------------------------------------------------------------------
+    // private function _CheckInteger
+    //----------------------------------------------------------------------------------------------
+    function _CheckInteger(variable i_varVariableToCheck,
+                           variable i_strTraceEntry,
+                           variable i_strFunctionName,
+                           variable i_strReferenceModuleName) variable
+    {
+      if(GetType(i_varVariableToCheck) == "i")
+        return (hslTrue);
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type integer!");
+      return (hslFalse);
+    } // _CheckInteger
+
+    //----------------------------------------------------------------------------------------------
+    // private function _CheckIntegerRange
+    //----------------------------------------------------------------------------------------------
+    private function _CheckIntegerRange(variable i_varVariableToCheck,
+                                        variable i_strTraceEntry,
+                                        variable i_intMin,
+                                        variable i_intMax,
+                                        variable i_strFunctionName,
+                                        variable i_strReferenceModuleName) variable
+    {
+      if(GetType(i_varVariableToCheck) == "i")
+        if(i_varVariableToCheck >= i_intMin && i_varVariableToCheck <= i_intMax)
+          return (hslTrue);
+        else
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "'  is out of range ("
+                      + IStr(i_intMin) + ".." + IStr(i_intMax) + ") !");
+      else
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type integer!");
+      return (hslFalse);
+    } // CheckIntegerRange
+
+    //----------------------------------------------------------------------------------------------
+    // private function _CheckFloat
+    //----------------------------------------------------------------------------------------------
+    private function _CheckFloat(variable i_varVariableToCheck,
+                                 variable i_strTraceEntry,
+                                 variable i_strFunctionName,
+                                 variable i_strReferenceModuleName) variable
+    {
+      if(GetType(i_varVariableToCheck) == "f")
+        return (hslTrue);
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type float!");
+      return (hslFalse);
+    } // _CheckFloat
+
+    //----------------------------------------------------------------------------------------------
+    // private function _CheckString
+    //----------------------------------------------------------------------------------------------
+    private function _CheckString(variable i_varVariableToCheck,
+                                  variable i_strTraceEntry,
+                                  variable i_strFunctionName,
+                                  variable i_strReferenceModuleName) variable
+    {
+      if(GetType(i_varVariableToCheck) == "s")
+        return (hslTrue);
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type string!");
+      return (hslFalse);
+    } // _CheckString
+
+    //----------------------------------------------------------------------------------------------
+    // private function _ToString
+    //----------------------------------------------------------------------------------------------
+    private function _ToString(variable i_varValue) variable
+    {
+      string strVariableType("");
+      string strTempFloat("");
+
+      strVariableType = GetType(i_varValue);
+      if(strVariableType.Compare(hslString) == 0)
+        return(i_varValue);
+      if(strVariableType.Compare(hslInteger) == 0) return(IStr(i_varValue));
+      if(strVariableType.Compare(hslFloat) == 0)
+      {
+        strTempFloat = FStr(i_varValue, hslTrue, 1000);
+        if(strTempFloat.Find(".") == -1) strTempFloat = strTempFloat + ".0";
+        return(strTempFloat);
+      }
+      return("");
+    } // _ToString
+  }
+#endif// $$author=Williams_R2$$valid=0$$time=2019-08-02 10:43$$checksum=ec823077$$length=088$$

@@ -1,0 +1,710 @@
+//
+// Library: HSL XML Library
+// 
+// Author: Will Turman 
+//
+
+ 
+
+#ifndef __HSLXml__
+#define __HSLXml__  1
+
+namespace HSLXml
+{
+	//global object
+	private object Xml;
+	
+	//command constants 
+    private const variable CMD_FAIL(0);
+    private const variable CMD_START(1);
+    private const variable CMD_COMPLETE(2);
+    private const variable CMD_ERROR(3);
+    private const variable CMD_PROGRESS(4);
+    private const variable CMD_ERRCOMPLETE(5);
+
+    private const variable hslFalse(0);
+    private const variable hslTrue(1);
+
+    //status constants
+    private const variable STATUS_NONE(0);
+    private const variable STATUS_EXCEPTION(1);
+    private const variable STATUS_ROOT_ELEMENT_ADDED(2);
+    private const variable STATUS_ROOT_ELEMENT_MODIFIED(3);
+
+    //error constants
+    private const variable ERROR_NONE(0);
+    private const variable ERROR_OBJECT(1);
+    private const variable ERROR_TYPE(2);
+    private const variable ERROR_PARSE(3);
+    private const variable ERROR_ELEMENT_ADD(4);
+    private const variable ERROR_ELEMENT_SET(5);
+    private const variable ERROR_ELEMENT_GET(6);
+    private const variable ERROR_ATTRIBUTE_SET(7);
+    private const variable ERROR_ATTRIBUTE_GET(8);
+    private const variable ERROR_FILE_SAVE(9);
+    private const variable ERROR_FILE_LOAD(10);
+    private const variable ERROR_ELEMENT_NOT_FOUND(11);
+    private const variable ERROR_ROOT_ELEMENT_NOT_SPECIFIED(12);
+
+    
+    private const variable simulation(1);
+
+    private function CheckObject( strFunction, object i_obj ) variable
+    {
+        if(i_obj.IsNull())
+        {
+            FormatTrace(strFunction, "", CMD_ERROR, "Object Hamilton.HSLXml does not exist.");
+            return(hslTrue);
+        }
+        return(hslFalse);
+    }
+
+    function SetRootElement( object& io_objXML, variable i_strRoot ) variable
+    {
+        variable result("");
+        variable status(0);
+
+        /*
+        if( CheckObject(GetFunctionName(), io_objXML) != 0 )
+            return(hslTrue);
+        }
+        */
+        //Trace(GetType(result), result);
+        result = io_objXML.SetRootElement( i_strRoot, status );
+        //Trace(GetType(result), result);
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Error Setting Root Element: ", i_strRoot);
+            return(hslTrue);
+        }
+
+        if( status == STATUS_ROOT_ELEMENT_ADDED )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Set Root Element: ", i_strRoot);
+        }
+
+        if( status == STATUS_ROOT_ELEMENT_MODIFIED )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Modified Root Element to ", i_strRoot);
+        }
+
+        return(hslFalse);
+
+    }
+
+
+    
+    function Create( object& o_objXML, i_strRoot ) variable
+    {
+        variable result("");
+        variable intReturn(0);
+        object objXML;
+
+        onerror goto Unexpected;
+
+        if(i_strRoot == "")
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "No Root Element spcified. Object Hamilton.HSLXml was not created.");
+            return(hslTrue);
+        }
+
+        if( objXML.IsNull() )
+        {
+            intReturn = objXML.CreateObject("Hamilton.HSLXml");
+
+            if( objXML.IsNull() )
+            {
+                FormatTrace(GetFunctionName(), "", CMD_ERROR, "Unable to Create Object Hamilton.HSLXml.");
+                return(hslTrue);
+            }
+        }
+
+        if( intReturn == 1) {
+            FormatTrace(GetFunctionName(), "", CMD_PROGRESS, "Created XML Object.");
+            o_objXML = objXML;
+        } else {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Failed to Create XML Object.");
+            return(hslTrue);
+        }
+        
+        result = SetRootElement( o_objXML, i_strRoot );
+        if ( result != hslFalse )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Error setting root element " + i_strRoot + " on XML Object. - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Created XML Object with root element: " + i_strRoot );
+        return(hslFalse);
+
+        Unexpected:
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Unexpected error - Unable to Create Object Hamilton.HSLXml.");
+            return(hslTrue);
+        }
+
+    }
+
+
+
+    function Load( object& io_objXML, variable i_strFilePath ) variable
+    {
+
+    	variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_PROGRESS, "Loading XML File at: ", i_strFilePath);
+
+  		result = io_objXML.Load( i_strFilePath );
+        if ( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "XML Load: ", result);
+            return(hslTrue);
+        }
+  		
+  		return(hslFalse);
+    }
+
+    function Save( object& io_objXML, variable i_strFilePath ) variable
+    {
+        
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_PROGRESS, "Saving XML Object to: ", i_strFilePath);
+
+        result = io_objXML.Save( i_strFilePath );
+        if ( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "XML Save: ", result);
+            return(hslTrue);
+        }
+        
+        return(hslFalse);
+
+    }
+
+    function GetXml( object& io_objXML, variable& o_strXml ) variable
+    {
+        
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = io_objXML.GetXml( o_strXml );
+        if ( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Get Xml: ", result);
+            return(hslTrue);
+        }
+        
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Xml String: ", o_strXml);
+
+        return(hslFalse);
+
+    }
+
+    function ParseXml( object& io_objXML, variable i_strXml ) variable
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = io_objXML.ParseXml( i_strXml );
+        if ( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Parse Xml: ", result);
+            return(hslTrue);
+        }
+        
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Parsed Xml String into Object: ", i_strXml);
+
+        return(hslFalse);
+    } 
+
+    function Release( object i_objXML ) variable
+    {
+        variable result(0);
+
+        onerror goto Unexpected;
+
+
+        if(CheckObject(GetFunctionName(), i_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = i_objXML.ReleaseObject();
+
+        if( result == 1) {
+            FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Released XML Object.");
+        } else {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Failed to Release XML Object.");
+            return(1);
+        }
+        
+        return(0);
+
+        Unexpected:
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Unexpected error - Unable to Release Object Hamilton.HSLXml.");
+            return(1);
+        }
+    }
+
+
+    function GetElement( object i_objXML, variable i_strElement, object& o_objElement) variable
+    {
+        
+        variable result("");
+        variable strElement("");
+
+        if(CheckObject(GetFunctionName(), i_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        o_objElement = i_objXML.GetElement( i_strElement, strElement, result );
+        
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Get Element: ", result);
+            return(hslTrue);
+        }
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Get Element: ", i_strElement);
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Element: ", strElement);
+
+        return(hslFalse);
+    }
+
+    function GetElementAttribute( object i_objXML, variable i_strElement, variable i_strAttribute, variable& o_strValue ) variable
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), i_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = i_objXML.GetElementAttribute( i_strElement, i_strAttribute, o_strValue );
+        if( result != "")
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Get Element: ", i_strElement, " - Attribute: ", i_strAttribute, " - ", result);
+            return(hslTrue);
+        }
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Element: ", i_strElement, " - Attribute: ", i_strAttribute, " - Value: ", o_strValue );
+
+        return(hslFalse);
+
+    }
+
+    function GetNestedElement( object i_objXML, variable i_strElement, i_strNestedElement, object& o_objNestedElement) variable
+    {
+        variable result("");
+        variable strElement("");
+
+        if(CheckObject(GetFunctionName(), i_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        o_objNestedElement = i_objXML.GetNestedElement( i_strElement, i_strNestedElement, strElement, result);
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Get Nested Element: ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Get Nested Element: ", i_strNestedElement);
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Element: ", strElement);
+
+        return(hslFalse);
+
+    }
+
+    function GetNestedElementAttribute( object i_objXML, variable i_strElement, variable i_strNestedElement, variable i_strAttribute, variable& o_strValue ) variable
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), i_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = i_objXML.GetNestedElementAttribute( i_strElement, i_strNestedElement, i_strAttribute, o_strValue );
+        if( result != "")
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Get Nested Element: ", i_strNestedElement, " - Attribute: ", i_strAttribute, " - ", result);
+            return(hslTrue);
+        }
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Nested Element: ", i_strNestedElement, " - Attribute: ", i_strAttribute, " - Value: ", o_strValue );
+        return(hslFalse);
+
+    }
+
+    function GetElementByAttribute( object i_objXML, variable i_strElement, variable i_strAttribute, variable i_strValue, object& o_objElement) variable
+    {
+        variable result("");
+        variable strElement("");
+
+        if(CheckObject(GetFunctionName(), i_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        o_objElement = i_objXML.GetElementByAttribute( i_strElement, i_strAttribute, i_strValue, strElement, result);
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Get Element with Attribute ", i_strAttribute, " = ", i_strValue, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Get Element: ", i_strElement, " with Attribute: ", i_strAttribute, " = ", i_strValue);
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Element: ", strElement);
+
+        return(hslFalse);
+    }
+
+    function GetStringValue( object i_objXML, variable i_strElement, variable& o_strValue ) variable
+    {
+        variable result("");
+        o_strValue = "";
+
+        if(CheckObject(GetFunctionName(), i_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = i_objXML.GetStringValue( i_strElement, o_strValue );
+        if( result != "")
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Get String Value of element: ", i_strElement, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Element: ", i_strElement, " - Value: ", o_strValue);
+
+        return(hslFalse);
+    }
+
+    function GetIntegerValue( object i_objXML, variable i_strElement, variable& o_intValue ) variable
+    {
+        variable result("");
+        o_intValue = 0;
+
+        if(CheckObject(GetFunctionName(), i_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = i_objXML.GetIntegerValue( i_strElement, o_intValue );
+        if( result != "")
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Get Integer Value of element: ", i_strElement, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Element: ", i_strElement, " - Value: ", o_intValue);
+
+        return(hslFalse);
+    }
+
+    function GetFloatValue( object i_objXML, variable i_strElement, variable& o_fltValue ) variable
+    {
+        variable result("");
+        o_fltValue = 0.0;
+
+        if(CheckObject(GetFunctionName(), i_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = i_objXML.GetFloatValue( i_strElement, o_fltValue );
+        if( result != "")
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Get Float Value of element: ", i_strElement, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Element: ", i_strElement, " - Value: ", o_fltValue);
+
+        return(hslFalse);
+    }
+
+    function GetElementCount( object i_objXML, variable i_strElement, variable& o_intElementCount ) variable
+    {
+        variable result("");
+        o_intElementCount = 0;
+
+        if(CheckObject(GetFunctionName(), i_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = i_objXML.GetElementCount( i_strElement, o_intElementCount );
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Get Element Count: ", i_strElement, " - ", result);
+            return(hslTrue);
+        }
+    
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Element: ", i_strElement, " - Count: ", o_intElementCount);
+
+        return(hslFalse);
+    }
+    function GetElementByIndex( object i_objXML, variable i_strElement, variable i_intIndex, object& o_objElement ) variable
+    {
+        variable result("");
+        variable strElement("");
+
+        if(CheckObject(GetFunctionName(), i_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        o_objElement = i_objXML.GetElementByIndex( i_strElement, i_intIndex, strElement, result );
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Get Element: ", i_strElement, " - at Index: ", i_intIndex, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Get List Element: ", i_strElement, " at Index: ", i_intIndex );
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Element: ", strElement);
+
+        return(hslFalse);
+
+    }
+
+
+    function SetElement( object& io_objXML, variable i_strElement, variable i_strValue ) variable
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = io_objXML.SetElement( i_strElement, i_strValue );
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Set Element: ", i_strElement, " - Value: ", i_strValue, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Set Element: ", i_strElement, " - Value: ", i_strValue );
+
+        return(hslFalse);
+    }
+
+    function SetNestedElement( object& io_objXML, variable i_strElement, variable i_strNestedElement, variable i_strValue )
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = io_objXML.SetNestedElement( i_strElement, i_strNestedElement, i_strValue );
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Sett Nested Element: ", i_strNestedElement, " to Value: ", i_strValue, " - ", result);
+            return(hslTrue);
+        } 
+        
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Set Nested Element: ", i_strNestedElement, " - Value: ", i_strValue );
+    
+        return(hslFalse);
+    }
+
+    function AddElement( object& io_objXML, variable i_strElement, variable i_strValue ) variable
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = io_objXML.AddElement( i_strElement, i_strValue );
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Add Element: ", i_strElement, " - Value: ", i_strValue, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Add Element: ", i_strElement, " - Value: ", i_strValue );
+
+        return(hslFalse);
+    }
+
+    function AddElementWithAttribute( object& io_objXML, variable i_strElement, variable i_strElementValue, variable i_strAttribute, variable i_strValue ) variable
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = io_objXML.AddElementWithAttribute( i_strElement, i_strElementValue, i_strAttribute, i_strValue );
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Add Element: ", i_strElement, " - Value: ", i_strValue, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Add Element: ", i_strElement, " - Value: ", i_strValue );
+
+        return(hslFalse);
+    }
+
+    function AddNestedElement( object& io_objXML, variable i_strElement, variable i_strNestedElement, i_strValue)
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = io_objXML.AddNestedElement( i_strElement, i_strNestedElement, i_strValue);
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Add Nested Element: ", i_strNestedElement, " - Value: ", i_strValue, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Add Nested Element: ", i_strNestedElement, " - Value: ", i_strValue );
+
+        return(hslFalse);
+    }
+
+    function AddNestedElementWithAttribute( object& io_objXML, variable i_strElement, variable i_strNestedElement, variable i_strNestedElementValue, variable i_strAttribute, i_strValue)
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = io_objXML.AddNestedElementWithAttribute( i_strElement, i_strNestedElement, i_strNestedElementValue, i_strAttribute, i_strValue);
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Add Nested Element: ", i_strNestedElement, " - Value: ", i_strValue, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Add Nested Element: ", i_strNestedElement, " - Value: ", i_strValue );
+
+        return(hslFalse);
+    }
+
+
+
+    function SetRootAttribute( object& io_objXML, variable i_strAttribute, variable i_strValue)
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = io_objXML.SetRootAttribute( i_strAttribute, i_strValue );
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Set Root Attribute: ", i_strAttribute, " to Value: ", i_strValue, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Set Root Attribute: ", i_strAttribute, " to Value: ", i_strValue );
+
+        return(hslFalse);
+    }
+
+    function SetElementAttribute( object& io_objXML, variable i_strElement, variable i_strAttribute, variable i_strValue )
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = io_objXML.SetElementAttribute( i_strElement, i_strAttribute, i_strValue );
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Set Element Attribute: ", i_strElement, " - Attribute: ", i_strAttribute, " - Value: ", i_strValue, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Set Element Attribute: ", i_strElement, " - Attribute: ", i_strAttribute, " - Value: ", i_strValue);
+
+        return(hslFalse);
+    }
+
+    function SetNestedElementAttribute( object& io_objXML, variable i_strElement, variable i_strNestedElement, variable i_strAttribute, variable i_strValue )
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        result = io_objXML.SetNestedElementAttribute( i_strElement, i_strNestedElement, i_strAttribute, i_strValue );
+        if( result != "" )
+        {
+            FormatTrace(GetFunctionName(), "", CMD_ERROR, "Set Attribute on Nested Element: ", i_strNestedElement, " - Attribute: ", i_strAttribute, " - ", result);
+            return(hslTrue);
+        }
+
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Set Element Attribute: ", i_strElement, " - Attribute: ", i_strAttribute, " - Value: ", i_strValue);
+
+        return(hslFalse);
+    }
+
+    function AddObjectAsElement( object& io_objXML, variable i_strElement, object i_objElement ) variable
+    {
+        variable result("");
+
+        if(CheckObject(GetFunctionName(), io_objXML) != ERROR_NONE)
+        {
+            return(hslTrue);
+        }
+
+        io_objXML = io_objXML.AddObjectAsElement( i_strElement, i_objElement, result );
+        if(result != "")
+        {
+            FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Add Element: ", i_strElement, " as Object - ", result);
+            return(hslTrue);
+        }
+    
+        FormatTrace(GetFunctionName(), "", CMD_COMPLETE, "Element: ", i_strElement);
+
+        return(hslFalse);
+    }
+
+
+}
+
+#endif // _HSLXml_hsl__
+// $$author=Turman_w$$valid=1$$time=2017-06-16 10:53$$checksum=a3b08b95$$length=087$$

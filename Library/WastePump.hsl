@@ -1,0 +1,581 @@
+// ======================================================================
+// Interface of the Daisy Chained Media Line library 
+//
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+// ======================================================================
+//
+// Modification History
+//		2008-08-06, V1.0: Ruedi Vogel, created
+//    2009-02-05, V1.2: Ruedi Vogel
+//       - defines to control valves for water and ethanol exchanged
+// ======================================================================
+
+#ifndef __HSL_DaisyChainedWastePump_hsl__
+#define __HSL_DaisyChainedWastePump_hsl__	1
+
+#ifndef __HSLStrLib_hsl__
+#include "HSLStrLib.hsl"
+#endif
+
+#ifndef __HSL_DaisyChainCommunication_hsl__
+#include "HSLDaisyChainCommunication.hsl"
+#endif
+
+
+namespace HSLDaisyChainedWastePump
+{
+	/*********************************************************************
+	*
+	* Exported return constants
+	*
+	*********************************************************************/
+	
+	const static variable CMD_START   ( 1 );
+	const static variable CMD_COMPLET ( 2 );
+	const static variable CMD_ERROR   ( 5 );   // to prevent suspicious Phoenix error messages
+	const static variable CMD_PROGRESS( 4 );
+	const static variable CMD_ERRCOMPL( 5 );
+
+	const variable TRACE_LEVEL_NONE   ( 0 );
+	const variable TRACE_LEVEL_NORMAL ( 1 );
+   const variable TRACE_LEVEL_FULL   ( 2 );
+   const variable HSL_FALSE          ( hslFalse );
+   const variable HSL_TRUE           ( hslTrue );
+   
+	const variable ERROR_NONE                                         (  0 );
+   const variable ERROR_COMM_ALREADY_INIT                            (  1 );
+	const variable ERROR_PRM_OUT_OF_RANGE                             (  2 );
+	const variable ERROR_FALSE_COMM_PORT                              (  3 );
+	const variable ERROR_HSL_FUNCTION_FAILED                          (  4 );
+	const variable ERROR_WRITE_RECORD_FAILED                          (  5 );
+	const variable ERROR_READ_RECORD_FAILED                           (  6 );
+	const variable ERROR_UNEXPECTED_TXRX_COMMAND                      (  7 );
+	const variable ERROR_UNEXPECTED_TXRX_RESET                        (  8 );
+	const variable ERROR_INIT_NOT_FOUND                               (  9 );
+	const variable ERROR_STEP_LOST                                    ( 10 );
+	const variable ERROR_NOT_INITIALIZED                              ( 11 );
+	const variable ERROR_PARALLEL_ERROR                               ( 12 );
+	const variable ERROR_STEPPER_MOTOR_HW_DEFECTIVE                   ( 13 );
+	const variable ERROR_CMD_UNKNOWN                                  ( 14 );
+   const variable ERROR_UNKNOWN_DEVICE_NAME                          ( 15 );
+   const variable ERROR_PERISTALTIC_PUMP_OVERLOAD                    ( 16 );
+   const variable ERROR_PERISTALTIC_PUMP_TIMEOUT                     ( 17 );
+	const variable ERROR_UNKNOWN_ERROR_CODE                           ( 18 );
+
+	const static string ERROR_MSG_NONE                                ( "No error." );
+   const static string ERROR_MSG_COMM_ALREADY_INIT                   ( HSLDaisyChainCommunication::ERROR_MSG_ALREADY_INITIALIZED );
+	const static string ERROR_MSG_PRM_OUT_OF_RANGE                    ( HSLDaisyChainCommunication::ERROR_MSG_PARAMETER_OUT_OF_RANGE );
+	const static string ERROR_MSG_FALSE_COMM_PORT                     ( HSLDaisyChainCommunication::ERROR_MSG_FALSE_COMM_PORT );
+	const static string ERROR_MSG_HSL_FUNCTION_FAILED                 ( HSLDaisyChainCommunication::ERROR_MSG_HSL_FUNCTION_FAILED );
+	const static string ERROR_MSG_WRITE_RECORD_FAILED                 ( HSLDaisyChainCommunication::ERROR_MSG_WRITE_RECORD_FAILED );
+	const static string ERROR_MSG_READ_RECORD_FAILED                  ( HSLDaisyChainCommunication::ERROR_MSG_READ_RECORD_FAILED );
+	const static string ERROR_MSG_UNEXPECTED_TXRX_COMMAND             ( HSLDaisyChainCommunication::ERROR_MSG_UNEXPECTED_TXRX_COMMAND );
+	const static string ERROR_MSG_UNEXPECTED_TXRX_RESET               ( HSLDaisyChainCommunication::ERROR_MSG_UNEXPECTED_TXRX_RESET );
+	const static string ERROR_MSG_INIT_NOT_FOUND                      ( "Init position not found!" );
+	const static string ERROR_MSG_STEP_LOST                           ( "Steps lost (overload)!" );
+	const static string ERROR_MSG_NOT_INITIALIZED                     ( "Drive not initialized!" );
+	const static string ERROR_MSG_PARALLEL_ERROR                      ( "Parallel functions not allowed!" );
+	const static string ERROR_MSG_STEPPER_MOTOR_HW_DEFECTIVE          ( "Stepper motor power amp defective!" );
+	const static string ERROR_MSG_CMD_UNKNOWN                         ( "Unknown command!" );
+   const static string ERROR_MSG_UNKNOWN_DEVICE_NAME                 ( "Unknown device name (module identifier)!" );
+   const static string ERROR_MSG_PERISTALTIC_PUMP_OVERLOAD           ( "Peristaltic pump overload!" );
+   const static string ERROR_MSG_PERISTALTIC_PUMP_TIMEOUT            ( "Peristaltic pump timeout (Level sensor came not active)!" );
+	const static string ERROR_MSG_UNKNOWN_ERROR_CODE                  ( "Unknown error code!" );
+
+   const static variable VALVE_MEDIUM ( "5" );
+   const static variable VALVE_WATER  ( "6" );
+   const static variable VALVE_ETHANOL( "7" );
+
+
+	/*********************************************************************
+	*
+	* Module globale constants/variables
+	*
+	*********************************************************************/
+
+	static global variable HSLdaisyChainedWastePump_SimulationFlag( HSL_FALSE );
+	static global variable HSLdaisyChainedWastePump_TrcLvl( TRACE_LEVEL_NORMAL );
+	
+
+	/*********************************************************************
+	*
+	* Declarations
+	*
+	*********************************************************************/
+
+	function Initialize( variable iModuleName, variable iComPort, variable iTraceLevel, variable iSimulate ) variable;
+	function Terminate( variable iModuleName ) void;	
+	function Prime( variable iModuleName, variable iMediumType, variable iMediumPumpTime, variable iMediumPumpPower ) variable;
+	function Fill( variable iModuleName, variable iMediumType, variable iMediumPumpTimeout, variable iMediumPumpPower ) variable;
+   function RequestLevelSensor( variable iModuleName, variable & oLevelState ) variable;
+   function OpenValvesForMaintenance( variable iModuleName );
+	function EvaluateErrorMessage( variable iErrorCode ) string;
+
+	static function DecodeWastePumpModuleErrorCode( variable iErrCode ) variable;
+	static function DecodeCommunicationErrorCode( variable iErrCode ) variable;
+   static function TxRxCommand( variable iModuleName, variable iCommand, variable iParameter, variable & oResponse ) variable;
+   static function TxRxReset( variable iModuleName ) variable;
+   static function Delay( variable iTime ) void;
+   static function TerminateDueToAnError( variable iModuleName ) void;
+
+	
+	/*********************************************************************
+	*
+	* Implementations
+	*
+	*********************************************************************/
+
+	function Initialize( variable iModuleName, variable iComPort, variable iTraceLevel, variable iSimulate ) variable
+	{
+		variable command;
+		variable parameter;
+		variable response;
+		variable errCode;
+
+		
+		HSLdaisyChainedWastePump_SimulationFlag = iSimulate;
+		HSLdaisyChainedWastePump_TrcLvl = iTraceLevel;
+		if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace(GetFunctionName(), "()", CMD_START, " Initialize Waste Pump ", iModuleName, " on COM", iComPort );
+
+		// -------------------------------------------------------------------------
+		// check parameters
+		// -------------------------------------------------------------------------
+		if(( 1 > iComPort) || ( 255 < iComPort ))
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Parameter comPort #", iComPort, " out of range [1..255]!" );
+			return( ERROR_PRM_OUT_OF_RANGE );
+		}
+
+		// -------------------------------------------------------------------------
+		// check simulation mode
+		// -------------------------------------------------------------------------
+		if(( GetSimulationMode() == 1 ) || ( hslTrue == HSLdaisyChainedWastePump_SimulationFlag ))
+		{
+			if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace( GetFunctionName(), "()", CMD_COMPLET, " Waste Pump runs in simulation mode!" );
+			return( ERROR_NONE );
+		}
+
+		// -------------------------------------------------------------------------
+		// initialize communication port
+		// -------------------------------------------------------------------------
+      errCode = DecodeCommunicationErrorCode( HSLDaisyChainCommunication::InitializeDaisyChainCommunication( iModuleName, iComPort, iTraceLevel ));
+	   if( HSLDaisyChainCommunication::ERROR_NONE != errCode )
+   	{
+	   	FormatTrace( GetFunctionName(), "()", HSLDaisyChainCommunication::CMD_ERROR, "<InitializeDaisyChainCommunication()> for Waste Pump ",iModuleName," failed! (Error code = ", errCode, ", error message = ", HSLDaisyChainCommunication::EvaluateCommErrorMessage( errCode ), ")" );
+         HSLDaisyChainCommunication::TerminateDaisyChainCommunication( iModuleName );
+         return( errCode );
+	   }
+
+		// -------------------------------------------------------------------------
+		// reset firmware (with configuring timeouts)
+		// -------------------------------------------------------------------------
+		errCode = TxRxReset( iModuleName );
+		if( ERROR_NONE != errCode )
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Resetting firmware system of Waste Pump failed! (System ", iModuleName, ")" );
+			return( errCode );
+		}
+
+		// -------------------------------------------------------------------------
+		// transmit clear error command
+		// -------------------------------------------------------------------------
+		command   = "EI";
+		parameter = "";
+		response  = "";
+		errCode = TxRxCommand( iModuleName, command, parameter, response );
+		if( ERROR_NONE != errCode )
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Resetting errors on WastePump failed! (System ", iModuleName, ", TxRxCommand(", command, parameter, "), response = <", response, ">)" );
+			return( errCode );
+		}
+
+		// -------------------------------------------------------------------------
+		// transmit "RF", request firmware version
+		// -------------------------------------------------------------------------
+		command   = "RF";
+		parameter = "";
+		response  = "";
+		errCode = TxRxCommand( iModuleName, command, parameter, response );
+		if( ERROR_NONE != errCode )
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Requesting firmware version of WastePump failed! (System ", iModuleName, ", TxRxCommand(", command, parameter, "), response = <", response, ">)" );
+			return( errCode );
+		}
+		if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace( GetFunctionName(), "()", CMD_PROGRESS, "Firmware version of WastePump < ", iModuleName, "> is ", response );
+
+		// -------------------------------------------------------------------------
+		// transmit "SI", initialize, command
+		// -------------------------------------------------------------------------
+		//command   = "SI";
+		//parameter = "";
+		//response  = "";
+		//errCode = TxRxCommand( iModuleName, command, parameter, response );
+	//	if( ERROR_NONE != errCode )
+		//{
+	//		FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Initializing of WastePump failed! (System ", iModuleName, ", TxRxCommand(", command, parameter, "), response = <", response, ">)" );
+	//		return( errCode );
+	//	}
+
+	//	if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace( GetFunctionName(), "()", CMD_COMPLET );
+	//	return( ERROR_NONE );
+	}
+
+	
+	function Terminate(variable iModuleName) void
+	{
+		variable command;
+		variable parameter;
+		variable response;
+		variable errCode;
+
+
+		if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace(GetFunctionName(), "()", CMD_START, " Module #", iModuleName );
+
+		// -------------------------------------------------------------------------
+		// check simulation mode
+		// -------------------------------------------------------------------------
+		if(( GetSimulationMode() == 1 ) || ( hslTrue == HSLdaisyChainedWastePump_SimulationFlag ))
+		{
+			if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace( GetFunctionName(), "()", CMD_COMPLET, " WastePump runs in simulation mode!" );
+			return;
+		}
+
+
+		// -------------------------------------------------------------------------
+		// close comm. port
+		// -------------------------------------------------------------------------
+      errCode = HSLDaisyChainCommunication::TerminateDaisyChainCommunication( iModuleName );
+		if( HSLDaisyChainCommunication::ERROR_NONE != errCode )
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " <TerminateDaisyChainCommunication()> to WastePump < ", iModuleName, "> failed! (Communication error code = ", errCode, ", error message = ", HSLDaisyChainCommunication::EvaluateCommErrorMessage( errCode ), ")" );
+		}
+
+		if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace( GetFunctionName(), "()", CMD_COMPLET );
+		return;
+	}
+
+
+	function Start( variable iModuleName ) variable
+	{
+		variable command;
+		variable parameter;
+		variable response;
+		variable errCode;
+
+
+		if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace(GetFunctionName(), "()", CMD_START, " WastePump #", iModuleName );
+
+		// -------------------------------------------------------------------------
+		// check simulation mode
+		// -------------------------------------------------------------------------
+		if(( GetSimulationMode() == 1 ) || ( hslTrue == HSLdaisyChainedWastePump_SimulationFlag ))
+		{
+			if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace( GetFunctionName(), "()", CMD_COMPLET, " WastePump runs in simulation mode!" );
+			return( ERROR_NONE );
+		}
+
+		// -------------------------------------------------------------------------
+		// Start Waste Pump
+		// -------------------------------------------------------------------------
+      // set pump power
+		command   = "PP";
+		parameter = "100";
+		response  = "";
+		errCode = TxRxCommand( iModuleName, command, parameter, response );
+		if( ERROR_NONE != errCode )
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Setting pump power on WastePump failed! (System ", iModuleName, ", TxRxCommand(", command, parameter, "), response = <", response, ">)" );
+			return( errCode );
+		}
+      // start pump
+		command   = "PE";
+		parameter = "";
+		response  = "";
+		errCode = TxRxCommand( iModuleName, command, parameter, response );
+		if( ERROR_NONE != errCode )
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Starting WastePump failed! (System ", iModuleName, ", TxRxCommand(", command, parameter, "), response = <", response, ">)" );
+			return( errCode );
+		}
+
+	}
+
+	function Stop( variable iModuleName ) variable
+	{
+		variable command;
+		variable parameter;
+		variable response;
+		variable errCode;
+
+
+		if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace(GetFunctionName(), "()", CMD_START, " WastePump #", iModuleName );
+
+		// -------------------------------------------------------------------------
+		// check simulation mode
+		// -------------------------------------------------------------------------
+		if(( GetSimulationMode() == 1 ) || ( hslTrue == HSLdaisyChainedWastePump_SimulationFlag ))
+		{
+			if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace( GetFunctionName(), "()", CMD_COMPLET, " WastePump runs in simulation mode!" );
+			return( ERROR_NONE );
+		}
+
+		// -------------------------------------------------------------------------
+		// Stop waste pump
+		// -------------------------------------------------------------------------
+      // stop pump
+		command   = "PA";
+		parameter = "";
+		response  = "";
+		errCode = TxRxCommand( iModuleName, command, parameter, response );
+		if( ERROR_NONE != errCode )
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Stopping WastePump failed! (System ", iModuleName, ", TxRxCommand(", command, parameter, "), response = <", response, ">)" );
+			return( errCode );
+		}
+
+		if( TRACE_LEVEL_NONE < HSLdaisyChainedWastePump_TrcLvl ) FormatTrace( GetFunctionName(), "()", CMD_COMPLET );
+		return( ERROR_NONE );
+
+	}
+
+	function EvaluateErrorMessage( variable iErrorCode ) string
+	{
+   	     if( iErrorCode == ERROR_NONE                                    ) return( ERROR_MSG_NONE );
+      else if( iErrorCode == ERROR_COMM_ALREADY_INIT                       ) return( ERROR_MSG_COMM_ALREADY_INIT );
+   	else if( iErrorCode == ERROR_PRM_OUT_OF_RANGE                        ) return( ERROR_MSG_PRM_OUT_OF_RANGE );
+   	else if( iErrorCode == ERROR_FALSE_COMM_PORT                         ) return( ERROR_MSG_FALSE_COMM_PORT );
+   	else if( iErrorCode == ERROR_HSL_FUNCTION_FAILED                     ) return( ERROR_MSG_HSL_FUNCTION_FAILED );
+   	else if( iErrorCode == ERROR_WRITE_RECORD_FAILED                     ) return( ERROR_MSG_WRITE_RECORD_FAILED );
+   	else if( iErrorCode == ERROR_READ_RECORD_FAILED                      ) return( ERROR_MSG_READ_RECORD_FAILED );
+   	else if( iErrorCode == ERROR_UNEXPECTED_TXRX_COMMAND                 ) return( ERROR_MSG_UNEXPECTED_TXRX_COMMAND );
+   	else if( iErrorCode == ERROR_UNEXPECTED_TXRX_RESET                   ) return( ERROR_MSG_UNEXPECTED_TXRX_RESET );
+   	else if( iErrorCode == ERROR_INIT_NOT_FOUND                          ) return( ERROR_MSG_INIT_NOT_FOUND );
+   	else if( iErrorCode == ERROR_STEP_LOST                               ) return( ERROR_MSG_STEP_LOST );
+   	else if( iErrorCode == ERROR_NOT_INITIALIZED                         ) return( ERROR_MSG_NOT_INITIALIZED );
+   	else if( iErrorCode == ERROR_PARALLEL_ERROR                          ) return( ERROR_MSG_PARALLEL_ERROR );
+   	else if( iErrorCode == ERROR_STEPPER_MOTOR_HW_DEFECTIVE              ) return( ERROR_MSG_STEPPER_MOTOR_HW_DEFECTIVE );
+   	else if( iErrorCode == ERROR_CMD_UNKNOWN                             ) return( ERROR_MSG_CMD_UNKNOWN );
+      else if( iErrorCode == ERROR_UNKNOWN_DEVICE_NAME                     ) return( ERROR_MSG_UNKNOWN_DEVICE_NAME );
+      else if( iErrorCode == ERROR_PERISTALTIC_PUMP_OVERLOAD               ) return( ERROR_MSG_PERISTALTIC_PUMP_OVERLOAD );
+      else if( iErrorCode == ERROR_PERISTALTIC_PUMP_TIMEOUT                ) return( ERROR_MSG_PERISTALTIC_PUMP_TIMEOUT );
+   	else if( iErrorCode == ERROR_UNKNOWN_ERROR_CODE                      ) return( ERROR_MSG_UNKNOWN_ERROR_CODE );
+   	else                                                                   return( ERROR_MSG_UNKNOWN_ERROR_CODE );
+	}
+
+
+
+
+	static function DecodeWastePumpModuleErrorCode( variable iErrCode ) variable
+	{
+		     if(  0 == iErrCode ) return( ERROR_NONE );
+		else if(  1 == iErrCode ) return( ERROR_INIT_NOT_FOUND );
+		else if(  2 == iErrCode ) return( ERROR_STEP_LOST );
+		else if(  3 == iErrCode ) return( ERROR_NOT_INITIALIZED );
+		else if(  4 == iErrCode ) return( ERROR_PARALLEL_ERROR );
+		else if(  5 == iErrCode ) return( ERROR_STEPPER_MOTOR_HW_DEFECTIVE );
+		else if(  6 == iErrCode ) return( ERROR_PRM_OUT_OF_RANGE );
+		else if(  7 == iErrCode ) return( ERROR_CMD_UNKNOWN );
+		else if(  8 == iErrCode ) return( ERROR_PERISTALTIC_PUMP_OVERLOAD );
+		else if(  9 == iErrCode ) return( ERROR_PERISTALTIC_PUMP_TIMEOUT );
+   	else                      return( ERROR_UNKNOWN_ERROR_CODE );
+	}
+
+
+
+	static function DecodeCommunicationErrorCode( variable iErrCode ) variable
+	{
+		     if( HSLDaisyChainCommunication::ERROR_NONE                    == iErrCode ) return( ERROR_NONE );
+		else if( HSLDaisyChainCommunication::ERROR_ALREADY_INITIALIZED     == iErrCode ) return( ERROR_COMM_ALREADY_INIT );
+		else if( HSLDaisyChainCommunication::ERROR_PARAMETER_OUT_OF_RANGE  == iErrCode ) return( ERROR_PRM_OUT_OF_RANGE );
+		else if( HSLDaisyChainCommunication::ERROR_FALSE_COMM_PORT         == iErrCode ) return( ERROR_FALSE_COMM_PORT );
+		else if( HSLDaisyChainCommunication::ERROR_HSL_FUNCTION_FAILED     == iErrCode ) return( ERROR_HSL_FUNCTION_FAILED );
+		else if( HSLDaisyChainCommunication::ERROR_WRITE_RECORD_FAILED     == iErrCode ) return( ERROR_WRITE_RECORD_FAILED );
+		else if( HSLDaisyChainCommunication::ERROR_READ_RECORD_FAILED      == iErrCode ) return( ERROR_READ_RECORD_FAILED );
+		else if( HSLDaisyChainCommunication::ERROR_UNEXPECTED_TXRX_COMMAND == iErrCode ) return( ERROR_UNEXPECTED_TXRX_COMMAND );
+		else if( HSLDaisyChainCommunication::ERROR_UNEXPECTED_TXRX_RESET   == iErrCode ) return( ERROR_UNEXPECTED_TXRX_RESET );
+   	else                                                                             return( ERROR_UNKNOWN_ERROR_CODE );
+	}
+
+
+
+   static function TxRxCommand( variable iModuleName, variable iCommand, variable iParameter, variable & oResponse ) variable
+   {
+      variable errCode;
+
+      errCode = HSLDaisyChainCommunication::DaisyChainedTxRxCommand( iModuleName, iCommand, iParameter, oResponse );
+		if( HSLDaisyChainCommunication::ERROR_NONE != errCode )
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Communication error occurred! (System #", iModuleName, ", Error Text: ", HSLDaisyChainCommunication::EvaluateCommErrorMessage( errCode ), ")" );
+			return( DecodeCommunicationErrorCode( errCode ));
+		}
+      if( StrGetLength( oResponse ) < 8 )
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Length of response too short! (System #", iModuleName, ", Error Text: ", EvaluateErrorMessage( ERROR_UNKNOWN_DEVICE_NAME ), ")" );
+         return( ERROR_UNKNOWN_DEVICE_NAME );
+      }
+		errCode = DecodeWastePumpModuleErrorCode( IVal( StrMid( oResponse, 6, 2 )));
+      if( errCode != ERROR_NONE )
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " WastePump error occurred! (System #", iModuleName, ", Error Text: ", EvaluateErrorMessage( errCode ), ")" );
+      }
+		return( errCode );
+   }
+
+
+
+   static function TxRxReset( variable iModuleName ) variable
+   {
+      variable errCode;
+      variable response;
+
+      errCode = HSLDaisyChainCommunication::DaisyChainedTxRxReset( iModuleName, response );
+		if( HSLDaisyChainCommunication::ERROR_NONE != errCode )
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Communication error occurred! (System #", iModuleName, ", Error Text: ", HSLDaisyChainCommunication::EvaluateCommErrorMessage( errCode ), ")" );
+			return( DecodeCommunicationErrorCode( errCode ));
+		}
+      if( StrGetLength( response ) < 8 )
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Length of response too short! (System #", iModuleName, ", Error Text: ", EvaluateErrorMessage( ERROR_UNKNOWN_DEVICE_NAME ), ")" );
+         return( ERROR_UNKNOWN_DEVICE_NAME );
+      }
+		errCode = DecodeWastePumpModuleErrorCode( IVal( StrMid( response, 6, 2 )));
+      if( errCode != ERROR_NONE )
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " WastePump error occurred! (System #", iModuleName, ", Error Text: ", EvaluateErrorMessage( errCode ), ")" );
+      }
+		return( errCode );
+   }
+
+
+   static function TerminateDueToAnError( variable iModuleName ) void
+   {
+		variable command;
+		variable parameter;
+		variable response;
+		variable errCode;
+
+
+		// -------------------------------------------------------------------------
+		// Stop waste pump
+		// -------------------------------------------------------------------------
+		command   = "PA";
+		parameter = "";
+		response  = "";
+		errCode = TxRxCommand( iModuleName , command, parameter, response );
+		if( ERROR_NONE != errCode ) FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Stopping WastePump failed! (System ", iModuleName, ", TxRxCommand(", command, parameter, "), response = <", response, ">)" );
+   }
+
+
+
+
+}	//end namespace 
+
+
+
+/*
+
+private function DisplayErrorAndTerminate( variable iSystemId, variable iErrorCode ) void 
+{
+   dialog   d1;
+   variable errMsg;
+
+   errMsg = HSLDaisyChainedWastePump::EvaluateErrorMessage( iErrorCode );
+   d1.SetOutput( "Module #", iSystemId, " failed!\nError code = ", iErrorCode, ": ", errMsg );
+   d1.ShowOutput( "Error raised!", hslOKOnly | hslInformation | hslDefButton1, hslInfinite );
+   HSLDaisyChainedWastePump::Terminate( 1 );
+   HSLDaisyChainedWastePump::Terminate( 2 );
+   HSLDaisyChainedWastePump::Terminate( 3 );
+   abort;
+}
+
+
+method main( ) void
+{
+   variable errCode;
+   variable myModule;
+   variable myComPort( 3 );
+   variable mySelection;
+   variable myLevelStatus;
+   dialog   d1;
+
+
+   // initialize all modules
+   for( myModule = 1; myModule <= 3; myModule++ )
+   {
+      errCode = HSLDaisyChainedWastePump::Initialize( myModule,
+                                                      myComPort,
+                                                      HSLDaisyChainedWastePump::TRACE_LEVEL_FULL,
+                                                      HSLDaisyChainedWastePump::HSL_FALSE);
+      if( errCode != HSLDaisyChainedWastePump::ERROR_NONE ) DisplayErrorAndTerminate( myModule, errCode );
+   }
+
+
+   // request level sensors
+   for( myModule = 1; myModule <= 3; myModule++ )
+   {
+      mySelection = 6;
+      while( mySelection == 6 )
+      {
+         errCode = HSLDaisyChainedWastePump::RequestLevelSensor( myModule, myLevelStatus );
+         if( errCode != HSLDaisyChainedWastePump::ERROR_NONE ) DisplayErrorAndTerminate( myModule, errCode );
+         if( myLevelStatus == "empty" )
+         {
+            d1.SetOutput( "The level sensor #", myModule, " did NOT detect a fluid.\nDo you want to request level sensor of module #", myModule, " once again?" );
+            mySelection = d1.ShowOutput( "Level sensor", hslYesNo | hslInformation | hslDefButton1, hslInfinite );
+         }
+         else
+         {
+            d1.SetOutput( "The level sensor #", myModule, " detected a fluid.\nDo you want to request level sensor of module #", myModule, " once again?" );
+            mySelection = d1.ShowOutput( "Level sensor", hslYesNo | hslInformation | hslDefButton1, hslInfinite );
+         }
+      }
+   }
+
+
+   // prime all modules
+   for( myModule = 1; myModule <= 3; myModule++ )
+   {
+      if( myModule == 1 )
+         errCode = HSLDaisyChainedWastePump::Prime( myModule, myWater,   myPrimeTime, myPowerW );
+      else if( myModule == 2 )
+         errCode = HSLDaisyChainedWastePump::Prime( myModule, myEthanol, myPrimeTime, myPowerE );
+      else
+         errCode = HSLDaisyChainedWastePump::Prime( myModule, myMedium,  myPrimeTime, myPowerM );
+      if( errCode != HSLDaisyChainedWastePump::ERROR_NONE ) DisplayErrorAndTerminate( myModule, errCode );
+   }
+
+
+   // fill all modules
+   for( myModule = 1; myModule <= 3; myModule++ )
+   {
+      if( myModule == 1 )
+         errCode = HSLDaisyChainedWastePump::Fill( myModule, myWater,   myFillTimeout, myPowerW );
+      else if( myModule == 2 )
+         errCode = HSLDaisyChainedWastePump::Fill( myModule, myEthanol, myFillTimeout, myPowerE );
+      else
+         errCode = HSLDaisyChainedWastePump::Fill( myModule, myMedium,  myFillTimeout, myPowerM );
+      if( errCode != HSLDaisyChainedWastePump::ERROR_NONE ) DisplayErrorAndTerminate( myModule, errCode );
+   }
+
+
+   // do maintenance
+   for( myModule = 1; myModule <= 3; myModule++ )
+   {
+      errCode = HSLDaisyChainedWastePump::OpenValvesForMaintenance( myModule );
+      if( errCode != HSLDaisyChainedWastePump::ERROR_NONE ) DisplayErrorAndTerminate( myModule, errCode );
+   }
+
+
+   // terminate all modules
+   for( myModule = 1; myModule <= 3; myModule++ )
+   {
+      HSLDaisyChainedWastePump::Terminate( myModule );
+   }
+}
+*/
+
+
+#endif
+// $$author=technical_support$$valid=0$$time=2014-11-13 07:33$$checksum=b9935251$$length=096$$

@@ -1,0 +1,827 @@
+// ======================================================================
+// Interface of the Daisy Chained Media Line library 
+//
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+// ======================================================================
+//
+// Modification History
+//    2008-10-01, V1.0: Ruedi Vogel, created
+//    2009-02-04, V2.2: Ruedi Vogel
+//       - defines to control valves for water and ethanol exchanged
+//    2010-07-06, V3.0: Bernd Huf
+//       - added function RequestOverfillSensor() due to hardware changes
+//       - added command 'GH' on Init
+//       - changed function 'OpenValvesForMaintenance' to open valves one
+//         after the other due to the fact that opening all valves needs
+//         too much current (box behaves unpredictible). Added messageboxes
+//         to inform the user about the valves being open
+//       - Exchanged command 'AI' in MultiDaisyChainedCommunication library
+//         with command 'EI' --> AI leads to unpredictable result from
+//         electronic box
+//    2010-07-27, V3.1: Bernd Huf
+//       - added function MountDispenserArm to help technical support
+// ======================================================================
+
+#ifndef __HSL_MultiDaisyChainedMediaLine_hsl__
+#define __HSL_MultiDaisyChainedMediaLine_hsl__  1
+
+#ifndef __HSLStrLib_hsl__
+#include "HSLStrLib.hsl"
+#endif
+
+#ifndef __HSL_MultiDaisyChainCommunication_hsl__
+#include "HSLMultiDaisyChainCommunication.hsl"
+#endif
+
+namespace HSLMultiDaisyChainedMediaLine
+{
+  /*********************************************************************
+  *
+  * Exported return constants
+  *
+  *********************************************************************/
+  
+  const static variable CMD_START   (1);
+  const static variable CMD_COMPLET (2);
+  const static variable CMD_ERROR   (5);   // to prevent suspicious Phoenix error messages
+  const static variable CMD_PROGRESS(4);
+  const static variable CMD_ERRCOMPL(5);
+
+  const variable TRACE_LEVEL_NONE   (0);
+  const variable TRACE_LEVEL_NORMAL (1);
+  const variable TRACE_LEVEL_FULL   (2);
+  const variable HSL_FALSE          (hslFalse);
+  const variable HSL_TRUE           (hslTrue);
+   
+  const variable ERROR_NONE                                         ( 0);
+  const variable ERROR_INIT_NOT_FOUND                               ( 1);
+  const variable ERROR_STEP_LOST                                    ( 2);
+  const variable ERROR_NOT_INITIALIZED                              ( 3);
+  const variable ERROR_PARALLEL_ERROR                               ( 4);
+  const variable ERROR_STEPPER_MOTOR_HW_DEFECTIVE                   ( 5);
+  const variable ERROR_PRM_OUT_OF_RANGE                             ( 6);
+  const variable ERROR_CMD_UNKNOWN                                  ( 7);
+  const variable ERROR_PERISTALTIC_PUMP_OVERLOAD                    ( 8);
+  const variable ERROR_PERISTALTIC_PUMP_TIMEOUT                     ( 9);
+  const variable ERROR_PRM_TYPE_FAILED                              (10);
+  const variable ERROR_UNKNOWN_ERROR_CODE                           (11);
+
+  const static string ERROR_MSG_NONE                                ("No error.");
+  const static string ERROR_MSG_INIT_NOT_FOUND                      ("Init position not found!");
+  const static string ERROR_MSG_STEP_LOST                           ("Steps lost (overload)!");
+  const static string ERROR_MSG_NOT_INITIALIZED                     ("Drive not initialized!");
+  const static string ERROR_MSG_PARALLEL_ERROR                      ("Parallel functions not allowed!");
+  const static string ERROR_MSG_STEPPER_MOTOR_HW_DEFECTIVE          ("Stepper motor power amp defective!");
+  const static string ERROR_MSG_PRM_OUT_OF_RANGE                    (HSLMultiDaisyChainCommunication::ERROR_MSG_PARAMETER_OUT_OF_RANGE);
+  const static string ERROR_MSG_CMD_UNKNOWN                         ("Unknown command!");
+  const static string ERROR_MSG_PERISTALTIC_PUMP_OVERLOAD           ("Peristaltic pump overload!");
+  const static string ERROR_MSG_PERISTALTIC_PUMP_TIMEOUT            ("Peristaltic pump timeout (Level sensor came not active)!");
+  const static string ERROR_MSG_PRM_TYPE_FAILED                     ("Type of checked parameter failed!");
+  const static string ERROR_MSG_UNKNOWN_ERROR_CODE                  ("Unknown error code!");
+
+  const static variable VALVE_MEDIUM ("5");
+  const static variable VALVE_WATER  ("6");
+  const static variable VALVE_ETHANOL("7");
+
+  /*********************************************************************
+  *
+  * Module globale constants/variables
+  *
+  *********************************************************************/
+
+  static global variable HSLMultiDaisyChainedMediaLine_TrcLvl(TRACE_LEVEL_NORMAL);
+
+  /*********************************************************************
+  *
+  * Declarations
+  *
+  *********************************************************************/
+
+  function InitializeCommunication(variable iSystemID,
+                                   variable iComPort,
+                                   variable iTraceLevel,
+                                   variable iSimulate) variable;
+
+  function InitializeMediaLine(variable iSystemID,
+                               variable iModuleIndex) variable;
+
+  function TerminateMediaLine(variable iSystemID,
+                              variable iModuleIndex) void;
+
+  function TerminateCommunication(variable iSystemID) void;
+
+  function Prime(variable iSystemID,
+                 variable iModuleIndex,
+                 variable iMediumType,
+                 variable iMediumPumpTime,
+                 variable iMediumPumpPower) variable;
+
+  function Fill(variable iSystemID,
+                variable iModuleIndex,
+                variable iMediumType,
+                variable iMediumPumpTimeout,
+                variable iMediumPumpPower) variable;
+
+  function RequestLevelSensor(variable iSystemID,
+                              variable iModuleIndex,
+                              variable & oLevelState) variable;
+
+  function RequestOverfillSensor(variable iSystemID,
+                                 variable iModuleIndex,
+                                 variable & oSensorState) variable;
+
+  function OpenValvesForMaintenance(variable iSystemID,
+                                    variable iModuleIndex) variable;
+
+  function MountDispenserArm(variable iSystemID,
+                             variable iModuleIndex) variable;
+
+  function EvaluateErrorMessage(variable iErrorCode) string;
+
+  static function Delay(variable iTime) void;
+
+  static function TerminateDueToAnError(variable iSystemID,
+                                        variable iModuleIndex) void;
+
+  /*********************************************************************
+  *
+  * Implementations
+  *
+  *********************************************************************/
+
+  function InitializeCommunication(variable iSystemID, variable iComPort, variable iTraceLevel, variable iSimulate) variable
+  {
+    variable errCode;
+
+    HSLMultiDaisyChainedMediaLine_TrcLvl = iTraceLevel;
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_START, " Initialize communication port for system #", iSystemID, " on COM", iComPort);
+
+    // -------------------------------------------------------------------------
+    // check parameters
+    // -------------------------------------------------------------------------
+    if((1 > iSystemID) || (4 < iSystemID))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..4]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+    if((1 > iComPort) || (255 < iComPort))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter comPort #", iComPort, " out of range [1..255]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+
+    // -------------------------------------------------------------------------
+    // initialize communication port
+    // -------------------------------------------------------------------------
+      errCode = HSLMultiDaisyChainCommunication::InitializeMultiDaisyChainCommPort(iSystemID, iComPort, iTraceLevel, iSimulate);
+     if(ERROR_NONE != errCode)
+     {
+       FormatTrace(GetFunctionName(), "()", CMD_ERROR, "<InitializeMultiDaisyChainCommPort()> for system #", iSystemID, " failed! (Error code = ", errCode, ", error message = ", EvaluateErrorMessage(errCode), ")");
+       HSLMultiDaisyChainCommunication::TerminateMultiDaisyChainCommPort(iSystemID);
+       return(errCode);
+     }
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_COMPLET);
+    return(ERROR_NONE);
+  } // InitializeCommunication
+
+  function InitializeMediaLine(variable iSystemID, variable iModuleIndex) variable
+  {
+    variable command;
+    variable parameter;
+    variable response;
+    variable errCode;
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_START, " Initialize media line #", iModuleIndex, " on system #", iSystemID);
+
+    // -------------------------------------------------------------------------
+    // check parameters
+    // -------------------------------------------------------------------------
+    if((1 > iSystemID) || (4 < iSystemID))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..4]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+    if((1 > iModuleIndex) || (9 < iModuleIndex))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter module index #", iModuleIndex, " out of range [1..9]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+
+    // -------------------------------------------------------------------------
+    // reset and initialize media pump module (with configuring timeouts)
+    // -------------------------------------------------------------------------
+    command  = "SI,GH,RF";
+    response = "M" + IStr(iModuleIndex) + "RFer00rf Media pump simulation";
+    errCode = HSLMultiDaisyChainCommunication::InitializeMultiDaisyChainModule(iSystemID, "M" + IStr(iModuleIndex), command, response);
+    if(HSLMultiDaisyChainCommunication::ERROR_NONE != errCode)
+    {
+      FormatTrace(GetFunctionName(), "()", HSLMultiDaisyChainCommunication::CMD_ERROR, "<InitializeMultiDaisyChainModule()> for media pump module M", iModuleIndex, " on system #", iSystemID, " failed! (Error code = ", errCode, ", error message = ", HSLMultiDaisyChainCommunication::EvaluateCommErrorMessage(errCode), ")");
+      HSLMultiDaisyChainCommunication::TerminateMultiDaisyChainModule(iSystemID, "M" + IStr(iModuleIndex), "PO");
+      return(errCode);
+    }
+    // -------------------------------------------------------------------------
+    // reset and initialize waste pump module (with configuring timeouts)
+    // -------------------------------------------------------------------------
+    command  = "RF";
+    response = "W" + IStr(iModuleIndex) + "RFer00rf Waste pump simulation";
+    errCode = HSLMultiDaisyChainCommunication::InitializeMultiDaisyChainModule(iSystemID, "W" + IStr(iModuleIndex), command, response);
+    if(HSLMultiDaisyChainCommunication::ERROR_NONE != errCode)
+    {
+      FormatTrace(GetFunctionName(), "()", HSLMultiDaisyChainCommunication::CMD_ERROR, "<InitializeMultiDaisyChainModule()> for waste pump module W", iModuleIndex, " on system #", iSystemID, " failed! (Error code = ", errCode, ", error message = ", HSLMultiDaisyChainCommunication::EvaluateCommErrorMessage(errCode), ")");
+      HSLMultiDaisyChainCommunication::TerminateMultiDaisyChainModule(iSystemID, "W" + IStr(iModuleIndex), "");
+      return(errCode);
+    }
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_COMPLET);
+    return(ERROR_NONE);
+  } // InitializeMediaLine
+
+  function TerminateMediaLine(variable iSystemID, variable iModuleIndex) void
+  {
+    variable command;
+    variable response;
+    variable errCode;
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_START, " Module #", iModuleIndex);
+
+    // -------------------------------------------------------------------------
+    // check parameters
+    // -------------------------------------------------------------------------
+    if((1 > iSystemID) || (4 < iSystemID))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..4]!");
+      return;
+    }
+    if((1 > iModuleIndex) || (9 < iModuleIndex))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter module index #", iModuleIndex, " out of range [1..9]!");
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // stop pumps, close valves
+    // -------------------------------------------------------------------------
+    TerminateDueToAnError(iSystemID, iModuleIndex);
+
+    // -------------------------------------------------------------------------
+    // terminnate both media line modules
+    // -------------------------------------------------------------------------
+    errCode = HSLMultiDaisyChainCommunication::TerminateMultiDaisyChainModule(iSystemID, "M" + IStr(iModuleIndex), "PO");
+    if(ERROR_NONE != errCode)
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Terminating media pump module failed! (System #", iSystemID, ", module M", iModuleIndex, ")");
+
+    errCode = HSLMultiDaisyChainCommunication::TerminateMultiDaisyChainModule(iSystemID, "W" + IStr(iModuleIndex), "");
+    if(ERROR_NONE != errCode)
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Terminating waste pump module failed! (System #", iSystemID, ", module W", iModuleIndex, ")");
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_COMPLET);
+    return;
+  } // TerminateMediaLine
+
+  function TerminateCommunication(variable iSystemID) void
+  {
+    variable errCode;
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl)
+      FormatTrace(GetFunctionName(), "()", CMD_START, " System #", iSystemID);
+
+    // -------------------------------------------------------------------------
+    // check parameters
+    // -------------------------------------------------------------------------
+    if((1 > iSystemID) || (4 < iSystemID))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..4]!");
+      return;
+    }
+
+    // -------------------------------------------------------------------------
+    // close communication port
+    // -------------------------------------------------------------------------
+    errCode = HSLMultiDaisyChainCommunication::TerminateMultiDaisyChainCommPort(iSystemID);
+    if(HSLMultiDaisyChainCommunication::ERROR_NONE != errCode)
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " <TerminateMultiDaisyChainCommPort()> to system #", iSystemID, "> failed! (Communication error code = ", errCode, ", error message = ", HSLMultiDaisyChainCommunication::EvaluateCommErrorMessage(errCode), ")");
+      return;
+    }
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_COMPLET);
+    return;
+  } // TerminateCommunication
+
+  function Prime(variable iSystemID,
+                 variable iModuleIndex,
+                 variable iMediumType,
+                 variable iMediumPumpTime,
+                 variable iMediumPumpPower) variable
+  {
+    variable command;
+    variable response;
+    variable errCode;
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_START, " Media line module #", iModuleIndex, " on system #", iSystemID, ". Prm's: medium type = ", iMediumType, ", medium pump time = ", iMediumPumpTime, ", medium pump power = ", iMediumPumpPower);
+
+    // -------------------------------------------------------------------------
+    // check parameters
+    // -------------------------------------------------------------------------
+    if((1 > iSystemID) || (4 < iSystemID))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..4]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+    if((1 > iModuleIndex) || (9 < iModuleIndex))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter module index #", iModuleIndex, " out of range [1..9]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+    if(("M" != iMediumType) && ("W" != iMediumType) && ("E" != iMediumType))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter medium type \"", iMediumType, "\" out of range [\"M\",\"W\",\"E\"]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+    if((0 > iMediumPumpTime) || (240 < iMediumPumpTime))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter medium pump time = ", iMediumPumpTime, " out of range [0..240]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+    if((50 > iMediumPumpPower) || (80 < iMediumPumpPower))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter medium power = ", iMediumPumpPower, " out of range [50%..80%]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+
+    // -------------------------------------------------------------------------
+    // Start waste pump by setting pump power to 100% and then start it.
+    // -------------------------------------------------------------------------
+    command   = "PP100,PE";
+    response  = "W" + IStr(iModuleIndex) + "PEer00";
+    errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "W" + IStr(iModuleIndex), command, response);
+    if(ERROR_NONE != errCode)
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Starting waste pump on media line module failed! (System #", iSystemID, ", module W", iModuleIndex, ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+      TerminateDueToAnError(iSystemID, iModuleIndex);
+      return(errCode);
+    }
+    // -------------------------------------------------------------------------
+      // Next move arm to waste position, then first close all valve(s) if any 
+      // opened, then open desired valve. Then set media pump power, set its 
+      // turning direction and start it.
+    // -------------------------------------------------------------------------
+    command   = "GH,PR,PS";
+         if("M" == iMediumType) command = command + VALVE_MEDIUM;
+    else if("W" == iMediumType) command = command + VALVE_WATER;
+    else                        command = command + VALVE_ETHANOL;
+    command = command + ",PP" + IStr(Floor(iMediumPumpPower + 0.5)) + ",PD0,PE";
+    response  = "M" + IStr(iModuleIndex) + "PEer00";
+    errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "M" + IStr(iModuleIndex), command, response);
+    if(ERROR_NONE != errCode)
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Preparing and starting media line module to prime failed! (System #", iSystemID, ", module M", iModuleIndex, ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+      TerminateDueToAnError(iSystemID, iModuleIndex);
+      return(errCode);
+    }
+
+    // -------------------------------------------------------------------------
+    // Wait desired prime time
+    // -------------------------------------------------------------------------
+    Delay(iMediumPumpTime);
+
+    // -------------------------------------------------------------------------
+    // Stop priming by turning medium pump in reversed direction for short time,
+      // set it to reversed pump direction and start it again for short time.
+    // -------------------------------------------------------------------------
+      // stop pump
+    command   = "PA,PD1,PE";
+    response  = "M" + IStr(iModuleIndex) + "PEer00";
+    errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "M" + IStr(iModuleIndex), command, response);
+    if(ERROR_NONE != errCode)
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " stopping media line module of priming failed! (System #", iSystemID, ", module M", iModuleIndex, ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+      TerminateDueToAnError(iSystemID, iModuleIndex);
+      return(errCode);
+    }
+    Delay(1.0);
+
+    // -------------------------------------------------------------------------
+      // again switch media pump off, switch vallve off (don't care which was on)
+      // and wait again a while
+    // -------------------------------------------------------------------------
+    command   = "PA,PR";
+    response  = "M" + IStr(iModuleIndex) + "PRer00";
+    errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "M" + IStr(iModuleIndex), command, response);
+    if(ERROR_NONE != errCode)
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " stopping media line module of reversed pumping/switching valve off failed! (System #", iSystemID, ", module M", iModuleIndex, ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+      TerminateDueToAnError(iSystemID, iModuleIndex);
+      return(errCode);
+    }
+    Delay(5.0);
+
+    // -------------------------------------------------------------------------
+    // Stop waste pump
+    // -------------------------------------------------------------------------
+    command   = "PA";
+    response  = "W" + IStr(iModuleIndex) + "PAer00";
+    errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "W" + IStr(iModuleIndex), command, response);
+    if(ERROR_NONE != errCode)
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " stopping waste pump of media line module failed! (System #", iSystemID, ", module W", iModuleIndex, ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+      TerminateDueToAnError(iSystemID, iModuleIndex);
+      return(errCode);
+    }
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_COMPLET);
+    return(ERROR_NONE);
+  } // Prime
+
+  function Fill(variable iSystemID,
+                variable iModuleIndex,
+                variable iMediumType,
+                variable iMediumPumpTimeout,
+                variable iMediumPumpPower) variable
+   {
+    variable command;
+    variable response;
+    variable errCode;
+
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_START, " Media line module #", iModuleIndex, " on system #", iSystemID, ". Prm's: medium type = ", iMediumType, ", medium pump timeout = ", iMediumPumpTimeout, ", medium pump power = ", iMediumPumpPower);
+
+    // -------------------------------------------------------------------------
+    // check parameters
+    // -------------------------------------------------------------------------
+    if((1 > iSystemID) || (4 < iSystemID))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..4]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+    if((1 > iModuleIndex) || (9 < iModuleIndex))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter module index #", iModuleIndex, " out of range [1..9]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+    if(("M" != iMediumType) && ("W" != iMediumType) && ("E" != iMediumType))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter medium type \"", iMediumType, "\" out of range [\"M\",\"W\",\"E\"]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+    if((0 > iMediumPumpTimeout) || (240 < iMediumPumpTimeout))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter medium pump timeout = ", iMediumPumpTimeout, " out of range [0..240]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+    if((50 > iMediumPumpPower) || (80 < iMediumPumpPower))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter medium power = ", iMediumPumpPower, " out of range [50%..80%]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+
+    // -------------------------------------------------------------------------
+    // To start filling first close, if any opened, valve(s) and then open the 
+      // desired valve for the selected liquid. Next set pumping timeout and 
+      // desired pumping power and then start the pump by timing supervision by 
+      // the firmware of the pumping unit. When the medium pump was stopped the 
+      // opened valve will be closed.
+    // -------------------------------------------------------------------------
+    command  = "PR,PS";
+         if("M" == iMediumType) command = command + VALVE_MEDIUM;
+    else if("W" == iMediumType) command = command + VALVE_WATER;
+    else                        command = command + VALVE_ETHANOL;
+    command  = command + ",TO" + IStr(Floor(iMediumPumpTimeout + 0.5)) + ",PP" + IStr(Floor(iMediumPumpPower + 0.5)) + ",FM,PR";
+    response = "M" + IStr(iModuleIndex) + "PRer00";
+    errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "M" + IStr(iModuleIndex), command, response);
+    if(ERROR_NONE != errCode)
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Filling on media line module failed! (System #", iSystemID, ", module M", iModuleIndex, ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+      TerminateDueToAnError(iSystemID, iModuleIndex);
+      return(errCode);
+    }
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_COMPLET);
+    return(ERROR_NONE);
+   } // Fill
+
+   function RequestLevelSensor(variable iSystemID,
+                               variable iModuleIndex,
+                               variable & oLevelState) variable
+   {
+    variable command;
+    variable response;
+    variable errCode;
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_START, " Media line module #", iModuleIndex, " on system #", iSystemID);
+
+    // -------------------------------------------------------------------------
+    // initialize output parameters
+    // -------------------------------------------------------------------------
+    oLevelState = "";
+
+    // -------------------------------------------------------------------------
+    // check parameters
+    // -------------------------------------------------------------------------
+    if((1 > iSystemID) || (4 < iSystemID))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..4]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+    if((1 > iModuleIndex) || (9 < iModuleIndex))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter module index #", iModuleIndex, " out of range [1..9]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+
+    // -------------------------------------------------------------------------
+    // request level sensor state
+    // -------------------------------------------------------------------------
+    command   = "RC";
+    response  = "M" + IStr(iModuleIndex) + "RCer00rc F";
+    errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "M" + IStr(iModuleIndex), command, response);
+    if(ERROR_NONE != errCode)
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Requesting capacitive level sensor on media line module failed! (System #", iSystemID, ", module M", iModuleIndex, ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+      return(errCode);
+    }
+
+    // -------------------------------------------------------------------------
+    // decode level sensor state
+    // -------------------------------------------------------------------------
+    if("E" == StrMid(response, 11, 1))
+      oLevelState = "empty";
+    else
+      oLevelState = "full";
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_COMPLET, " Capacitive level sensor's state is \"", oLevelState, "\"");
+    return(ERROR_NONE);
+  } // RequestLevelSensor
+
+  function RequestOverfillSensor(variable iSystemID,
+                                 variable iModuleIndex,
+                                 variable & oSensorState) variable
+  {
+    variable command;
+    variable parameter;
+    variable response;
+    variable errCode;
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_START, " Media line module #", iModuleIndex);
+
+    // -------------------------------------------------------------------------
+    // initialize output parameters
+    // -------------------------------------------------------------------------
+    oSensorState = 0;
+
+    // -------------------------------------------------------------------------
+    // check parameters
+    // -------------------------------------------------------------------------
+    if((1 > iModuleIndex) || (9 < iModuleIndex))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter module index #", iModuleIndex, " out of range [1..9]!");
+      return(ERROR_PRM_OUT_OF_RANGE);
+    }
+
+    // -------------------------------------------------------------------------
+    // request level sensor state
+    // -------------------------------------------------------------------------
+    command   = "GW";
+    response  = "M" + IStr(iModuleIndex) + "GWer00gw 0";
+    errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "M" + IStr(iModuleIndex), command, response);
+    if(ERROR_NONE != errCode)
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Requesting capacitive overfill sensor on media line module failed! (System M", iModuleIndex, ", TxRxCommand(", command, parameter, "), response = <", response, ">)");
+      return(errCode);
+    }
+
+    // -------------------------------------------------------------------------
+    // decode level sensor state
+    // -------------------------------------------------------------------------
+    if("0" == StrMid(response, 11, 1))
+      oSensorState = 0;
+    else
+      oSensorState = 1;
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_COMPLET, " Capacitive overfill sensor's state is ", oSensorState);
+    return(ERROR_NONE);
+  } // RequestOverfillSensor()
+
+  function OpenValvesForMaintenance(variable iSystemID,
+                                    variable iModuleIndex) variable
+  {
+    variable command;
+    variable response;
+    variable errCode;
+    variable actualValve;
+    variable Message;
+
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_START, " Media line module #", iModuleIndex, " on system #", iSystemID);
+
+    // -------------------------------------------------------------------------
+    // check parameters
+    // -------------------------------------------------------------------------
+    // check parameter iSystemID for type integer and range  [1..4]
+    if(!(0 == hslInteger.Compare(GetType(iSystemID))))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter iSystemID is not of type integer! ", EvaluateErrorMessage(ERROR_PRM_TYPE_FAILED));
+      return(ERROR_PRM_TYPE_FAILED);
+    }
+    if((1 > iSystemID) || (HSLMultiDaisyChainCommunication::MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS < iSystemID))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter iSystemID is out of range [1..", HSLMultiDaisyChainCommunication::MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS, "]! ", EvaluateErrorMessage(ERROR_PRM_OUT_OF_RANGE));
+      return(ERROR_PRM_OUT_OF_RANGE );
+    }
+
+    // check parameter iModuleIndex for type integer and range  [1..9]
+    if(!(0 == hslInteger.Compare(GetType(iModuleIndex))))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter iModuleIndex is not of type integer! ", EvaluateErrorMessage(ERROR_PRM_TYPE_FAILED));
+      return(ERROR_PRM_TYPE_FAILED);
+    }
+    if((1 > iModuleIndex) || (9 < iModuleIndex))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter iModuleIndex is out of range [1..9]! ", EvaluateErrorMessage(ERROR_PRM_OUT_OF_RANGE));
+      return(ERROR_PRM_OUT_OF_RANGE );
+    }
+
+    // -------------------------------------------------------------------------
+    // open valves one after the other
+    // -------------------------------------------------------------------------
+
+    for(actualValve = 0; actualValve < 3; actualValve++)
+    {
+      if(actualValve == 0)
+      {
+        command  = "PS" + VALVE_MEDIUM;
+        Message = "Press OK to open first valve";
+      }
+      if(actualValve == 1)
+      {
+        command  = "PS" + VALVE_ETHANOL;
+        Message = "Press OK to open second valve";
+      }
+      if(actualValve == 2)
+      {
+        command  = "PS" + VALVE_WATER;
+        Message = "Press OK to open third valve";
+      }
+
+      MessageBox(Message, "Maintenance", hslOKOnly | hslInformation, hslInfinite);
+
+      response  = "M" + IStr(iModuleIndex) + "PSer00";
+      errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "M" + IStr(iModuleIndex), command, response);
+      if(ERROR_NONE != errCode)
+      {
+        FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Opening a valve on media line module failed! (System #", IStr(iSystemID), ", module M", IStr(iModuleIndex), ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+        return(errCode );
+      }
+
+      MessageBox("Valve opened, press OK to close valve", "Maintenance", hslOKOnly | hslInformation, hslInfinite);
+
+      command  = "PR";
+      response = "M" + IStr(iModuleIndex) + "PRer00";
+      errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "M" + IStr(iModuleIndex), command, response);
+      if(ERROR_NONE != errCode)
+      {
+        FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Closing a valve on media line module failed! (System #", IStr(iSystemID), ", module M", IStr(iModuleIndex), ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+        return(errCode );
+      }
+    }
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_COMPLET);
+    return(ERROR_NONE);
+  } // OpenValvesForMaintenance
+
+  function MountDispenserArm(variable iSystemID,
+                             variable iModuleIndex) variable
+  {
+    variable command;
+    variable response;
+    variable errCode;
+    variable Message;
+    variable UserChoice;
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_START, " Media line module #", iModuleIndex, " on system #", iSystemID);
+
+    // -------------------------------------------------------------------------
+    // check parameters
+    // -------------------------------------------------------------------------
+    // check parameter iSystemID for type integer and range  [1..4]
+    if(!(0 == hslInteger.Compare(GetType(iSystemID))))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter iSystemID is not of type integer! ", EvaluateErrorMessage(ERROR_PRM_TYPE_FAILED));
+      return(ERROR_PRM_TYPE_FAILED);
+    }
+    if((1 > iSystemID) || (HSLMultiDaisyChainCommunication::MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS < iSystemID))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter iSystemID is out of range [1..", HSLMultiDaisyChainCommunication::MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS, "]! ", EvaluateErrorMessage(ERROR_PRM_OUT_OF_RANGE));
+      return(ERROR_PRM_OUT_OF_RANGE );
+    }
+
+    // check parameter iModuleIndex for type integer and range  [1..9]
+    if(!(0 == hslInteger.Compare(GetType(iModuleIndex))))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter iModuleIndex is not of type integer! ", EvaluateErrorMessage(ERROR_PRM_TYPE_FAILED));
+      return(ERROR_PRM_TYPE_FAILED);
+    }
+    if((1 > iModuleIndex) || (9 < iModuleIndex))
+    {
+      FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Parameter iModuleIndex is out of range [1..9]! ", EvaluateErrorMessage(ERROR_PRM_OUT_OF_RANGE));
+      return(ERROR_PRM_OUT_OF_RANGE );
+    }
+
+    // -------------------------------------------------------------------------
+    // guide user through the replacement process
+    // -------------------------------------------------------------------------
+    while(hslTrue)
+    {
+      Message = "Remove old dispenser arm\n\nPress OK after you have finished";
+
+      MessageBox(Message, "Maintenance", hslOKOnly | hslInformation, hslInfinite);
+
+      command = "SI,GH";
+      response  = "M" + IStr(iModuleIndex) + "SIer00";
+      errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "M" + IStr(iModuleIndex), command, response);
+      if(ERROR_NONE != errCode)
+      {
+        FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Initialize on media line module failed! (System #", IStr(iSystemID), ", module M", IStr(iModuleIndex), ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+        return(errCode );
+      }
+
+      Message = "Mount new dispenser arm\n\nAlign the sprout directly above the drain\n\nPress OK after you have finished";
+
+      MessageBox(Message, "Maintenance", hslOKOnly | hslInformation, hslInfinite);
+
+      command = "SI,GF,GH";
+      response  = "M" + IStr(iModuleIndex) + "GHer00";
+      errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "M" + IStr(iModuleIndex), command, response);
+      if(ERROR_NONE == errCode)
+        break;
+      else
+      {
+        FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Initialize / Move on media line module failed! (System #", IStr(iSystemID), ", module M", IStr(iModuleIndex), ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+        Message = "Error occured while initializing / moving arm\n\nPress RETRY to start again, CANCEL to stop";
+        UserChoice = MessageBox(Message, "Maintenance", hslRetryCancel | hslInformation, hslInfinite);
+        if(UserChoice == hslCancel)
+          break;
+      }
+    }
+
+    if(TRACE_LEVEL_NONE < HSLMultiDaisyChainedMediaLine_TrcLvl) FormatTrace(GetFunctionName(), "()", CMD_COMPLET);
+    return(ERROR_NONE);
+  } // MountDispenserArm
+
+  function EvaluateErrorMessage(variable iErrorCode) string
+  {
+         if(iErrorCode <  ERROR_NONE                      ) return(HSLMultiDaisyChainCommunication::EvaluateCommErrorMessage(iErrorCode));
+    else if(iErrorCode == ERROR_NONE                      ) return(ERROR_MSG_NONE);
+    else if(iErrorCode == ERROR_INIT_NOT_FOUND            ) return(ERROR_MSG_INIT_NOT_FOUND);
+    else if(iErrorCode == ERROR_STEP_LOST                 ) return(ERROR_MSG_STEP_LOST);
+    else if(iErrorCode == ERROR_NOT_INITIALIZED           ) return(ERROR_MSG_NOT_INITIALIZED);
+    else if(iErrorCode == ERROR_PARALLEL_ERROR            ) return(ERROR_MSG_PARALLEL_ERROR);
+    else if(iErrorCode == ERROR_STEPPER_MOTOR_HW_DEFECTIVE) return(ERROR_MSG_STEPPER_MOTOR_HW_DEFECTIVE);
+    else if(iErrorCode == ERROR_PRM_OUT_OF_RANGE          ) return(ERROR_MSG_PRM_OUT_OF_RANGE);
+    else if(iErrorCode == ERROR_CMD_UNKNOWN               ) return(ERROR_MSG_CMD_UNKNOWN);
+    else if(iErrorCode == ERROR_PERISTALTIC_PUMP_OVERLOAD ) return(ERROR_MSG_PERISTALTIC_PUMP_OVERLOAD);
+    else if(iErrorCode == ERROR_PERISTALTIC_PUMP_TIMEOUT  ) return(ERROR_MSG_PERISTALTIC_PUMP_TIMEOUT);
+    else if(iErrorCode == ERROR_PRM_TYPE_FAILED           ) return(ERROR_MSG_PRM_TYPE_FAILED);
+    else                                                      return(ERROR_MSG_UNKNOWN_ERROR_CODE);
+  } // EvaluateErrorMessage
+
+  static function Delay(variable iTime) void
+  {
+    timer DelayTimer;
+
+    DelayTimer.SetTimer(iTime);
+    DelayTimer.WaitTimer(hslFalse, hslFalse);
+  } // Delay
+
+  static function TerminateDueToAnError(variable iSystemID, variable iModuleIndex) void
+  {
+    variable command;
+    variable response;
+    variable errCode;
+
+    // -------------------------------------------------------------------------
+    // first stop media pump and close all valves
+    // -------------------------------------------------------------------------
+    command   = "PA,PR";
+    response  = "M" + IStr(iModuleIndex) + "PRer00";
+    errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "M" + IStr(iModuleIndex), command, response);
+    if(ERROR_NONE != errCode) FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Stopping media pump or closing all valves on media line module failed! (System #", iSystemID, ", module M", iModuleIndex, ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+
+    // -------------------------------------------------------------------------
+    // Wait a little bit
+    // -------------------------------------------------------------------------
+    Delay(2.0);
+
+    // -------------------------------------------------------------------------
+    // Stop waste pump
+    // -------------------------------------------------------------------------
+    command   = "PA";
+    response  = "W" + IStr(iModuleIndex) + "PAer00";
+    errCode = HSLMultiDaisyChainCommunication::DaisyChainedTxRxCommandList(iSystemID, "W" + IStr(iModuleIndex), command, response);
+    if(ERROR_NONE != errCode) FormatTrace(GetFunctionName(), "()", CMD_ERROR, " Stopping waste pump on media line module failed! (System #", iSystemID, ", module M", iModuleIndex, ", DaisyChainedTxRxCommandList(", command, "), response = <", response, ">)");
+  } // TerminateDueToAnError
+}  // namespace 
+#endif
+// $$author=bhuf$$valid=0$$time=2010-08-18 12:45$$checksum=f42d92ec$$length=083$$

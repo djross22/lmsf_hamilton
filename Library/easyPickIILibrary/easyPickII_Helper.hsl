@@ -1,0 +1,888 @@
+//----------------------------------------------------------------
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+//
+// Project              : EasyPickII
+// Module               : easyPickII_Helper.hsl
+// Description          : Utility functions.
+//
+//----------------------------------------------------------------
+
+#ifndef __EASYPICKII_HELPER_hsl__
+#define __EASYPICKII_HELPER_hsl__ 1
+
+#include "HSLUtilLib.hsl"
+#include "HSLMthLib.hsl"
+#include "HSLStrLib.hsl"
+#include "HSLDevLib.hsl"
+#include "HSLSeqLib.hsl"
+
+// Implementation ---------------------------------------------------------------------------------
+
+namespace EASYPICKII
+{
+   namespace HELPER
+   {
+      // Library Version
+      static const variable LibraryVersion("1.1.0");
+
+
+      // Trace level enumerators
+      const variable _TRACE_LEVEL_NONE   (0); // switch off trace
+      const variable _TRACE_LEVEL_NORMAL (1); // trace errors
+      const variable _TRACE_LEVEL_FULL   (2); // trace function entry/exit with parameters
+   }
+
+   const variable ERROR_GENERAL_LIBRARY (1);  // HSL library error
+
+   //
+   // internal definitions
+   //
+
+   static global variable gEasyPickII_intTraceLevel(HELPER::_TRACE_LEVEL_FULL);
+
+
+   namespace HELPER
+   {
+      // FormatTrace status enumerator
+      namespace H_FmtStatus
+      {
+         static const variable Start      (1);
+         static const variable Complete   (2);
+         static const variable Error      (3);
+      }
+
+      // default values for FormatTrace
+      static const variable H_FMT_SRC( "EasyPickII_Helper");  // default source of FormatTrace
+      static const variable H_FMT_ACTION( "Trace");           // default action
+      static const variable H_FMT_STATUS( H_FmtStatus::Complete); // default status: complete
+
+      // Robust conversion of a variable (string, float, int, ??) to a string.
+      // A string is enclosed in quotation marks.
+      static function VariableToString(variable var) variable
+      {
+         variable strType;
+
+         strType = GetType(var);
+         if (hslInteger.Compare( strType) == 0)
+         {
+            var = IStr(var);
+         }
+         else
+         {
+            if (hslFloat.Compare( strType) == 0)
+            {
+               var = FStr(var);
+            }
+            else
+            {
+               if (hslString.Compare( strType) != 0)
+               {
+                  // has no type, return an empty string
+                  var = "";
+               }
+               else
+               {
+                  var = "\"" + var + "\"";
+               }
+            }
+         }
+         return (var);
+      }
+
+      static function ArrayToString( variable& arrValues[]) variable
+      {
+         variable i;
+         variable strArray("[ ");
+         for (i = 0; i < arrValues.GetSize(); ++i)
+         {
+            if (i > 0)
+               strArray = strArray + ", ";
+            strArray = strArray + VariableToString( arrValues[i]);
+         }
+         strArray = strArray + "]";
+         return (strArray);
+      }
+
+      static function ArrayIntToString( variable& arrintValues[]) variable
+      {
+         variable i;
+         variable strArray("[ ");
+         for (i = 0; i < arrintValues.GetSize(); ++i)
+         {
+            if (i > 0)
+               strArray = strArray + ", ";
+            strArray = strArray + IStr( arrintValues[i]);
+         }
+         strArray = strArray + "]";
+         return (strArray);
+      }
+
+      static function ArrayFltToString( variable& arrfltValues[]) variable
+      {
+         variable i;
+         variable strArray("[ ");
+         for (i = 0; i < arrfltValues.GetSize(); ++i)
+         {
+            if (i > 0)
+               strArray = strArray + ", ";
+            strArray = strArray + FStr( arrfltValues[i]);
+         }
+         strArray = strArray + "]";
+         return (strArray);
+      }
+      namespace TRACE
+      {
+         function SetTraceLevel( variable i_intTraceLevel) void
+         {
+            gEasyPickII_intTraceLevel = i_intTraceLevel;
+         }
+
+         function GetTraceLevel() variable
+         {
+            return (gEasyPickII_intTraceLevel);
+         }
+
+         function FmtTrace2Text(
+                     variable i_strSource, variable i_intTraceLevel,
+                     variable i_varText1, variable i_varText2
+                     ) void
+         {
+            if (gEasyPickII_intTraceLevel < i_intTraceLevel) return;
+
+            FormatTrace( i_strSource, H_FMT_ACTION, H_FMT_STATUS, i_varText1, i_varText2);
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // FmtTrace6Text() -----------------------------------------------------------------------------
+         //
+         function FmtTrace6Text(
+                     variable i_strSource, variable i_intTraceLevel,
+                     variable i_varText1, variable i_varText2,
+                     variable i_varText3, variable i_varText4,
+                     variable i_varText5, variable i_varText6
+                     ) void
+         {
+            if (gEasyPickII_intTraceLevel < i_intTraceLevel) return;
+
+            FormatTrace( i_strSource, H_FMT_ACTION, H_FMT_STATUS, i_varText1, i_varText2, i_varText3, i_varText4, i_varText5, i_varText6);
+         }
+
+         // FmtTrace8Text() -----------------------------------------------------------------------------
+         //
+         function FmtTrace8Text(
+                     variable i_strSource, variable i_intTraceLevel,
+                     variable i_varText1, variable i_varText2,
+                     variable i_varText3, variable i_varText4,
+                     variable i_varText5, variable i_varText6,
+                     variable i_varText7, variable i_varText8
+                     ) void
+         {
+            if (gEasyPickII_intTraceLevel < i_intTraceLevel) return;
+
+            FormatTrace( i_strSource, H_FMT_ACTION, H_FMT_STATUS, i_varText1, i_varText2, i_varText3, i_varText4, i_varText5, i_varText6, i_varText7, i_varText8);
+         }
+
+
+
+         function Trace2Text(
+                    variable i_intTraceLevel,
+                    variable i_varText1,
+                    variable i_varText2
+                    ) void
+         {
+            if (gEasyPickII_intTraceLevel< i_intTraceLevel) return;
+
+            Trace(i_varText1,i_varText2);
+         }
+
+         function Trace4Text(
+                    variable i_intTraceLevel,
+                    variable i_varText1, variable i_varText2,
+                    variable i_varText3, variable i_varText4
+                    ) void
+         {
+            if (gEasyPickII_intTraceLevel< i_intTraceLevel) return;
+
+            Trace(i_varText1,i_varText2,i_varText3,i_varText4);
+         }
+
+         function Trace6Text(
+                    variable i_intTraceLevel,
+                    variable i_varText1, variable i_varText2,
+                    variable i_varText3, variable i_varText4,
+                    variable i_varText5, variable i_varText6
+                    ) void
+         {
+            if (gEasyPickII_intTraceLevel< i_intTraceLevel) return;
+
+            Trace(i_varText1,i_varText2,i_varText3,i_varText4,i_varText5,i_varText6);
+         }
+
+         // Dump an array of strings
+         function TraceArrayStr(
+                    variable i_intTraceLevel,
+                    variable i_strArrayName,
+                    variable i_arrstrData[]
+                    ) void
+         {
+            variable index;
+            variable strArray("");
+
+            if (gEasyPickII_intTraceLevel< i_intTraceLevel) return;
+
+            for (index = 0;index < i_arrstrData.GetSize(); index++)
+            {
+               strArray = strArray + "[" + StrIStr(index) + "]=\"" + i_arrstrData.GetAt(index) + "\"";
+               if (index < i_arrstrData.GetSize() - 1)
+                  strArray = strArray + ",";
+            }
+
+            FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName()," ",
+               i_strArrayName,"[", i_arrstrData.GetSize(), "]"," ",strArray,"");
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // TraceArrayInt() -----------------------------------------------------------------------------
+         // Tracet einen Array Type Intger
+         function TraceArrayInt(
+                    variable i_intTraceLevel,
+                    variable i_strArrayName,
+                    variable i_arrintData[]
+                    ) void
+         {
+            variable index;
+            variable strArray("");
+
+            if (gEasyPickII_intTraceLevel< i_intTraceLevel) return;
+
+            for (index = 0;index < i_arrintData.GetSize(); index++)
+            {
+               strArray = strArray + "[" + StrIStr(index) + "]=" + StrIStr(i_arrintData.GetAt(index)) + "";
+               if (index < i_arrintData.GetSize() - 1)
+                  strArray = strArray + ",";
+            }
+
+            FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName()," ",
+               i_strArrayName,"[", i_arrintData.GetSize(), "]"," ",strArray,"");
+         }
+         // ------------------------------------------------------------------------------------------
+
+
+         // TraceArrayInt() -----------------------------------------------------------------------------
+         // Tracet einen Array Type Intger
+         function FmtTraceArrayInt(
+                     variable i_intTraceLevel, variable i_strSource, variable i_strAction,
+                     variable i_strArrayName,
+                     variable i_arrintArray[]
+                     ) void
+         {
+            variable intIndex;
+            variable strTrace("");
+
+            if (gEasyPickII_intTraceLevel < i_intTraceLevel) return;
+
+            // es wird genau eine Zeile getracet.
+            // die zeile folgt diesem format: <i_strArrayName>[<Size>] [<index>]=<Wert>, [<index>]=<Wert>, ...
+            //
+
+            for (intIndex = 0; intIndex < i_arrintArray.GetSize(); ++intIndex)
+            {
+               strTrace = strTrace + "[" + StrIStr( intIndex) + "]=" + StrIStr( i_arrintArray.GetAt( intIndex));
+               if (intIndex < i_arrintArray.GetSize() - 1)
+                  strTrace = strTrace + ", ";
+            }
+
+            FormatTrace( i_strSource, i_strAction, H_FMT_STATUS, "TraceArrayInt: ",
+               i_strArrayName,"[", i_arrintArray.GetSize(), "] ", strTrace);
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // TraceArrayFloat() -----------------------------------------------------------------------------
+         // Tracet einen Array Type Float
+         function TraceArrayFloat(
+                     variable i_intTraceLevel,
+                     variable i_strArrayName,
+                     variable i_arrfltData[]
+                     ) void
+         {
+            variable index;
+            variable strArray("");
+
+            if (gEasyPickII_intTraceLevel< i_intTraceLevel) return;
+
+            for (index = 0;index < i_arrfltData.GetSize(); index++)
+            {
+               strArray = strArray + "[" + StrIStr(index) + "]=" + StrFStr(i_arrfltData.GetAt(index)) + "";
+               if (index<i_arrfltData.GetSize()-1) strArray = strArray + ",";
+            }
+
+            FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+               " ",i_strArrayName,"[", i_arrfltData.GetSize(), "]"," ",strArray,"");
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // TraceSequence() --------------------------------------------------------------------------
+         // Gibt eine Sequence je nach Tracelevel aus
+         function TraceSequence(
+                     variable i_intTraceLevel,
+                     sequence i_seqObject
+                     ) void
+         {
+            variable intLoopPosition;
+
+            if (gEasyPickII_intTraceLevel< i_intTraceLevel) return;
+
+            Trace("i_seqObject=\"", i_seqObject.GetName(), "\",size=", i_seqObject.GetTotal());
+            for (intLoopPosition = i_seqObject.SetCurrentPosition(1);
+                 intLoopPosition!=0;
+                 intLoopPosition = i_seqObject.Increment(1))
+            {
+               Trace("LabwareID=\"", i_seqObject.GetLabwareId(),"\",PositionID=\"", i_seqObject.GetPositionId(),"\"");
+            }
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // TraceSequence() --------------------------------------------------------------------------
+         // Gibt eine Sequence je nach Tracelevel aus
+         function FmtTraceSequence(
+                     variable i_intTraceLevel, variable i_strSource, variable i_strAction,
+                     variable i_strName, sequence i_seqObject
+                     ) void
+         {
+            variable intLoopPosition;
+
+            if (gEasyPickII_intTraceLevel < i_intTraceLevel) return;
+
+            FormatTrace( i_strSource, i_strAction, H_FMT_STATUS, "TraceSequence: ",
+               i_strName, " Name=\"", i_seqObject.GetName(),
+               "\" Total=", i_seqObject.GetTotal(),
+               " Count=", i_seqObject.GetCount(),
+               " Max=", i_seqObject.GetMax(),
+               " CurrentPosition=", i_seqObject.GetCurrentPosition());
+            for (intLoopPosition = i_seqObject.SetCurrentPosition(1);
+                 intLoopPosition != 0;
+                 intLoopPosition = i_seqObject.Increment(1))
+            {
+               FormatTrace( i_strSource, i_strAction, H_FMT_STATUS,
+                  "TraceSequence: ", "   LabwareID=\"", i_seqObject.GetLabwareId(),
+                  "\" PositionID=\"", i_seqObject.GetPositionId(),"\"");
+            }
+         }
+         // ------------------------------------------------------------------------------------------
+
+      } // namespace TRACE
+
+      namespace MLSTAR
+      {
+
+         // GetNumberOfPipettingChannels() -----------------------------------------------------------
+         function GetNumberOfPipettingChannels( device& ML_STAR) variable
+        {
+            variable intNumberOfChannels;
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(), "(...)");
+
+            intNumberOfChannels = ML_STAR.GetCfgValueWithKey(1);
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                  " intNumberOfChannels=",intNumberOfChannels);
+
+            return (intNumberOfChannels);
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // ChannelPattern_LeftAdjust() --------------------------------------------------------------
+         // Linksbuendiges Channelpattern
+         function ChannelPattern_LeftAdjust(
+                    variable i_intNumberOfChannels,
+                    variable i_intTotalNumberOfChannels
+                  ) variable
+        {
+            variable strEinzen;
+            variable strNullen;
+            variable strChannelPattern;
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                            "( i_intNumberOfChannels=",i_intNumberOfChannels,
+                            ", i_intTotalNumberOfChannels=",i_intTotalNumberOfChannels,
+                            ")");
+
+            strEinzen = "11111111111111111111111111111111";
+            strNullen = "00000000000000000000000000000000";
+            strChannelPattern = StrLeft( StrLeft( strEinzen, i_intNumberOfChannels) + strNullen,
+                                         i_intTotalNumberOfChannels);
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                  " ChannelPattern=\"",strChannelPattern,"\"");
+
+            return (strChannelPattern);
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // ChannelPattern_RightAdjust() -------------------------------------------------------------
+         // Rechtsbuendiges Channelpattern
+         function ChannelPattern_RightAdjust(
+                     variable i_intNumberOfChannels,
+                     variable i_intTotalNumberOfChannels
+                     ) variable
+        {
+            variable strEinzen;
+            variable strNullen;
+            variable strChannelPattern;
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                            "( i_intNumberOfChannels=",i_intNumberOfChannels,
+                            ", i_intTotalNumberOfChannels=",i_intTotalNumberOfChannels,
+                            ")");
+
+            strEinzen = "11111111111111111111111111111111";
+            strNullen = "00000000000000000000000000000000";
+            strChannelPattern= StrRight( strNullen + StrLeft(strEinzen, i_intNumberOfChannels),
+                                         i_intTotalNumberOfChannels);
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                  " ChannelPattern=\"",strChannelPattern,"\"");
+
+            return (strChannelPattern);
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // ChannelPattern_SingleAdjust() ------------------------------------------------------------
+         // Channelpattern eines einzigen Kanals
+         function ChannelPattern_SingleAdjust(
+                     variable i_intActiveChannelNumber,
+                     variable i_intTotalNumberOfChannels
+                     ) variable
+        {
+            variable strEinzen;
+            variable strNullen;
+            variable strChannelPattern;
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                            "( i_intActiveChannelNumber=",i_intActiveChannelNumber,
+                            ", i_intTotalNumberOfChannels=",i_intTotalNumberOfChannels,
+                            ")");
+
+            strNullen = "00000000000000000000000000000000";
+            strChannelPattern = StrLeft(
+               StrLeft(strNullen, i_intActiveChannelNumber-1) + "1" + strNullen,
+               i_intTotalNumberOfChannels);
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                           " ChannelPattern=\"",strChannelPattern,"\"");
+
+            return (strChannelPattern);
+         }
+
+      } // namespace MLSTAR
+
+      namespace SEQUENCE
+      {
+
+         // Init() --------------------------------------------------------------------------
+         function Init( sequence & o_seqObject ) variable
+         {
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),"(...)");
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                  " o_seqObject=\"",o_seqObject.GetName(),"\"");
+
+            SeqRemoveAll(o_seqObject);
+
+            return (0);
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // Add() ---------------------------------------------------------------------------
+         function Add(
+                      sequence i_seqSource1,
+                      sequence i_seqSource2,
+                      sequence & o_seqResult
+                    ) variable
+         {
+            variable intLoopPosition;
+            sequence seqResult;
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),"(...)");
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                           "  i_seqSource1=\"",i_seqSource1.GetName(),"\"",
+                           ", i_seqSource2=\"",i_seqSource2.GetName(),"\"",
+                           ", o_seqResult=\"",o_seqResult.GetName(),"\"");
+
+            // Sequence zuerst loeschen
+            SeqRemoveAll(o_seqResult);
+
+            // set count to total
+            i_seqSource1.SetCount(i_seqSource1.GetTotal());
+            for (intLoopPosition = i_seqSource1.SetCurrentPosition(1);
+                 intLoopPosition != 0;
+                 intLoopPosition = i_seqSource1.Increment(1))
+            {
+               seqResult.Add(i_seqSource1.GetLabwareId(),i_seqSource1.GetPositionId());
+            }
+
+            i_seqSource2.SetCount(i_seqSource2.GetTotal());
+            for (intLoopPosition = i_seqSource2.SetCurrentPosition(1);
+                 intLoopPosition != 0;
+                 intLoopPosition = i_seqSource2.Increment(1))
+            {
+               seqResult.Add(i_seqSource2.GetLabwareId(),i_seqSource2.GetPositionId());
+            }
+
+            // Sequence-Zeiger an Anfang setzen
+            SeqSetMax( seqResult, SeqGetTotal(seqResult));
+            seqResult.SetCurrentPosition(1);
+
+            o_seqResult = seqResult;
+
+            return (0);
+         }
+         // --------------------------------------------------------------------------------------------
+
+         // Copy() ---------------------------------------------------------------------------
+         function Copy(
+                       sequence i_seqSource,
+                       sequence & o_seqResult
+                     ) variable
+         {
+            variable intLoopPosition;
+            sequence seqResult;
+            variable intSourceCurrentPosition;
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),"(...)");
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                              "  i_seqSource=\"",i_seqSource.GetName(),"\"",
+                              ", o_seqResult=\"",o_seqResult.GetName(),"\"");
+
+            // Sequence zuerst loeschen
+            SeqRemoveAll(o_seqResult);
+
+            intSourceCurrentPosition = i_seqSource.GetCurrentPosition();
+
+            // set count to total
+            i_seqSource.SetCount(i_seqSource.GetTotal());
+            for (intLoopPosition = i_seqSource.SetCurrentPosition(1);
+                 intLoopPosition != 0;
+                 intLoopPosition = i_seqSource.Increment(1))
+            {
+               seqResult.Add(i_seqSource.GetLabwareId(),i_seqSource.GetPositionId());
+            }
+
+            // Sequence-Zeiger an Anfang setzen
+            SeqSetMax(seqResult,SeqGetTotal(seqResult));
+            seqResult.SetCurrentPosition(intSourceCurrentPosition);
+
+            o_seqResult = seqResult;
+
+            return (0);
+         }
+         // --------------------------------------------------------------------------------------------
+
+      } // namespace SEQUENCE
+
+      namespace LABWARE
+      {
+         static const variable _COLONIE_OFFSET_X_TO_REFFERENZ_POSITION_LEFT_TOP_MM(20.0);
+         // X-Offset der Colonies aus der Applikation
+         static const variable _COLONIE_OFFSET_Y_TO_REFFERENZ_POSITION_LEFT_TOP_MM(0.0);
+         // Y-Offset der Colonies aus der Applikation
+
+         // GetPositionCoordinates_Center_by_Labware() -----------------------------------------------
+         function GetPositionCoordinates_Center_by_Labware(
+                     device   & ML_STAR,
+                     variable   i_strLabwareID,
+                     variable & o_fltX,
+                     variable & o_fltY,
+                     variable & o_fltZ
+                     ) variable
+        {
+            variable arrfltLabwarePosition[];
+            variable fltBoundary1X;
+            variable fltBoundary1Y;
+            variable fltBoundary2X;
+            variable fltBoundary4Y;
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                            "( i_strLabwareID= \"",i_strLabwareID,"\"",
+                            ",...)");
+
+            o_fltX = 0.0;
+            o_fltY = 0.0;
+
+            onerror goto labware_error;
+            if (ML_STAR.GetLabwarePositionEx( i_strLabwareID, arrfltLabwarePosition)==0)
+            {
+               if (gEasyPickII_intTraceLevel>=_TRACE_LEVEL_NORMAL)
+                  FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FmtStatus::Error, GetFunctionName(),
+                     " Labware=\"",i_strLabwareID,"\" not found!");
+
+               return (ERROR_GENERAL_LIBRARY);
+            }
+
+            fltBoundary1X = arrfltLabwarePosition.GetAt(6);
+            fltBoundary1Y = arrfltLabwarePosition.GetAt(7);
+            fltBoundary2X = arrfltLabwarePosition.GetAt(8);
+            fltBoundary4Y = arrfltLabwarePosition.GetAt(13);
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                           "Labware Boundary Coords: ",
+                           "  x1= ",fltBoundary1X,
+                           ", x2= ",fltBoundary2X,
+                           ", y1= ",fltBoundary1Y,
+                           ", y2= ",fltBoundary4Y);
+
+            o_fltX = (fltBoundary2X - fltBoundary1X) / 2 + fltBoundary1X;
+            o_fltY = (fltBoundary4Y - fltBoundary1Y) / 2 + fltBoundary1Y;
+            o_fltZ = arrfltLabwarePosition.GetAt(2);               // z-coord
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                            "  o_fltX= ",o_fltX,
+                            ", o_fltY= ",o_fltY,
+                            ", o_fltZ= ",o_fltZ);
+
+            return (0);
+
+            // Befehl konnte nicht ausgefuehrt werden
+            labware_error:
+            {
+               if (gEasyPickII_intTraceLevel>=_TRACE_LEVEL_NORMAL)
+                  FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FmtStatus::Error, GetFunctionName(),
+                     " Labware=\"",i_strLabwareID,"\" not found!");
+               return (ERROR_GENERAL_LIBRARY);
+            }
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // GetPositionCoordinates_by_Labware() ------------------------------------------------------
+         // Ermittelt die Koordinaten anhand der Labware
+         function GetPositionCoordinates_by_Labware(
+                     device   & ML_STAR,
+                     variable   i_strLabwareID,
+                     variable & o_fltX,
+                     variable & o_fltY,
+                     variable & o_fltZ
+                     ) variable
+        {
+            variable arrfltLabwarePosition[];
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                            "( i_strLabwareID=\"",i_strLabwareID,"\"",
+                            ",...)");
+
+            o_fltX = 0.0;
+            o_fltY = 0.0;
+            o_fltZ = 0.0;
+
+            onerror goto labware_error;
+            if (ML_STAR.GetLabwarePosition( i_strLabwareID,arrfltLabwarePosition)==0)
+            {
+               if (gEasyPickII_intTraceLevel>=_TRACE_LEVEL_NORMAL)
+                  FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FmtStatus::Error, GetFunctionName(),
+                     " Labware=\"",i_strLabwareID,"\" not found!");
+               return (ERROR_GENERAL_LIBRARY);
+            }
+
+            o_fltX = arrfltLabwarePosition.GetAt(0);
+            o_fltY = arrfltLabwarePosition.GetAt(1);
+            o_fltZ = arrfltLabwarePosition.GetAt(2);
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                            "  o_fltX= ",o_fltX,
+                            ", o_fltY= ",o_fltY,
+                            ", o_fltZ= ",o_fltZ);
+
+            return (0);
+
+            // Befehl konnte nicht ausgefuehrt werden
+            labware_error:
+            {
+               if (gEasyPickII_intTraceLevel>=_TRACE_LEVEL_NORMAL)
+                  FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FmtStatus::Error, GetFunctionName(),
+                                 " Labware=\"",i_strLabwareID,"\" not found!");
+               return (ERROR_GENERAL_LIBRARY);
+            }
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // Convert_LightTable_to_Deck_Coordinates() ----------------------------------------
+         // Converts *light table* coordinates to *ML STAR* deck coordinates on a plate.
+         function Convert_LightTable_to_Deck_Coordinates(
+                   device   & ML_STAR,
+                   variable i_strReferencePointUpperLeftLabwareID,
+                   variable i_strColonyPlateLabwareID,
+                   variable i_fltLightTableX,
+                   variable i_fltLightTableY,
+                   variable & o_fltDeckX,
+                   variable & o_fltDeckY,
+                   variable & o_fltDeckZ
+                 ) variable
+         {
+            variable fltReferencePointX, fltReferencePointY, fltReferencePointZ;
+            variable fltColonyPlateX, fltColonyPlateY, fltColonyPlateZ;
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                           "( i_strReferencePointUpperLeftLabwareID= \"",i_strReferencePointUpperLeftLabwareID,"\"",
+                           ", i_strColonyPlateLabwareID= \"",i_strColonyPlateLabwareID,"\"",
+                           ", i_fltLightTableX= ",i_fltLightTableX,
+                           ", i_fltLightTableY= ",i_fltLightTableY,
+                           ",...)");
+
+            o_fltDeckX = 0.0;
+            o_fltDeckY = 0.0;
+            o_fltDeckZ = 0.0;
+
+            // Ermitteln der Koordinaten
+            if (GetPositionCoordinates_Center_by_Labware(
+                        ML_STAR,
+                        i_strReferencePointUpperLeftLabwareID,
+                        fltReferencePointX, fltReferencePointY, fltReferencePointZ
+                        ) != 0)
+            {
+               if (gEasyPickII_intTraceLevel>=_TRACE_LEVEL_NORMAL)
+                  FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FmtStatus::Error, GetFunctionName(),
+                     " Labware error: Labware \"",i_strReferencePointUpperLeftLabwareID,
+                     "\" not found or cannot get the coordinates!");
+               return (ERROR_GENERAL_LIBRARY);
+            }
+
+            // Ermitteln der Koordinaten
+            if (GetPositionCoordinates_by_Labware(
+                        ML_STAR,
+                        i_strColonyPlateLabwareID,
+                        fltColonyPlateX, fltColonyPlateY, fltColonyPlateZ
+                        ) != 0)
+            {
+               if (gEasyPickII_intTraceLevel>=_TRACE_LEVEL_NORMAL)
+                  FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FmtStatus::Error, GetFunctionName(),
+                     " Labware error: Labware \"",i_strColonyPlateLabwareID,
+                     "\" not found or cannot get the coordinates!");
+               return (ERROR_GENERAL_LIBRARY);
+            }
+
+            o_fltDeckX = fltReferencePointX + i_fltLightTableX - _COLONIE_OFFSET_X_TO_REFFERENZ_POSITION_LEFT_TOP_MM;
+            o_fltDeckY = fltReferencePointY - i_fltLightTableY - _COLONIE_OFFSET_Y_TO_REFFERENZ_POSITION_LEFT_TOP_MM;
+            o_fltDeckZ = fltColonyPlateZ;
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                           "  o_fltDeckX= ", o_fltDeckX,
+                           ", o_fltDeckY= ", o_fltDeckY,
+                           ", o_fltDeckZ= ", o_fltDeckZ);
+
+            return (0);
+         }
+         // ------------------------------------------------------------------------------------------
+
+         // Internetr Labwarename fuer den Colony-Spot
+         static const variable _LABWARE_SPOT_NAME        ("EasyPickII_Colony_Spot");
+
+         // ---------------------------------------------------------------
+         // remove labware to position x,y,z
+         // ---------------------------------------------------------------
+         function SpotContainerRemove(
+                     device   & ML_STAR,
+                     variable i_intSpotNumber
+                     ) variable
+        {
+            variable strLabwareID;
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                           "( i_intSpotNumber=",i_intSpotNumber,
+                           ")");
+
+            strLabwareID = _LABWARE_SPOT_NAME + "_" + IStr(i_intSpotNumber);
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                           " Remove Labware \"", strLabwareID,"\"");
+
+            DevRemoveLabware(ML_STAR, strLabwareID);
+
+            return (0);
+         } // end of SpotContainerRemove()
+
+         // ---------------------------------------------------------------
+         // place labware to position x,y,z
+         function SpotContainerPlace(
+                      device   & ML_STAR,
+                      variable i_strColonySpotLabwareFilename,
+                      variable i_fltX,
+                      variable i_fltY,
+                      variable i_fltZ,
+                      variable i_intSpotNumber,
+                      sequence & o_seqSpotPosition
+                    ) variable
+        {
+            variable strLabwareID;
+
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                           "( i_strColonySpotLabwareFilename=\"",i_strColonySpotLabwareFilename,"\"",
+                           ", i_fltX=",i_fltX,
+                           ", i_fltY=",i_fltY,
+                           ", i_fltZ=",i_fltZ,
+                           ", i_intSpotNumber=",i_intSpotNumber,
+                           ")");
+
+            SeqRemoveAll(o_seqSpotPosition);
+
+            strLabwareID = _LABWARE_SPOT_NAME + "_" + IStr(i_intSpotNumber);
+
+            if (ML_STAR.IsValidLabwareForCurrentDeckLayout(strLabwareID) != 0)
+            {
+               if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+                  FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                              " Remove existing Labware \"", strLabwareID,"\"");
+               DevRemoveLabware(ML_STAR, strLabwareID);
+            }
+
+            // Labware plazieren
+            if (gEasyPickII_intTraceLevel >= _TRACE_LEVEL_FULL)
+               FormatTrace( H_FMT_SRC, H_FMT_ACTION, H_FMT_STATUS, GetFunctionName(),
+                  " Add Labware \"", strLabwareID);
+            DevAddLabware( ML_STAR,
+                           strLabwareID,
+                           i_strColonySpotLabwareFilename,
+                           i_fltX, i_fltY, i_fltZ,
+                           0);
+
+            // Sequence generieren
+            o_seqSpotPosition.Add( strLabwareID, "1");
+            SeqSetMax(o_seqSpotPosition,SeqGetTotal(o_seqSpotPosition)); // Sequenz auf den Anfang setzen
+            o_seqSpotPosition.SetCurrentPosition(1);
+
+            return (0);
+         } // end of SpotContainerPlace()
+
+      } // namespace LABWARE
+
+   } // namespace HELPER
+
+} // namespace EASYPICKII
+
+#endif
+// $$author=ljegher$$valid=1$$time=2016-07-04 23:45$$checksum=834d4fb0$$length=084$$

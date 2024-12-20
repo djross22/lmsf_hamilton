@@ -1,0 +1,938 @@
+// {{{ 2 "IncludeGuard" "PragmaOnce"
+#pragma once
+// }} ""
+#include "HSLFileDirectoryLib.hsl"
+#include "ASWStandard\\TraceLevel\\TraceLevel.hsl"
+#include "HSLTrcLib.hsl"
+#include "HSLStrLib.hsl"
+#include "If_and_If_or.hs_"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+#include "HSLMETEDLib.hs_"
+#include "HSLMECCLib.hs_"
+// }} ""
+// {{{ 2 "LibraryNamespace" "Begin"
+namespace LABWAREHANDLING {
+// }} ""
+variable _strFileReturnLabwareFolder;
+variable _strFileReturnLabwarePath;
+variable _strFileReturnLabwareCompletePath;
+variable _strFileReturnLabwareCompleteFolder;
+variable _strFileRequestLabwareCompleteFolder;
+variable _strFileRequestLabwareCompletePath;
+variable _strFileRequestLabwarePath;
+variable _strFileRequestLabwareFolder;
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{{ 2 "SubmethodForwardDeclaration" ""
+function RequestLabware( variable i_LabwareName, variable i_LabwarePosition ) variable ;
+function ReturnLabware( variable i_LabwareName, variable i_LabwarePosition ) variable ;
+function UtilityCreatLabwareReturnCompletionFile( variable i_LabwareName, variable i_LabwarePosition ) variable ;
+function UtilityCreateLabwareRequestCompletionFile( variable i_LabwareName, variable i_LabwarePosition ) variable ;
+function WaitForLabwareRequestCompletion( variable & o_TransferPosition, variable & o_LabwareName, variable & o_TransferPositionOccupancy ) variable ;
+function WaitForLabwareReturnCompletion( variable & o_TransferPosition, variable & o_LabwareName, variable & o_TransferPositionOccupancy ) variable ;
+function _definitions(  ) void ;
+private function _versionInfo(  ) void ;
+// }} ""
+function _InitLibrary() {
+// {{ 2 "AutoInitBlock" ""
+IF_AND_IF_OR::_InitLibrary();
+// }} ""
+}
+function _ExitLibrary() {
+// {{ 2 "AutoExitBlock" ""
+IF_AND_IF_OR::_ExitLibrary();
+// }} ""
+}
+// {{{ 5 "RequestLabware" "Begin"
+function RequestLabware( variable i_LabwareName, variable i_LabwarePosition ) variable {
+// }} ""
+private variable blnReturnValue;
+private variable loopCounter1;
+private timer tmrWait;
+private variable strRequestLabwareName;
+private variable strRequestLabwareTransferPosition;
+private variable strRequestLabwareTransferPositionOccupancy;
+private variable blnLabwareExists;
+private file hndRequestLabware;
+// {{ 5 "RequestLabware" "InitLocals"
+// }} ""
+// {{ 1 1 0 "5963b7b3_c9e2_4021_97ad1d9e556c2bc7" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : REQUEST LABWARE : START----------"));
+// }} ""
+// {{{ 2 1 0 "bc0426ad_5a60_479d_813f5cdc04f9e8b0" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+_definitions();
+// }} ""
+// {{ 3 1 0 "8fe4d235_c661_4473_8f4d63135be39bed" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 4 1 0 "80f1c7fb_8ba6_4a03_9fe1b4d2eda6ba90" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 0;
+// }} ""
+// {{ 5 1 0 "af0aec86_2175_454a_81bdb3d637c960d6" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 6 1 0 "6df6cc09_39cf_451a_bf37a26188962672" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter1 = 0;
+while (1 == 1)
+{
+loopCounter1 = loopCounter1 + 1;
+// }} ""
+// {{{ 7 1 0 "4fe016fe_235e_413c_a8e542add348089c" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnLabwareExists = FileDirectoryLib::CheckIfFileExists(_strFileRequestLabwarePath);
+// }} ""
+// {{ 8 1 0 "dc6d4249_8627_4d35_bfdb012ebb7550e4" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnLabwareExists == 0)
+{
+// }} ""
+// {{ 9 1 0 "f8af223d_c2ae_492e_937f44a7f8873f5e" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 10 1 0 "c043c552_694e_4b29_bcb14adebce32276" "{B31F3533-5D80-11d4-A5EB-0050DA737D89}"
+break;
+// }} ""
+// {{ 11 1 0 "dc6d4249_8627_4d35_bfdb012ebb7550e4" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{{ 12 1 0 "a1e45aff_4e16_48ff_84430d9098248606" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TrcTrace(Translate("RequestLabwareInput.csv file already exists, waiting for Overload to finish using file before new file can be created"), Translate(""));
+// }} ""
+// {{ 13 1 0 "b48251c4_949b_4963_90d1db0d4f18317a" "{B31F353E-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == tmrWait.SetTimer(2) )
+{
+    MECC::RaiseRuntimeErrorEx(-1355939584, MECC::IDS::stepNameTimerStart, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 14 1 0 "512aec1c_2ae0_458a_a63d4a8a038d32a2" "{B31F353F-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == tmrWait.WaitTimer(hslFalse, hslFalse) )
+{
+    MECC::RaiseRuntimeErrorEx(-1339162368, MECC::IDS::stepNameTimerWait, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 15 1 0 "dc6d4249_8627_4d35_bfdb012ebb7550e4" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 16 1 0 "6df6cc09_39cf_451a_bf37a26188962672" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 17 1 0 "af0aec86_2175_454a_81bdb3d637c960d6" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 18 1 0 "62ba2c29_ee49_46d3_a186a0839865860c" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 19 1 0 "438d5f70_7ee3_4dc2_900440438d7ef88c" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+hndRequestLabware.AddField("TransferPosition", strRequestLabwareTransferPosition, hslString, 255);
+hndRequestLabware.AddField("LabwareName", strRequestLabwareName, hslString, 255);
+hndRequestLabware.AddField("TransferPositionOccupancy", strRequestLabwareTransferPositionOccupancy, hslString, 255);
+hndRequestLabware.SetDelimiter(",");
+if( 0 == hndRequestLabware.Open(_strFileRequestLabwarePath, hslWrite) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, _strFileRequestLabwarePath, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 20 1 0 "97cf9da0_c61c_4208_82c8dca4baf34e6c" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strRequestLabwareTransferPosition = i_LabwarePosition;
+// }} ""
+// {{ 21 1 0 "b8bcaa87_1c78_4574_b75ce092f6381e4d" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strRequestLabwareName = i_LabwareName;
+// }} ""
+// {{ 22 1 0 "7239a065_f0ce_4057_884012cc689cc1bb" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strRequestLabwareTransferPositionOccupancy = "0";
+// }} ""
+// {{ 23 1 0 "d5e7b2ec_87ca_4f6f_89e5b2804e9a105d" "{B31F3537-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == hndRequestLabware.WriteRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1473380096, MECC::IDS::stepNameFileWrite, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 24 1 0 "1480a6e2_c9ed_402f_aa302772abc980ac" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != hndRequestLabware.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+hndRequestLabware.RemoveFields();
+// }} ""
+// {{ 25 1 0 "d599c76a_51a0_499f_884a8cacee49093c" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 26 1 0 "bfa2765e_831a_4e83_9c36e569b7a0032a" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnLabwareExists = FileDirectoryLib::CheckIfFileExists(_strFileRequestLabwarePath);
+// }} ""
+// {{ 27 1 0 "17a21d2f_338e_4efa_bd3e51a3c5628cb4" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnLabwareExists != 1)
+{
+// }} ""
+// {{ 28 1 0 "30402194_2c2c_443e_aa2aa3e8f90e3e56" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 1;
+// }} ""
+// {{{ 29 1 0 "0ef016c4_a212_4d56_9d233fa743e19c26" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Request labware file not created"), Translate(""));
+// }} ""
+// {{ 30 1 0 "0017f169_5bb6_4d3d_9ff94544d758dcf8" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : REQUEST LABWARE : END----------"));
+// }} ""
+// {{{ 31 1 0 "18ee39e0_c37b_484d_aa5597b54bf9fd14" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{ 32 1 0 "17a21d2f_338e_4efa_bd3e51a3c5628cb4" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 33 1 0 "68bd7ed1_033c_491e_aae16b7c8000a3f8" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Request labware file created"), Translate(""));
+// }} ""
+// {{ 34 1 0 "02a3790a_927c_4034_99ab6656d782218c" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : REQUEST LABWARE : END----------"));
+// }} ""
+// {{{ 35 1 0 "161de0a3_ee37_4000_a1d419a334940331" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{{ 5 "RequestLabware" "End"
+}
+// }} ""
+// {{{ 5 "ReturnLabware" "Begin"
+function ReturnLabware( variable i_LabwareName, variable i_LabwarePosition ) variable {
+// }} ""
+private variable blnSuccess;
+private variable blnReturnValue;
+private variable strRequestLabwareName;
+private variable strRequestLabwareTransferPosition;
+private variable blnLabwareExists;
+private variable strRequestLabwareTransferPositionOccupancy;
+private file hndReturnLabware;
+// {{ 5 "ReturnLabware" "InitLocals"
+// }} ""
+// {{ 37 1 0 "d56b1d5c_4ca1_4ba1_b28c22b9cd86c8cc" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : RETURN LABWARE : START----------"));
+// }} ""
+// {{{ 38 1 0 "bcca53f2_d329_46bc_a3de518b950d03d5" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+_definitions();
+// }} ""
+// {{ 39 1 0 "0da69225_0d51_4962_ba78e76da36537a0" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 40 1 0 "ab37c6de_d506_47f7_9dfca2b568d1e9d0" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 0;
+// }} ""
+// {{ 41 1 0 "8c266972_9b0d_4f77_88bf78e6a4d383f8" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 42 1 0 "ada596f4_885d_42ed_a0c70849a2a6681d" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnLabwareExists = FileDirectoryLib::CheckIfFileExists(_strFileReturnLabwarePath);
+// }} ""
+// {{ 43 1 0 "a8937484_3cf6_4d49_a78a5b470434dffe" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnLabwareExists == 1)
+{
+// }} ""
+// {{{ 44 1 0 "ab344360_6c9e_4de3_8d8c20658db0b004" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnSuccess = FileDirectoryLib::DeleteFile(_strFileReturnLabwarePath);
+// }} ""
+// {{ 45 1 0 "a8937484_3cf6_4d49_a78a5b470434dffe" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 46 1 0 "9b785b58_a169_4f49_a9a7490cbaa69dea" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 47 1 0 "c24f6f0f_9577_4ed2_a5c3be4742c5cb23" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+hndReturnLabware.AddField("TransferPosition", strRequestLabwareTransferPosition, hslString, 255);
+hndReturnLabware.AddField("LabwareName", strRequestLabwareName, hslString, 255);
+hndReturnLabware.AddField("TransferPositionOccupancy", strRequestLabwareTransferPositionOccupancy, hslString, 255);
+hndReturnLabware.SetDelimiter(",");
+if( 0 == hndReturnLabware.Open(_strFileReturnLabwarePath, hslWrite) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, _strFileReturnLabwarePath, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 48 1 0 "1b84a344_9653_452e_97f132ad053262ab" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strRequestLabwareTransferPosition = i_LabwarePosition;
+// }} ""
+// {{ 49 1 0 "b630ab02_f30b_4bfe_ba9f493d14a107af" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strRequestLabwareName = i_LabwareName;
+// }} ""
+// {{ 50 1 0 "a4fb2d96_21f3_447d_9016ae283ac38716" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strRequestLabwareTransferPositionOccupancy = "1";
+// }} ""
+// {{ 51 1 0 "2ba04e61_e159_4b8f_9c2aea48d214c01d" "{B31F3537-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == hndReturnLabware.WriteRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1473380096, MECC::IDS::stepNameFileWrite, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 52 1 0 "600a1317_d3ce_4207_a8f7643ece012278" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != hndReturnLabware.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+hndReturnLabware.RemoveFields();
+// }} ""
+// {{ 53 1 0 "4e6f31bc_237f_4d68_84d6792529716e0d" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 54 1 0 "c7c08b3d_c19d_44ab_add0b3c6490c5fd2" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnLabwareExists = FileDirectoryLib::CheckIfFileExists(_strFileReturnLabwarePath);
+// }} ""
+// {{ 55 1 0 "2d85bfc3_878b_4868_982526f80bc25f39" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnLabwareExists != 1)
+{
+// }} ""
+// {{ 56 1 0 "4853746a_4230_4461_8ee26de1bd3c048c" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 1;
+// }} ""
+// {{{ 57 1 0 "24f533fe_cb25_496d_872d57bd1dd1ce44" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Return labware file not created"), Translate(""));
+// }} ""
+// {{ 58 1 0 "1fb90c01_10c3_4d96_a6136f54916b8c41" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : RETURN LABWARE : END----------"));
+// }} ""
+// {{{ 59 1 0 "68cc8700_e699_40b0_93626e92ce810609" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{ 60 1 0 "2d85bfc3_878b_4868_982526f80bc25f39" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 61 1 0 "fd3b1f59_c783_483d_a9db7efe69b8e34f" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Return labware file created"), Translate(""));
+// }} ""
+// {{ 62 1 0 "fd3ae2a9_4b1c_4d07_bde1ad900490eb51" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : RETURN LABWARE : END----------"));
+// }} ""
+// {{{ 63 1 0 "8c9d89a9_9ff0_4253_af236e981e87c98a" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{{ 5 "ReturnLabware" "End"
+}
+// }} ""
+// {{{ 5 "WaitForLabwareRequestCompletion" "Begin"
+function WaitForLabwareRequestCompletion( variable & o_TransferPosition, variable & o_LabwareName, variable & o_TransferPositionOccupancy ) variable {
+// }} ""
+private variable blnFileExists;
+private variable fltElapsedTime;
+private variable loopCounter1;
+private variable blnReturnValue;
+private timer tmrWait;
+private variable strRequestLabwareName;
+private variable strRequestLabwareTransferPosition;
+private variable strRequestLabwareTransferPositionOccupancy;
+private timer tmrWaitForLabwareRequestCompletion;
+private file hndRequestLabwareComplete;
+// {{ 5 "WaitForLabwareRequestCompletion" "InitLocals"
+o_TransferPosition = 0;
+o_LabwareName = 0;
+o_TransferPositionOccupancy = 0;
+// }} ""
+// {{ 129 1 0 "806f5194_4961_466b_b9ad39bde4202f57" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : WAIT FOR LABWARE REQUEST COMPLETION : START----------"));
+// }} ""
+// {{{ 130 1 0 "5f4e17bd_f57e_4745_8a6c3801a3ad0241" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+_definitions();
+// }} ""
+// {{ 131 1 0 "60c7ed6c_bcd8_4375_92946bdec675be79" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 0;
+// }} ""
+// {{ 132 1 0 "7f305fa3_a092_4bd8_9650b637405ff90c" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 133 1 0 "6c3bcb36_3f02_4ab5_988760fdcf5b3333" "{B31F353E-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == tmrWaitForLabwareRequestCompletion.SetTimer(hslInfinite) )
+{
+    MECC::RaiseRuntimeErrorEx(-1355939584, MECC::IDS::stepNameTimerStart, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 134 1 0 "50963d24_60b2_477a_a1d8cf839987092a" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter1 = 0;
+while (1 == 1)
+{
+loopCounter1 = loopCounter1 + 1;
+// }} ""
+// {{ 135 1 0 "91a1e01a_2657_4a67_ac0c123215745e75" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 136 1 0 "dbe407fa_bd75_4745_9cf7cb1b1db121bc" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnFileExists = FileDirectoryLib::CheckIfFileExists(_strFileRequestLabwareCompletePath);
+// }} ""
+// {{ 137 1 0 "debbaad3_9558_48ba_86ceb6fcba477625" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnFileExists == 1)
+{
+// }} ""
+// {{ 138 1 0 "8860ac79_77f8_4e30_9f2494088469621b" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 139 1 0 "da3746e4_76e2_4412_8fd4d09b6b0b97d8" "{B31F3533-5D80-11d4-A5EB-0050DA737D89}"
+break;
+// }} ""
+// {{ 140 1 0 "debbaad3_9558_48ba_86ceb6fcba477625" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 141 1 0 "bb3317b2_f8d0_4f0c_8233c580e8e07edd" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 142 1 0 "0282c530_4d73_4fef_a8355ce7dda28c17" "{B31F353E-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == tmrWait.SetTimer(2) )
+{
+    MECC::RaiseRuntimeErrorEx(-1355939584, MECC::IDS::stepNameTimerStart, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 143 1 0 "00c276e4_e9b0_462f_90b49735726b8667" "{B31F353F-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == tmrWait.WaitTimer(hslTrue, hslTrue) )
+{
+    MECC::RaiseRuntimeErrorEx(-1339162368, MECC::IDS::stepNameTimerWait, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 144 1 0 "debbaad3_9558_48ba_86ceb6fcba477625" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 145 1 0 "61fe1805_3794_4500_91f9604169714d64" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 146 1 0 "730c8dd8_d25c_45d0_840ecf17a3bbecdd" "{B31F3540-5D80-11d4-A5EB-0050DA737D89}"
+fltElapsedTime = tmrWaitForLabwareRequestCompletion.GetElapsedTime();
+// }} ""
+// {{ 147 1 0 "0838d110_8e09_4416_b4e16b968d8c9be7" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (fltElapsedTime > 259200)
+{
+// }} ""
+// {{{ 148 1 0 "f52842c1_0986_48aa_aa6e74a19a5efb31" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Labware request completion file NOT created"), Translate(""));
+// }} ""
+// {{ 149 1 0 "6edbe19d_2f5c_4f70_937219d31ce2e3f5" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 1;
+// }} ""
+// {{ 150 1 0 "f63779d0_e86f_4e76_94842b2e7a1e5de6" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : WAIT FOR LABWARE REQUEST COMPLETION : END----------"));
+// }} ""
+// {{{ 151 1 0 "b0ca11e7_4b57_45b6_a9e28d3c89ffa77a" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{ 152 1 0 "0838d110_8e09_4416_b4e16b968d8c9be7" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 153 1 0 "50963d24_60b2_477a_a1d8cf839987092a" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{{ 154 1 0 "0c37b355_76a0_491c_a740ea8c4a1cfff8" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Labware request completion file found"), Translate(""));
+// }} ""
+// {{ 155 1 0 "72cc6bd9_1ec4_4414_a338d928f5574921" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+hndRequestLabwareComplete.AddField("TransferPosition", strRequestLabwareTransferPosition, hslString, 255);
+hndRequestLabwareComplete.AddField("LabwareName", strRequestLabwareName, hslString, 255);
+hndRequestLabwareComplete.AddField("TransferPositionOccupancy", strRequestLabwareTransferPositionOccupancy, hslString, 255);
+hndRequestLabwareComplete.SetDelimiter(",");
+if( 0 == hndRequestLabwareComplete.Open(_strFileRequestLabwareCompletePath, hslRead) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, _strFileRequestLabwareCompletePath, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 156 1 0 "4998be26_cb0a_4920_9a50dae96f4a6975" "{B31F3536-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == hndRequestLabwareComplete.ReadRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1490157312, MECC::IDS::stepNameFileRead, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 157 1 0 "54705a02_ba57_4d23_a9e3c0c9cae1358a" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+o_TransferPosition = strRequestLabwareTransferPosition;
+// }} ""
+// {{ 158 1 0 "09a0508a_bd7e_4011_8e11a783829309e7" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+o_LabwareName = strRequestLabwareName;
+// }} ""
+// {{ 159 1 0 "988e758b_4181_473d_a0467ec12041b2ce" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+o_TransferPositionOccupancy = strRequestLabwareTransferPositionOccupancy;
+// }} ""
+// {{{ 160 1 0 "8898e69c_ef28_4e6d_899a8aa017bf4b10" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_06(TRACE_LEVEL_DEBUG, Translate("o_TransferPosition = "), o_TransferPosition, Translate(", o_LabwareName = "), o_LabwareName, Translate(", o_TransferPositionOccupancy = "), o_TransferPositionOccupancy);
+// }} ""
+// {{ 161 1 0 "596cad50_9d39_403b_9a192c3d4a52bc57" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != hndRequestLabwareComplete.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+hndRequestLabwareComplete.RemoveFields();
+// }} ""
+// {{{ 162 1 0 "ed33070e_5a92_46d3_9f350f2b8a2364d4" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+FileDirectoryLib::DeleteFile(_strFileRequestLabwareCompletePath);
+// }} ""
+// {{{ 163 1 0 "1291f9ad_bbd7_4959_8ab9acdc7112d0e3" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{ 164 1 0 "732a7b0b_0750_497c_b71eba8829096943" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : WAIT FOR LABWARE REQUEST COMPLETION : END----------"));
+// }} ""
+// {{{ 5 "WaitForLabwareRequestCompletion" "End"
+}
+// }} ""
+// {{{ 5 "_definitions" "Begin"
+function _definitions(  ) void {
+// }} ""
+// {{ 5 "_definitions" "InitLocals"
+// }} ""
+// {{ 203 1 0 "d2e2006d_58af_4c11_88a6a3858db8c94e" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : DEFINITIONS : START----------"));
+// }} ""
+// {{ 204 1 0 "89b2a1f0_7a42_4ede_987d2677e6beba28" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+_strFileRequestLabwareFolder = Translate("C:\\PAATestFolder\\LabwareHandling\\RequestLabwareInput");
+// }} ""
+// {{ 205 1 0 "d419b803_ace1_4e14_8426961c42e7d8c3" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+_strFileRequestLabwarePath = "C:\\PAATestFolder\\LabwareHandling\\RequestLabwareInput\\RequestLabwareInput.csv";
+// }} ""
+// {{ 206 1 0 "0506bec2_dc20_4a3c_b441aad4ad015073" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+_strFileRequestLabwareCompleteFolder = Translate("C:\\PAATestFolder\\LabwareHandling\\RequestLabwareInputComplete");
+// }} ""
+// {{ 207 1 0 "6a290d10_fdff_430e_98c8f3c354325ce5" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+_strFileRequestLabwareCompletePath = "C:\\PAATestFolder\\LabwareHandling\\RequestLabwareInputComplete\\RequestLabwareInputComplete.csv";
+// }} ""
+// {{ 208 1 0 "70eef33c_cd2d_49f3_a5117dc56bf10652" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+_strFileReturnLabwareFolder = Translate("C:\\PAATestFolder\\LabwareHandling\\ReturnLabwareOutput");
+// }} ""
+// {{ 209 1 0 "dad097d6_50c4_4ea9_935deefc35b9cdc0" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+_strFileReturnLabwarePath = "C:\\PAATestFolder\\LabwareHandling\\ReturnLabwareOutput\\ReturnLabwareOutput.csv";
+// }} ""
+// {{ 210 1 0 "f5f1acf7_eb68_4091_a563376d04c0b8cb" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+_strFileReturnLabwareCompleteFolder = Translate("C:\\PAATestFolder\\LabwareHandling\\ReturnLabwareOutputComplete");
+// }} ""
+// {{ 211 1 0 "d21583e6_32d6_46f0_a51fc4b18e67b50f" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+_strFileReturnLabwareCompletePath = "C:\\PAATestFolder\\LabwareHandling\\ReturnLabwareOutputComplete\\ReturnLabwareOutputComplete.csv";
+// }} ""
+// {{ 212 1 0 "07cbac0b_3f0c_47dc_9b9404ff9fa4dad2" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : DEFINITIONS : END----------"));
+// }} ""
+// {{{ 5 "_definitions" "End"
+}
+// }} ""
+// {{{ 5 "UtilityCreateLabwareRequestCompletionFile" "Begin"
+function UtilityCreateLabwareRequestCompletionFile( variable i_LabwareName, variable i_LabwarePosition ) variable {
+// }} ""
+private variable blnSuccess;
+private variable blnReturnValue;
+private variable blnLabwareExists;
+private variable strRequestLabwareTransferPositionOccupancy;
+private file hndRequestLabwareComplete;
+private variable strRequestLabwareName;
+private variable strRequestLabwareTransferPosition;
+// {{ 5 "UtilityCreateLabwareRequestCompletionFile" "InitLocals"
+// }} ""
+// {{ 97 1 0 "681dff6a_fdd3_41e4_944e2729e31116e3" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : UTILITY CREATE LABWARE REQUEST COMPLETION FILE : START----------"));
+// }} ""
+// {{{ 98 1 0 "3a2a8ddc_0601_4384_994cd68c43eae16d" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+_definitions();
+// }} ""
+// {{ 99 1 0 "e1d043db_2bec_4688_8cff059f77ae037a" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 0;
+// }} ""
+// {{ 100 1 0 "99257c22_19ec_41a0_aecbef9ee77a4905" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 101 1 0 "0e9aa08c_8150_4b5e_95e3e02201f6ab59" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnLabwareExists = FileDirectoryLib::CheckIfFileExists(_strFileRequestLabwareCompletePath);
+// }} ""
+// {{ 102 1 0 "af6d2c22_a680_44b1_b93889c02b511373" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnLabwareExists == 1)
+{
+// }} ""
+// {{{ 103 1 0 "a84bad96_4625_48d2_994172625ebb0fcd" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnSuccess = FileDirectoryLib::DeleteFile(_strFileRequestLabwareCompletePath);
+// }} ""
+// {{ 104 1 0 "af6d2c22_a680_44b1_b93889c02b511373" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 105 1 0 "bec097a6_dbd0_47fb_86aefbf33e3db9ed" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 106 1 0 "6d30b2eb_37f8_4dde_97f51b55105154a9" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+hndRequestLabwareComplete.AddField("TransferPosition", strRequestLabwareTransferPosition, hslString, 255);
+hndRequestLabwareComplete.AddField("LabwareName", strRequestLabwareName, hslString, 255);
+hndRequestLabwareComplete.AddField("TransferPositionOccupancy", strRequestLabwareTransferPositionOccupancy, hslString, 255);
+hndRequestLabwareComplete.SetDelimiter(",");
+if( 0 == hndRequestLabwareComplete.Open(_strFileRequestLabwareCompletePath, hslWrite) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, _strFileRequestLabwareCompletePath, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 107 1 0 "55e65612_508d_4f1c_8c69968b8fdcd4c7" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strRequestLabwareTransferPosition = i_LabwarePosition;
+// }} ""
+// {{ 108 1 0 "466eb60b_6de4_432e_b67311ad83ebc762" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strRequestLabwareName = i_LabwareName;
+// }} ""
+// {{ 109 1 0 "e5efb83f_fa26_44a0_a76ed3acd7de83ef" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strRequestLabwareTransferPositionOccupancy = "1";
+// }} ""
+// {{ 110 1 0 "4c553864_5314_4f4e_97d642a915e0d541" "{B31F3537-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == hndRequestLabwareComplete.WriteRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1473380096, MECC::IDS::stepNameFileWrite, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 111 1 0 "f964afd4_6771_4bf9_a2bb0509448c668c" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != hndRequestLabwareComplete.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+hndRequestLabwareComplete.RemoveFields();
+// }} ""
+// {{ 112 1 0 "458ecab7_5490_4cfc_a1322d6ab2359ad8" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 113 1 0 "079bce77_1d94_4c55_b1cf90f6321f90c5" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnLabwareExists = FileDirectoryLib::CheckIfFileExists(_strFileRequestLabwareCompletePath);
+// }} ""
+// {{ 114 1 0 "07e23e20_70fe_47e0_91673548b8a527e7" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnLabwareExists != 1)
+{
+// }} ""
+// {{ 115 1 0 "8ef7b561_2828_4123_9ccc902635371a68" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 1;
+// }} ""
+// {{{ 116 1 0 "b6b674c8_2803_4544_853025620de5fe88" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Sim mode : Request labware file not created"), Translate(""));
+// }} ""
+// {{ 117 1 0 "156a3073_aaf4_42d6_a484e484dd76b339" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : UTILITY CREATE LABWARE REQUEST COMPLETION FILE : END----------"));
+// }} ""
+// {{{ 118 1 0 "e225fe1e_d770_4c5c_8904c91445b20a57" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{ 119 1 0 "07e23e20_70fe_47e0_91673548b8a527e7" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 120 1 0 "38ccde95_74a0_47c3_910dfcc93c9f7cbd" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Sim mode : Request labware file created"), Translate(""));
+// }} ""
+// {{ 121 1 0 "671fb071_f2f5_4c1a_82718456e8bc23ef" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 122 1 0 "b9596dd5_12b5_4cd7_9fb542719f49e5c6" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnLabwareExists = FileDirectoryLib::CheckIfFileExists(_strFileRequestLabwarePath);
+// }} ""
+// {{ 123 1 0 "ec2aa07a_736f_4819_99d220319c4fa0fc" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnLabwareExists == 1)
+{
+// }} ""
+// {{{ 124 1 0 "aa40247c_50e4_4d6c_b999404989ac752d" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+FileDirectoryLib::DeleteFile(_strFileRequestLabwarePath);
+// }} ""
+// {{ 125 1 0 "ec2aa07a_736f_4819_99d220319c4fa0fc" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 126 1 0 "fcb54f22_27bc_4e1a_ada74b09eb714561" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : UTILITY CREATE LABWARE REQUEST COMPLETION FILE : END----------"));
+// }} ""
+// {{{ 127 1 0 "176b67ef_48e4_4efb_ad33561602bbf5e6" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{{ 5 "UtilityCreateLabwareRequestCompletionFile" "End"
+}
+// }} ""
+// {{{ 5 "WaitForLabwareReturnCompletion" "Begin"
+function WaitForLabwareReturnCompletion( variable & o_TransferPosition, variable & o_LabwareName, variable & o_TransferPositionOccupancy ) variable {
+// }} ""
+private variable blnFileExists;
+private variable fltElapsedTime;
+private variable loopCounter1;
+private variable blnReturnValue;
+private timer tmrWait;
+private variable strReturnLabwareName;
+private variable strReturnLabwareTransferPosition;
+private variable strReturnLabwareTransferPositionOccupancy;
+private timer tmrWaitForLabwareReturnCompletion;
+private file hndReturnLabwareComplete;
+// {{ 5 "WaitForLabwareReturnCompletion" "InitLocals"
+o_TransferPosition = 0;
+o_LabwareName = 0;
+o_TransferPositionOccupancy = 0;
+// }} ""
+// {{ 166 1 0 "ed490b74_aaed_48f6_883f29d5f7026a3a" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : WAIT FOR LABWARE RETURN COMPLETION : START----------"));
+// }} ""
+// {{{ 167 1 0 "48c2a339_e86d_4a24_866d034b41bf146f" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+_definitions();
+// }} ""
+// {{ 168 1 0 "aa062617_96fd_4ad0_ae31ff3313173c2d" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 0;
+// }} ""
+// {{ 169 1 0 "209c45ff_78e9_4263_a402d469738bf0c8" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 170 1 0 "88154799_5027_4f89_b860497462d17a91" "{B31F353E-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == tmrWaitForLabwareReturnCompletion.SetTimer(hslInfinite) )
+{
+    MECC::RaiseRuntimeErrorEx(-1355939584, MECC::IDS::stepNameTimerStart, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 171 1 0 "85948e42_d5af_4cfa_be4c99d35ad79ae6" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+loopCounter1 = 0;
+while (1 == 1)
+{
+loopCounter1 = loopCounter1 + 1;
+// }} ""
+// {{ 172 1 0 "e8ad93fd_a435_4bd8_ad4b7dd6107773e0" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 173 1 0 "f53fd66c_c8c2_4080_9c30ca5aa2e3c6be" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnFileExists = FileDirectoryLib::CheckIfFileExists(_strFileReturnLabwareCompletePath);
+// }} ""
+// {{ 174 1 0 "820a27f3_6e44_4766_9c2d8ed2501356a6" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnFileExists == 1)
+{
+// }} ""
+// {{ 175 1 0 "aa78f318_b165_4cba_8a9e21f98447e875" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 176 1 0 "7c16eca9_8b35_44e7_bc6958156d001415" "{B31F3533-5D80-11d4-A5EB-0050DA737D89}"
+break;
+// }} ""
+// {{ 177 1 0 "820a27f3_6e44_4766_9c2d8ed2501356a6" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 178 1 0 "0a35d517_c8ad_4936_ba11d1d77568293d" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 179 1 0 "06820bff_8800_4d67_b6efc34ab877c65f" "{B31F353E-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == tmrWait.SetTimer(2) )
+{
+    MECC::RaiseRuntimeErrorEx(-1355939584, MECC::IDS::stepNameTimerStart, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 180 1 0 "c7cfa2e2_e9d0_40df_9c6e47ba036bf2fe" "{B31F353F-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == tmrWait.WaitTimer(hslTrue, hslTrue) )
+{
+    MECC::RaiseRuntimeErrorEx(-1339162368, MECC::IDS::stepNameTimerWait, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 181 1 0 "820a27f3_6e44_4766_9c2d8ed2501356a6" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 182 1 0 "5a34882c_d73f_459c_b7fd9be991739bfb" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 183 1 0 "3fb747b5_dee1_4f0f_b6a85743b00ddc38" "{B31F3540-5D80-11d4-A5EB-0050DA737D89}"
+fltElapsedTime = tmrWaitForLabwareReturnCompletion.GetElapsedTime();
+// }} ""
+// {{ 184 1 0 "c714d69b_d090_4f7e_998ace8e4d681fb6" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (fltElapsedTime > 259200)
+{
+// }} ""
+// {{{ 185 1 0 "2fc431f1_1203_4996_b69ee1d1aa1e0c0b" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Labware return completion file NOT created"), Translate(""));
+// }} ""
+// {{ 186 1 0 "a86da44b_c126_4e82_8dce38cbc095ed74" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 1;
+// }} ""
+// {{ 187 1 0 "d824815e_9002_4c52_a2b56cf4e254c748" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : WAIT FOR LABWARE RETURN COMPLETION : END----------"));
+// }} ""
+// {{{ 188 1 0 "3135b4c1_8887_471d_bbb156a69935294b" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{ 189 1 0 "c714d69b_d090_4f7e_998ace8e4d681fb6" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 190 1 0 "85948e42_d5af_4cfa_be4c99d35ad79ae6" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{{ 191 1 0 "439915ca_4626_4445_927f075f8eb0e931" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Labware return completion file created"), Translate(""));
+// }} ""
+// {{ 192 1 0 "1468c4c6_43f9_4051_b462dde09162cff3" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+hndReturnLabwareComplete.AddField("TransferPosition", strReturnLabwareTransferPosition, hslString, 255);
+hndReturnLabwareComplete.AddField("LabwareName", strReturnLabwareName, hslString, 255);
+hndReturnLabwareComplete.AddField("TransferPositionOccupancy", strReturnLabwareTransferPositionOccupancy, hslString, 255);
+hndReturnLabwareComplete.SetDelimiter(",");
+if( 0 == hndReturnLabwareComplete.Open(_strFileReturnLabwareCompletePath, hslRead) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, _strFileReturnLabwareCompletePath, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 193 1 0 "00041a98_32f5_4591_8bd145b705f88e93" "{B31F3536-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == hndReturnLabwareComplete.ReadRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1490157312, MECC::IDS::stepNameFileRead, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 194 1 0 "adcb1644_f17a_4ae7_bf1209b83c663131" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+o_TransferPosition = strReturnLabwareTransferPosition;
+// }} ""
+// {{ 195 1 0 "8c1de136_033e_4cf3_a79cb45640ecbf29" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+o_LabwareName = strReturnLabwareName;
+// }} ""
+// {{ 196 1 0 "3f1eff7a_30de_4cab_aa00067b1bc2697f" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+o_TransferPositionOccupancy = strReturnLabwareTransferPositionOccupancy;
+// }} ""
+// {{{ 197 1 0 "1da046f6_f057_4004_b48818deabb35260" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_06(TRACE_LEVEL_DEBUG, Translate("o_TransferPosition = "), o_TransferPosition, Translate(", o_LabwareName = "), o_LabwareName, Translate(", o_TransferPositionOccupancy = "), o_TransferPositionOccupancy);
+// }} ""
+// {{ 198 1 0 "3202cd15_20e2_4dd5_867a891894ddf8cb" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != hndReturnLabwareComplete.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+hndReturnLabwareComplete.RemoveFields();
+// }} ""
+// {{{ 199 1 0 "2fadb9a1_205e_4da7_93b7b26d67c561ac" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+FileDirectoryLib::DeleteFile(_strFileReturnLabwareCompletePath);
+// }} ""
+// {{{ 200 1 0 "7b238429_2776_4fd1_91afb8ab17b419b3" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{ 201 1 0 "218ef3c0_aef1_4204_83774711342688b8" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : WAIT FOR LABWARE RETURN COMPLETION : END----------"));
+// }} ""
+// {{{ 5 "WaitForLabwareReturnCompletion" "End"
+}
+// }} ""
+// {{{ 5 "UtilityCreatLabwareReturnCompletionFile" "Begin"
+function UtilityCreatLabwareReturnCompletionFile( variable i_LabwareName, variable i_LabwarePosition ) variable {
+// }} ""
+private variable blnSuccess;
+private variable blnReturnValue;
+private variable strReturnLabwareName;
+private variable blnLabwareExists;
+private variable strReturnLabwareTransferPosition;
+private variable strReturnLabwareTransferPositionOccupancy;
+private file hndReturnLabwareComplete;
+// {{ 5 "UtilityCreatLabwareReturnCompletionFile" "InitLocals"
+// }} ""
+// {{ 65 1 0 "330bf526_488f_4212_9e365ac902984758" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : UTILITY CREATE LABWARE RETURN COMPLETION FILE : START----------"));
+// }} ""
+// {{{ 66 1 0 "75519a58_f9c5_4feb_a3cd808eb049ecdc" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+_definitions();
+// }} ""
+// {{ 67 1 0 "2d893b71_3332_49dc_bb9157e7db2d9eda" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 0;
+// }} ""
+// {{ 68 1 0 "79111767_6786_4f21_87ee4e2038af3f57" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 69 1 0 "369ff772_77f5_46a6_97aaed3a3b1e6721" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnLabwareExists = FileDirectoryLib::CheckIfFileExists(_strFileReturnLabwareCompletePath);
+// }} ""
+// {{ 70 1 0 "447a2367_207e_4a3d_b3e890130da7e6f9" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnLabwareExists == 1)
+{
+// }} ""
+// {{{ 71 1 0 "907d7d62_a1eb_468f_a710dd71bfd10420" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnSuccess = FileDirectoryLib::DeleteFile(_strFileReturnLabwareCompletePath);
+// }} ""
+// {{ 72 1 0 "447a2367_207e_4a3d_b3e890130da7e6f9" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 73 1 0 "105fbe57_fbc4_4f00_96ddc0cbed400fa6" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 74 1 0 "f8231f97_062d_4c51_9300ab82a6b32847" "{B31F3534-5D80-11d4-A5EB-0050DA737D89}"
+hndReturnLabwareComplete.AddField("TransferPosition", strReturnLabwareTransferPosition, hslString, 255);
+hndReturnLabwareComplete.AddField("LabwareName", strReturnLabwareName, hslString, 255);
+hndReturnLabwareComplete.AddField("TransferPositionOccupancy", strReturnLabwareTransferPositionOccupancy, hslString, 255);
+hndReturnLabwareComplete.SetDelimiter(",");
+if( 0 == hndReturnLabwareComplete.Open(_strFileReturnLabwareCompletePath, hslWrite) )
+{
+    MECC::RaiseRuntimeErrorEx(-1523711743, MECC::IDS::stepNameFileOpen, MECC::IDS::errorStepFileOpenFailed, _strFileReturnLabwareCompletePath, "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 75 1 0 "62fa8dab_19a3_4322_899bcc5c1748cb29" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strReturnLabwareTransferPosition = i_LabwarePosition;
+// }} ""
+// {{ 76 1 0 "68d1cc69_53ac_4642_af6fe96b9e3ec54f" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strReturnLabwareName = i_LabwareName;
+// }} ""
+// {{ 77 1 0 "a93fb8d2_a1ac_4658_a90ed306602390a3" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+strReturnLabwareTransferPositionOccupancy = "0";
+// }} ""
+// {{ 78 1 0 "ce455155_ae71_49af_84613ea7227561e0" "{B31F3537-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 == hndReturnLabwareComplete.WriteRecord() )
+{
+    MECC::RaiseRuntimeErrorEx(-1473380096, MECC::IDS::stepNameFileWrite, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+// }} ""
+// {{ 79 1 0 "f178b31b_2dce_44a6_800a6788738cd57e" "{B31F3538-5D80-11d4-A5EB-0050DA737D89}"
+if( 0 != hndReturnLabwareComplete.Close() )
+{
+    MECC::RaiseRuntimeErrorEx(-1456602880, MECC::IDS::stepNameFileClose, MECC::IDS::errorStepFailed, "", "HxMetEdCompCmd");
+}
+hndReturnLabwareComplete.RemoveFields();
+// }} ""
+// {{ 80 1 0 "89b47635_19a1_4bc1_9df50607f8359828" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 81 1 0 "adbab5a4_94b8_4177_b939d2082198cd64" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnLabwareExists = FileDirectoryLib::CheckIfFileExists(_strFileReturnLabwareCompletePath);
+// }} ""
+// {{ 82 1 0 "4065e932_940e_4f43_a2b0a2a422fdceef" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnLabwareExists != 1)
+{
+// }} ""
+// {{ 83 1 0 "ab6a31a0_ef6f_4a7e_ba5407ee5870260a" "{B31F3543-5D80-11d4-A5EB-0050DA737D89}"
+blnReturnValue = 1;
+// }} ""
+// {{{ 84 1 0 "7ae6c060_6f42_4bd0_8aa74eab899a7b28" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Sim mode : Return labware file not created"), Translate(""));
+// }} ""
+// {{ 85 1 0 "b8852e9c_4dbe_44c2_8caa73785e3f2fca" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : UTILITY CREATE LABWARE REQUEST COMPLETION FILE : END----------"));
+// }} ""
+// {{{ 86 1 0 "84c3ede0_1922_41df_9a6a6503cdc9fc94" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{ 87 1 0 "4065e932_940e_4f43_a2b0a2a422fdceef" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{{ 88 1 0 "bf94d9ad_a2ea_4166_a6b4789d958c52d8" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+TRACELEVEL::Trace_02(TRACE_LEVEL_DEBUG, Translate("Sim mode : Return labware file created"), Translate(""));
+// }} ""
+// {{ 89 1 0 "52c5f09e_5bf0_4e89_92a397a5142f64c6" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{{ 90 1 0 "d4922729_fdff_4db4_b6a0487f3cd25f4e" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+blnLabwareExists = FileDirectoryLib::CheckIfFileExists(_strFileReturnLabwarePath);
+// }} ""
+// {{ 91 1 0 "1ca98f87_2efe_4ce4_8b5a7de72e5030d1" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (blnLabwareExists == 1)
+{
+// }} ""
+// {{{ 92 1 0 "60150b1b_3f84_48a6_95d94d3440084708" "{C1F3C015-47B3-4514-9407-AC2E65043419}"
+FileDirectoryLib::DeleteFile(_strFileReturnLabwarePath);
+// }} ""
+// {{ 93 1 0 "1ca98f87_2efe_4ce4_8b5a7de72e5030d1" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 94 1 0 "a5cce1c8_1d32_42e7_b108e79ee367d42f" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("----------LABWARE HANDLING SMT : UTILITY CREATE LABWARE REQUEST COMPLETION FILE : END----------"));
+// }} ""
+// {{{ 95 1 0 "c97aaed7_48dc_4985_8a3633acd39408d6" "{9EC997CD-FD3B-4280-811B-49E99DCF062C}"
+return (blnReturnValue);
+// }} ""
+// {{{ 5 "UtilityCreatLabwareReturnCompletionFile" "End"
+}
+// }} ""
+// {{{ 5 "_versionInfo" "Begin"
+private function _versionInfo(  ) void {
+// }} ""
+// {{ 5 "_versionInfo" "InitLocals"
+// }} ""
+/* {{ 1 "" "0" */ if(0){  /* }} "" */
+// {{ 214 1 0 "6cdb40c1_7432_42cb_bf37fd45c7890070" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+// {{ 215 1 0 "31561a17_4cde_4694_845fb30314b851a8" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+
+// }} ""
+/* {{ 1 "" "1" */ } /* }} "" */
+// {{{ 5 "_versionInfo" "End"
+}
+// }} ""
+/* {{ 2 "SubmethodInsertLine" "" */ // }} ""
+// {{{ 2 "LibraryNamespace" "End"
+} // library namespace
+// }} ""
+// $$author=Hamilton$$valid=0$$time=2018-06-22 10:27$$checksum=ed493585$$length=087$$

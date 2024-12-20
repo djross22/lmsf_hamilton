@@ -1,0 +1,211 @@
+// ======================================================================
+// Interface of the Waste chute library
+//
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+// ======================================================================
+//
+// Modification History
+//		2006-12-04 Ruedi Vogel, V1.0: created
+//		2007-11-28 Ruedi Vogel, V1.1: PWM von 28% auf 35% geändert
+//    2008-03-11 Ruedi Vogel, V1.2: in WasteChuteShakeStart() parameter
+//                            		intensity included
+//    2008-05-09 Ruedi Vogel, V2.0: two waste chustes are able to be controlled
+// 
+// ======================================================================
+
+#ifndef __HSL_WasteChute_hsl__	
+#define __HSL_WasteChute_hsl__	1
+
+
+//device ML_STAR;
+//#define HSL_Debug	1
+
+namespace WasteChute
+{
+	/*********************************************************************
+	*
+	* Exported return constants
+	*
+	*********************************************************************/
+	
+	const static variable CMD_START(1);
+	const static variable CMD_COMPLET(2);
+	const static variable CMD_ERROR(3);
+	const static variable CMD_PROGRESS(4);
+	const static variable CMD_ERRCOMPL(5);
+
+	const variable TRACE_LEVEL_NONE(0);
+	const variable TRACE_LEVEL_NORMAL(1);
+   const variable TRACE_LEVEL_FULL(2);
+   
+	static variable trcLvl(TRACE_LEVEL_NORMAL);
+	
+	/*********************************************************************
+	*
+	* Module globale constants/variables
+	*
+	*********************************************************************/
+
+	static global event WasteChuteCommunicate;
+	static global variable WasteChuteCommunicateInitialized(0);
+
+	/*********************************************************************
+	*
+	* Declarations
+	*
+	*********************************************************************/
+
+	function WasteChuteShakeStart(device ML_STAR,variable iWasteID, variable iIntensity,variable iTraceLevel) variable;
+	function WasteChuteShakeStop(device ML_STAR,variable iWasteID) variable;
+	
+	private function TransmitCommand(device ML_STAR,variable cmd,variable prm,variable& resp) variable;
+
+	/*********************************************************************
+	*
+	* Implementation
+	*
+	*********************************************************************/
+	function WasteChuteShakeStart(device ML_STAR,variable iWasteID,variable iIntensity,variable iTraceLevel) variable
+	{
+		variable command("");
+		variable parameter("");
+		variable response;
+
+
+		trcLvl = iTraceLevel;
+		if(TRACE_LEVEL_NONE<trcLvl) FormatTrace(GetFunctionName(),"()",CMD_START," waste identifier = ",iWasteID,", chute intensity = ",iIntensity);
+
+		// -------------------------------------------------------------------------
+		// check parameter(s)
+		// -------------------------------------------------------------------------
+		if((1>iWasteID)||(2<iWasteID))
+		{
+			FormatTrace(GetFunctionName(),"()",CMD_ERROR," Parameter waste identifier =",iWasteID," out of range [1..2]!");
+			return(CMD_ERRCOMPL);
+		}
+		if((30>iIntensity)||(50<iIntensity))
+		{
+			FormatTrace(GetFunctionName(),"()",CMD_ERROR," Parameter intensity=",iIntensity," out of range [30..50]!");
+			return(CMD_ERRCOMPL);
+		}
+
+		if(0==WasteChuteCommunicateInitialized)
+		{
+			WasteChuteCommunicate.SetEvent();
+			WasteChuteCommunicateInitialized++;
+		}
+
+		// -------------------------------------------------------------------------
+		// activate motor
+		// -------------------------------------------------------------------------
+		command = "X0OS";
+		if( 1 == iWasteID )
+			parameter = "on1os015od05oe030";
+		else
+			parameter = "on3os015od05oe030";
+		if(CMD_COMPLET!=TransmitCommand(ML_STAR,command,parameter,response))
+     	{
+        	FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPL,"Transmit command <",command,parameter,"> failed!");
+			return(CMD_ERRCOMPL);
+     	}
+		if( 1 == iWasteID )
+			parameter = "on1os030od05oe0"+IStr(iIntensity);
+		else
+			parameter = "on3os030od05oe0"+IStr(iIntensity);
+		if(CMD_COMPLET!=TransmitCommand(ML_STAR,command,parameter,response))
+     	{
+        	FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPL,"Transmit command <",command,parameter,"> failed!");
+			return(CMD_ERRCOMPL);
+		}
+
+		if(TRACE_LEVEL_NONE<trcLvl) FormatTrace(GetFunctionName(),"()",CMD_COMPLET);
+		return(CMD_COMPLET);
+	}
+
+
+
+	function WasteChuteShakeStop(device ML_STAR,variable iWasteID) variable
+	{
+		variable command("");
+		variable parameter("");
+		variable response;
+
+
+		if(TRACE_LEVEL_NONE<trcLvl) FormatTrace(GetFunctionName(),"()",CMD_START," waste identifier = ",iWasteID);
+
+		// -------------------------------------------------------------------------
+		// check parameter(s)
+		// -------------------------------------------------------------------------
+		if((1>iWasteID)||(2<iWasteID))
+		{
+			FormatTrace(GetFunctionName(),"()",CMD_ERROR," Parameter waste identifier =",iWasteID," out of range [1..2]!");
+			return(CMD_ERRCOMPL);
+		}
+
+		// -------------------------------------------------------------------------
+		// deactivate motor
+		// -------------------------------------------------------------------------
+		command = "X0OS";
+		if( 1 == iWasteID )
+			parameter = "on1os030od05oe015";
+		else
+			parameter = "on3os030od05oe015";
+		if(CMD_COMPLET!=TransmitCommand(ML_STAR,command,parameter,response))
+     	{
+        	FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPL,"Transmit command <",command,parameter,"> failed!");
+			return(CMD_ERRCOMPL);
+		}
+		command = "X0OR";
+		if( 1 == iWasteID )
+			parameter = "on1";
+		else
+			parameter = "on3";
+		if(CMD_COMPLET!=TransmitCommand(ML_STAR,command,parameter,response))
+     	{
+        	FormatTrace(GetFunctionName(),"()",CMD_ERRCOMPL,"Transmit command <",command,parameter,"> failed!");
+			return(CMD_ERRCOMPL);
+		}
+
+		if(TRACE_LEVEL_NONE<trcLvl) FormatTrace(GetFunctionName(),"()",CMD_COMPLET);
+		return(CMD_COMPLET);
+	}
+
+
+
+	function TransmitCommand(device ML_STAR,variable cmd,variable prm,variable& resp) variable
+	{
+		variable response[];
+	
+		if(TRACE_LEVEL_NONE<trcLvl) FormatTrace(GetFunctionName(),"()",CMD_START);
+
+		#ifdef HSL_Debug
+			Trace("FWCommand: ", cmd, " FWParameter: ", prm);
+		#endif
+
+		// Activate error handler
+		onerror goto Unexpected;
+
+		WasteChuteCommunicate.WaitEvent(hslInfinite);
+		response=ML_STAR.FirmwareCommand( "d2586331_4f7a_44e2_a12d3179a17e2473" );
+		WasteChuteCommunicate.SetEvent();
+
+		resp=response[3];
+		#ifdef HSL_Debug
+			Trace("Response: ", resp);
+		#endif
+
+		if(TRACE_LEVEL_NONE<trcLvl) FormatTrace(GetFunctionName(),"()",CMD_COMPLET);
+		return(CMD_COMPLET);
+
+		Unexpected:
+		{
+			WasteChuteCommunicate.SetEvent();
+			return(CMD_ERRCOMPL);
+		}
+	}
+
+
+}	//end namespace WasteChute
+#endif
+// $$author=programmer$$valid=1$$time=2016-03-02 12:00$$checksum=bada2dac$$length=089$$

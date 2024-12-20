@@ -1,0 +1,841 @@
+//---------------------------------------------------------------- 
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz. 
+// All rights reserved. 
+// 
+// Project              : EasyPickII 
+// Module               : easyPickII_FastPick.hsl
+// Description          : Colony picking with firmware commands.
+// 
+//---------------------------------------------------------------- 
+
+#pragma once
+// device ML_STAR;
+
+#include "HSLDevLib.hsl"
+#include "HSLStrLib.hsl"
+#include "HSLUtilLib.hsl"
+#include "HSLUtilLib2.hsl"
+
+namespace EASYPICKII_FASTPICK
+{
+   // Library Version
+   static const variable LibraryVersion("1.1.0");
+
+   namespace TraceLevel
+   {
+      const variable Debug (3); // For Debugging the Channel Adjusting Algorithm and Pick Progress
+      const variable Info  (2); // Input and Output Parameters
+      const variable Error (1);
+      const variable Off   (0);
+   }
+   
+   global variable gEasyPickII_FastPick_intTraceLevel( TraceLevel::Debug);
+   global variable gEasyPickII_FastPick_intDebugPick( 0);
+   const variable FMT_SRC("EasyPickII_FastPick");
+
+   static const variable FMTS_START(1);
+   static const variable FMTS_COMPLETE(2);
+   static const variable FMTS_ERROR (3);
+   static const variable FMTS_PROGRESS(4);
+   static const variable FMTS_COMPLETE_WITH_ERROR (5);
+
+   const variable ERR_ARGUMENT_CHANNELPATTERN (2);
+   const variable ERR_ARGUMENT_SEQUENCE (3);
+   const variable ERR_ARGUMENT_TRAVERSEHEIGHT (4);
+   const variable ERR_ARGUMENT_PICKHEIGHT (5);
+   const variable ERR_ARGUMENT_FORMAT_FW_VALUE (6);
+   const variable ERR_FIRMWARE  (10);
+
+   static function IsFwNodeError( string response) variable
+   {
+      if (response.Find( "er00") == 0)
+         return (0); // succeeded (error) code
+      return (1); // response is an error code
+   }
+
+   static function IsFwMasterError( string response) variable
+   {
+      if (response.Find( "er00/00") == 0)
+         return (0); // succeeded (error) code
+      return (1); // response is an error code
+   }
+
+   static function CheckFwNodeResponse( string response) void
+   {
+      if (IsFwNodeError( response))
+      {
+         string tmp;
+         tmp = "Firware Command Error: " + response;
+         err.Raise( ERR_FIRMWARE, tmp, "" );
+      }
+   }
+
+   static function CheckFwMasterResponse( string response) void
+   {
+      if (IsFwMasterError( response)) 
+      {
+         string tmp;
+         tmp = "Firware Command Error: " + response;
+         err.Raise( ERR_FIRMWARE, tmp, "" );
+      }
+   }
+
+   static function GetLabwareRectangle( device ML_STAR, variable i_strLabwareID, 
+      variable& o_fltLeft, variable& o_fltRight, variable& o_fltTop, variable& o_fltBottom, variable& o_fltZ) void
+   {
+      variable arrPositions[];
+      variable intStatus;
+
+      intStatus = ML_STAR.GetLabwarePositionEx( i_strLabwareID, arrPositions);
+      if (intStatus == 0)
+      {
+         variable strMessage;
+         strMessage = " Failure in ML_STAR.GetLabwarePositionEx with LabwareID=\"" + i_strLabwareID + "\" ErrorCode=" + IStr(intStatus);
+
+         if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Error) 
+            FormatTrace( FMT_SRC, "GetLabwareRectangle", FMTS_ERROR, " Failure in ML_STAR.GetLabwarePositionEx with LabwareID=\"",i_strLabwareID,"\" ErrorCode=", intStatus);
+
+         err.Raise( intStatus, strMessage);
+      }
+      o_fltLeft = arrPositions.GetAt( 6);
+      o_fltRight = arrPositions.GetAt( 8);
+      o_fltTop = arrPositions.GetAt( 7);
+      o_fltBottom = arrPositions.GetAt( 13);
+      o_fltZ = arrPositions.GetAt(2);
+
+      if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Info) 
+         FormatTrace( FMT_SRC, "GetLabwareRectangle", FMTS_COMPLETE, "Boundary of ", i_strLabwareID, " :", " Left= ", o_fltLeft, " Right= ", o_fltRight, " Top= ", o_fltTop, " Bottom= ", o_fltBottom, " Z= ", o_fltZ);
+   }
+
+
+
+   static function ExecFwCmd( device ML_STAR, variable i_blnCheckResponse, variable i_strCommand, variable i_strParameter) variable[]
+   {
+      variable arrResponse[];
+      const variable FMT_ACTION("ExecFwCmd");
+
+      if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Info) 
+         FormatTrace( FMT_SRC, FMT_ACTION, FMTS_START, "",
+                    " i_strCommand=\"", i_strCommand,"\"",
+                    " i_strParameter=\"",i_strParameter,"\"", 
+                    "");
+      arrResponse = ML_STAR.FirmwareCommand( "00acf42b_8fdb_4df2_a2549bdae5254453" );
+      if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Info) 
+         FormatTrace( FMT_SRC, FMT_ACTION, FMTS_COMPLETE, "Response=\"",arrResponse.GetAt(3),"\"");
+
+      if (i_blnCheckResponse != hslFalse)
+      {
+         if (StrFind( i_strCommand, "C0") == 0)
+         {
+            CheckFwMasterResponse( arrResponse.GetAt( 3));
+         }
+         else
+         {
+            // workaround for bug: Simulator returns always an error for X0XP
+            // ignore if simulator and "X0XP"
+            if (i_strCommand != "X0XP" || ML_STAR.GetCfgValueWithKey(18) == 0)
+               CheckFwNodeResponse( arrResponse.GetAt( 3));
+         }
+      }
+
+      return(arrResponse);
+   }
+
+   static function GetNumberOf1000ulChannels( device ML_STAR)
+   {
+      variable intNumberOfChannels;
+      intNumberOfChannels = ML_STAR.GetCfgValueWithKey( 1); // 1: ml_starCfgNumberOfChannels
+      return (intNumberOfChannels);
+   }
+
+   // Koordinaten jeder Position holen
+
+   // template for empty field
+   static const string _strFormatFwValueZeroField( "0000000000000000");
+
+   // Format a float (or int) value in millimeter to a firmware string with specified field width.
+   // Multiply value by 10, convert to integer, convert to string, fill '0' .
+   // fltValueInMillimeter range: 0..214748364.
+   // intDigits range: 0..16.
+   static function FormatValueMmToFw( variable fltValueInMillimeter, variable intDigits) variable
+   {
+      variable strResult;
+      variable intValueLen;
+
+      if (fltValueInMillimeter < 0)
+      {
+         string tmp;
+         tmp = "FormatValueMmToFw(): Argument error: fltValueInMillimeter='";
+         tmp = tmp + FStr( fltValueInMillimeter);
+         tmp = tmp + "' must not be negative.";
+         err.Raise( ERR_ARGUMENT_FORMAT_FW_VALUE, tmp, "" );
+      }
+
+      if (fltValueInMillimeter > 214748364)
+      {
+         string tmp;
+         tmp = "FormatValueMmToFw(): Argument error: fltValueInMillimeter='";
+         tmp = tmp + FStr( fltValueInMillimeter);
+         tmp = tmp + "' must not exceed 214748364.";
+         err.Raise( ERR_ARGUMENT_FORMAT_FW_VALUE, tmp, "" );
+      }
+
+      // Limit of this function. The field width for the largest number is 10. Extended to 16
+      if (intDigits > 16)
+      {
+         string tmp;
+         tmp = "FormatValueMmToFw(): Argument error: intDigits='";
+         tmp = tmp + IStr( intDigits);
+         tmp = tmp + "' must not exceed 16.";
+         err.Raise( ERR_ARGUMENT_FORMAT_FW_VALUE, tmp, "" );
+      }
+
+      strResult = IStr( IVal( FStr( fltValueInMillimeter * 10, hslFalse, 15)));
+      intValueLen = StrGetLength( strResult);
+
+      if (intValueLen > intDigits)
+      {
+         string tmp;
+         tmp = "FormatValueMmToFw(): Argument error: Value fltValueInMillimeter='";
+         tmp = tmp + FStr( fltValueInMillimeter);
+         tmp = tmp + "' exceeds field width intDigits='";
+         tmp = tmp + IStr( intDigits);
+         tmp = tmp + "'.";
+         err.Raise( ERR_ARGUMENT_FORMAT_FW_VALUE, tmp, "" );
+      }
+
+      strResult = _strFormatFwValueZeroField.Left( intDigits - intValueLen) + strResult;
+      
+      return (strResult);
+   }
+
+   // Format a int value to a firmware string with specified field width.
+   // intValue range: 0..2147483646
+   // intDigits range: 0..16
+   static function FormatValueToFw( variable intValue, variable intDigits) variable
+   {
+      variable strResult;
+      variable intValueLen;
+
+      if (intValue < 0)
+      {
+         string tmp;
+         tmp = "FormatValueToFw(): Argument error: intValue='";
+         tmp = tmp + IStr( intValue);
+         tmp = tmp + "' must not be negative.";
+         err.Raise( ERR_ARGUMENT_FORMAT_FW_VALUE, tmp, "" );
+      }
+
+      if (intValue > 2147483646)
+      {
+         string tmp;
+         tmp = "FormatValueToFw(): Argument error: intValue='";
+         tmp = tmp + IStr( intValue);
+         tmp = tmp + "' must not exceed 2147483646.";
+         err.Raise( ERR_ARGUMENT_FORMAT_FW_VALUE, tmp, "" );
+      }
+
+      // Limit of this function. The field width for the largest number is 10. Extended to 16
+      if (intDigits > 16)
+      {
+         string tmp;
+         tmp = "FormatValueToFw(): Argument error: intDigits='";
+         tmp = tmp + IStr( intDigits);
+         tmp = tmp + "' must not exceed 16.";
+         err.Raise( ERR_ARGUMENT_FORMAT_FW_VALUE, tmp, "" );
+      }
+
+      strResult = IStr( intValue);
+      intValueLen = StrGetLength( strResult);
+
+      if (intValueLen > intDigits)
+      {
+         string tmp;
+         tmp = "FormatValueToFw(): Argument error: Value intValue='";
+         tmp = tmp + IStr( intValue);
+         tmp = tmp + "' exceeds field width intDigits='";
+         tmp = tmp + IStr( intDigits);
+         tmp = tmp + "'.";
+         err.Raise( ERR_ARGUMENT_FORMAT_FW_VALUE, tmp, "" );
+      }
+
+      strResult = _strFormatFwValueZeroField.Left( intDigits - intValueLen) + strResult;
+      
+      return (strResult);
+   }
+
+   static function FormatArrayMmToFwString( variable i_arrFltValuesMm[], variable intDigits) variable
+   {
+      variable str("");
+      variable intSize;
+      variable index;
+      intSize = i_arrFltValuesMm.GetSize();
+      for (index = 0; index < intSize; ++index)
+      {
+         if (index > 0)
+            str = str + " ";
+         str = str + FormatValueMmToFw( i_arrFltValuesMm.GetAt( index), intDigits);
+      }
+      return (str);
+   }
+
+
+   // function to make a string from an array of parameter strings
+   // concatenate the values with a white space delimiter.
+   static function FormatConcatFwParams( variable i_arrstrValues[]) variable
+   {
+      variable str("");
+      variable intSize;
+      variable index;
+      intSize = i_arrstrValues.GetSize();
+      for (index = 0; index < intSize; ++index)
+      {
+         if (index > 0)
+            str = str + " ";
+         str = str + i_arrstrValues.ElementAt( index);
+      }
+      return (str);
+   }
+
+   // return a firmware channel (value for parameter tm) pattern from a ML_STAR channel pattern
+   static function FormatFwChannelPattern( variable i_strChannelPattern) variable
+   {
+      variable intPatternLength;
+      variable strFwChannelPattern("");
+      variable intIndex;
+
+      intPatternLength = StrGetLength( i_strChannelPattern);
+      for (intIndex = 0; intIndex < intPatternLength; ++intIndex)
+      {
+         if (intIndex != 0)
+            strFwChannelPattern = strFwChannelPattern + " ";
+         strFwChannelPattern = strFwChannelPattern + StrMid( i_strChannelPattern, intIndex, 1);
+      }
+      return (strFwChannelPattern);
+   }
+
+
+   static function AdjustChannelsToGrid( 
+            variable& arrChannelsYCurrent[], 
+            variable indexCurrentChannel, 
+            variable& arrChannelToPositionIndex[],
+            variable& arrPosY[],
+            variable fltChannelGrid,
+            variable& o_arrChannelsYNew[],
+            variable& o_intPositionsChanged ) void
+   {
+      const variable FMT_ACTION  ("AdjustChannelsToGrid");
+      variable fltValue;
+      variable index;
+      variable intNumberOfChannels;
+      intNumberOfChannels = arrChannelsYCurrent.GetSize();
+
+      o_intPositionsChanged = 0;
+         // adjust channels to grid
+         fltValue = arrPosY.GetAt( arrChannelToPositionIndex.GetAt( indexCurrentChannel));
+         if (fltValue != arrChannelsYCurrent.GetAt( indexCurrentChannel))
+         {
+            if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Debug) 
+               FormatTrace( FMT_SRC, FMT_ACTION, FMTS_PROGRESS, "Reposition channel ", indexCurrentChannel + 1, " to Y position ", fltValue);
+            o_intPositionsChanged = 1;
+         }
+         o_arrChannelsYNew.SetAt( indexCurrentChannel, fltValue);
+         {
+            // move left toward first channel and set Y values 
+            variable fltNextYPos;
+            fltNextYPos = fltValue;
+            for (index = indexCurrentChannel - 1; index >= 0; --index)
+            {
+               variable indexPos;
+               fltNextYPos = fltNextYPos - fltChannelGrid; // this is the minimum position for this channel (grid width)
+               indexPos = arrChannelToPositionIndex.GetAt( index);
+               if (indexPos != -1)
+               {
+                  // set sequence position if larger than grid width,
+                  // else set position on grid
+                  variable fltYPos;
+                  fltYPos = arrPosY.GetAt( indexPos);
+                  if (fltYPos > fltNextYPos)
+                     fltNextYPos = fltYPos;
+                  else
+                  {
+                     if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Debug) 
+                        FormatTrace(  FMT_SRC, FMT_ACTION, FMTS_PROGRESS, "Adjust channel to grid. Channel= ", index + 1);
+                  }
+               }
+
+               if (fltNextYPos != arrChannelsYCurrent.GetAt( index))
+               {
+                  if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Debug) 
+                     FormatTrace( FMT_SRC, FMT_ACTION, FMTS_PROGRESS, "Reposition channel ", index + 1, " to Y position ", fltNextYPos);
+                  o_intPositionsChanged = 1;
+               }
+               o_arrChannelsYNew.SetAt( index, fltNextYPos);
+            }
+
+            // move right toward last channel
+            fltNextYPos = fltValue;
+            for (index = indexCurrentChannel + 1; index < intNumberOfChannels; ++index)
+            {
+               variable indexPos;
+               fltNextYPos = fltNextYPos + fltChannelGrid; // this is the minimum position
+               indexPos = arrChannelToPositionIndex.GetAt( index);
+               if (indexPos != -1)
+               {
+                  // set sequence position if larger than grid width,
+                  // else set position on grid
+                  variable fltYPos;
+                  fltYPos = arrPosY.GetAt( indexPos);
+                  if (fltYPos < fltNextYPos)
+                     fltNextYPos = fltYPos;
+                  else
+                  {
+                     if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Debug) 
+                        FormatTrace(  FMT_SRC, FMT_ACTION, FMTS_PROGRESS, "Adjust channel to grid. Channel= ", index + 1);
+                  }
+               }
+
+               if (fltNextYPos != arrChannelsYCurrent.GetAt( index))
+               {
+                  o_intPositionsChanged = 1;
+                  if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Debug) 
+                     FormatTrace( FMT_SRC, FMT_ACTION, FMTS_PROGRESS, "Reposition channel ", index + 1, " to Y position ", fltNextYPos);
+               }
+               o_arrChannelsYNew.SetAt( index, fltNextYPos);
+            }
+         }
+
+   }
+
+
+   //
+   // public functions
+   //
+
+   // Move channels to safety Z position.
+   // Call this function in abort handler.
+   function MoveToSafety_Z_Position( device ML_STAR) void
+   {
+      // Ausgangsposition
+      ExecFwCmd( ML_STAR, hslFalse, "C0ZA", "");
+   }
+
+   // funktion um Channels in y zu positionieren, nach einer Sequenz
+
+   // Mapping of sequence to channel pattern is Automatic (First sequence is mapped to first active channel, ...)
+   function Pick( 
+         device ML_STAR, 
+         variable i_strPlateLabwareID, 
+         sequence i_seqPositions, 
+         variable i_strChannelPattern, 
+         variable i_fltPickHeightOverPlate_mm, 
+         variable i_fltTraverseHeightOverPlate_mm
+         ) variable
+   {
+      const variable XSpeed(3); // 1: langam 5: schnell
+      variable fltChannelGrid;  // Min distance in mm from channel x to channel x+1. The Y origin is in front of autoload (bottom)
+      const variable FMT_ACTION  ("Pick");
+      const variable fltTraverseHeight( 245); // traverse heigth
+      variable fltTraverseHeightPlate( 170);
+
+      variable arrPosX[]; // from sequence position
+      variable arrPosY[]; // from sequence position
+      variable arrPosZ[]; // from sequence position
+
+      variable intSeqCount;
+      variable index;
+      variable intNumberOfChannels;
+
+      variable arrChannelToPositionIndex[]; // Mapping of channel index to position index. Index is -1 for inactive channels.
+
+      // plate boundary 
+      variable fltPlateLeft, fltPlateRight, fltPlateTop, fltPlateBottom, fltPlateZ;
+
+      fltChannelGrid = - ML_STAR.GetCfgValueWithKey(26);  // ml_starCfgYchannelDistance Min distance in mm from channel x to channel x+1. The Y origin is in front of autoload (bottom)
+
+      if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Info) 
+         FormatTrace( FMT_SRC, FMT_ACTION, FMTS_START, "",
+           " i_strPlateLabwareID=\"", i_strPlateLabwareID, "\"",
+           " i_strChannelPattern=\"", i_strChannelPattern,"\"",
+           " i_fltPickHeightOverPlate_mm=\"",i_fltPickHeightOverPlate_mm,"\"", 
+           " i_fltTraverseHeightOverPlate_mm=\"",i_fltTraverseHeightOverPlate_mm,"\"", 
+           "");
+
+
+      // get boundary
+      GetLabwareRectangle( ML_STAR, i_strPlateLabwareID, fltPlateLeft, fltPlateRight, fltPlateTop, fltPlateBottom, fltPlateZ);
+      fltTraverseHeightPlate = fltPlateZ + i_fltTraverseHeightOverPlate_mm;
+
+      intNumberOfChannels = GetNumberOf1000ulChannels( ML_STAR);
+
+      // Check that the channel pattern length corresponds with the number of channels
+      {
+         variable intChannelPatternLength;
+         intChannelPatternLength = StrGetLength( i_strChannelPattern);
+         if (intNumberOfChannels != intChannelPatternLength)
+         {
+            if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Error) 
+               FormatTrace( FMT_SRC, FMT_ACTION, FMTS_COMPLETE_WITH_ERROR, 
+                  "Length of channel pattern and number of channels are different: i_strChannelPattern length: ", intChannelPatternLength, " Number of channels: ", intNumberOfChannels, ". ErrorCode= ", ERR_ARGUMENT_CHANNELPATTERN);
+            return (ERR_ARGUMENT_CHANNELPATTERN);
+         }
+      }
+
+      intSeqCount = i_seqPositions.GetCount();
+      if (intSeqCount == 0)
+      {
+          // is this an error ?
+         if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Error) 
+            FormatTrace( FMT_SRC, FMT_ACTION, FMTS_COMPLETE, "Sequence contains no positions.");
+         return (0);
+      }
+
+      // Check for a valid channel pattern
+      // Check that for each active channel, there is a sequence position
+      {
+         variable intNumberOfActiveChannelsInChannelPattern;
+         intNumberOfActiveChannelsInChannelPattern = 0;
+         for (index = 0; index < intNumberOfChannels; ++index)
+         {
+            variable strChannel;
+            strChannel = StrMid( i_strChannelPattern, index, 1);
+            if (strChannel == "1")
+            {
+               intNumberOfActiveChannelsInChannelPattern = intNumberOfActiveChannelsInChannelPattern + 1;
+            }
+            else if (strChannel != "0")
+            {
+               if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Error) 
+                  FormatTrace( FMT_SRC, FMT_ACTION, FMTS_COMPLETE_WITH_ERROR, 
+                     "Malformed channel pattern in: i_strChannelPattern at position: ", index + 1, ".",
+                     " Expect a '0' or a'1'. Encounter: '", strChannel, "'.", 
+                     " ErrorCode= ", ERR_ARGUMENT_CHANNELPATTERN);
+               return (ERR_ARGUMENT_CHANNELPATTERN);
+            }
+         }
+
+         // Check that a sequence position exists for each active channel
+         if (intSeqCount != intNumberOfActiveChannelsInChannelPattern)
+         {
+            if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Error) 
+               FormatTrace( FMT_SRC, FMT_ACTION, FMTS_COMPLETE_WITH_ERROR, 
+                  "Number of sequence positions and number of active channels in channel pattern are different. Sequence Positions: ", intSeqCount, 
+                  " Active Channels: ", intNumberOfActiveChannelsInChannelPattern, ".",
+                  " ErrorCode= ", ERR_ARGUMENT_SEQUENCE);
+            return (ERR_ARGUMENT_SEQUENCE);
+         }
+      }
+
+      // retrieve positions
+
+      for (index = 0; index < intSeqCount; ++index)
+      {
+         variable posX, posY, posZ, posRot;
+         variable blnResult;
+         blnResult = DevGetLabwarePositionEx( ML_STAR, i_seqPositions.GetLabwareId(), i_seqPositions.GetPositionId(), posX, posY, posZ, posRot);
+         if (blnResult == 0)
+         {
+            if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Error) 
+               FormatTrace( FMT_SRC, FMT_ACTION, FMTS_COMPLETE_WITH_ERROR, 
+                  "ERROR in DevGetLabwarePositionEx @ index=", index, 
+                  " LabwareId=", i_seqPositions.GetLabwareId(), 
+                  " PositionId=", i_seqPositions.GetPositionId(), ".",
+                  " ErrorCode= ", ERR_ARGUMENT_SEQUENCE);
+            return (ERR_ARGUMENT_SEQUENCE);
+         }
+         if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Debug) 
+            FormatTrace( FMT_SRC, FMT_ACTION, FMTS_PROGRESS, "i_seqPositions: ", index, ".",
+               " LabwrPos=(", i_seqPositions.GetLabwareId(), "/", i_seqPositions.GetPositionId(), ")",
+               " X= ", posX, " Y= ", posY, " Z= ", posZ);
+         arrPosX.AddAsLast( posX);
+         arrPosY.AddAsLast( posY);
+         arrPosZ.AddAsLast( posZ);
+         i_seqPositions.Increment( 1);
+      }
+
+      // Check that X positions of sequence are in plate boundary
+      for (index = 0; index < intSeqCount; ++index)
+      {
+         if (arrPosX.GetAt( index) < fltPlateLeft || fltPlateRight < arrPosX.GetAt( index))
+         {
+            // sequence position outside plate
+            if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Error) 
+               FormatTrace( FMT_SRC, FMT_ACTION, FMTS_COMPLETE_WITH_ERROR, 
+                  "Sequence position is outside of plate boundary. Sequence Position ", index + 1, 
+                  " X-Value: ", arrPosX[index], ".",
+                  " ErrorCode= ", ERR_ARGUMENT_SEQUENCE);
+            return (ERR_ARGUMENT_SEQUENCE);
+         }
+      }
+
+      
+      // check traverse height, positive and higher than agar height
+      if (i_fltPickHeightOverPlate_mm < 0)
+      {
+         if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Error) 
+            FormatTrace( FMT_SRC, FMT_ACTION, FMTS_COMPLETE_WITH_ERROR, 
+               "Pick height is negative. ErrorCode= ", ERR_ARGUMENT_PICKHEIGHT);
+         return (ERR_ARGUMENT_PICKHEIGHT);
+      }
+      if (i_fltTraverseHeightOverPlate_mm < i_fltPickHeightOverPlate_mm)
+      {
+         if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Error) 
+            FormatTrace( FMT_SRC, FMT_ACTION, FMTS_COMPLETE_WITH_ERROR, 
+               "Traverse height is lower than pick height. ErrorCode= ", ERR_ARGUMENT_TRAVERSEHEIGHT);
+         return (ERR_ARGUMENT_TRAVERSEHEIGHT);
+      }
+
+
+      // Check that Y positions are in channel grid
+      // [Temporär, muss später entfernt werden] Check that Y positions are ordered descending (channel 1 further away from origin (is at higher Y value) than channel 8)
+      for (index = 0; index < intSeqCount; ++index)
+      {
+         if (index > 0)
+         {
+            variable distance;
+            distance = arrPosY.GetAt( index) - arrPosY.GetAt( index - 1);
+            if (distance > 0)
+            {
+               // sequence position not ordered descending
+               if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Debug) 
+                  FormatTrace( FMT_SRC, FMT_ACTION, FMTS_PROGRESS, 
+                     "Sequence position is not ordered from the back to the front. Sequence Position ", index + 1, 
+                     " Y-Value: ", arrPosY[index]);
+            }
+            // distance is negative, channel grid is negative
+            if (distance > fltChannelGrid)
+            {
+               if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Debug) 
+                  FormatTrace( FMT_SRC, FMT_ACTION, FMTS_PROGRESS, 
+                     "Sequence position not in grid. Position=  ", index + 1, " Distance:: ", distance);
+            }
+         }
+      }
+
+      {
+         // build channel to sequence position array
+         variable indexPos(0);
+         for (index = 0; index < intNumberOfChannels; ++index)
+         {
+            if (StrMid( i_strChannelPattern, index, 1) == "1")
+            {
+               arrChannelToPositionIndex.AddAsLast( indexPos);
+               indexPos = indexPos + 1;
+            }
+            else
+            {
+               arrChannelToPositionIndex.AddAsLast( -1);
+            }
+         }
+      }
+
+      // Calculate and execute movement commands
+      onerror goto Unexpected;
+      {
+         variable arrChannelsY[]; // Position of each channel (including inactive channels)
+         variable arrChannelsYCurrent[]; // save the current positions for next round, derived from arrChannelsY
+         variable strChannelsYCurrent(""); // cache the firmware parameter string of arrChannelsYCurrent
+         variable indexCurrentChannel; // the channel that is positioned for picking
+         variable fltValue;
+         variable intPositionsChanged; // channel positions rearranged
+         variable arrChannelSequence[]; // sequence of channels for picking
+
+
+
+         arrChannelsYCurrent.SetSize( intNumberOfChannels);
+         for (index = 0; index < intNumberOfChannels; ++index)
+            arrChannelsYCurrent.SetAt( index, -1);
+
+         arrChannelsY.SetSize( intNumberOfChannels);
+
+
+
+         // setup arrChannelSequence from channel 1 to channel 8
+         for (index = 0; index < intNumberOfChannels; ++index)
+         {
+            if (arrChannelToPositionIndex.GetAt( index) > -1)
+            {
+               arrChannelSequence.AddAsLast( index);
+            }
+         }
+
+         // enable/disable. Handle channel from left x-pos to right x-pos. Otherwise handle channel from 1 to 8
+         if (1)
+         {
+            // setup array with sequence X positions for sorting
+            variable arrSortPosX[];
+            arrSortPosX = arrPosX;
+            Util::Sort( arrChannelSequence, arrSortPosX);
+         }
+
+         // setup first channel to use
+         indexCurrentChannel = arrChannelSequence[0];
+
+         if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Debug) 
+            FormatTrace( FMT_SRC, FMT_ACTION, FMTS_PROGRESS, "Pick with Channel ", indexCurrentChannel + 1);
+
+         // build initial Y positions array arrChannelYCurrent
+         AdjustChannelsToGrid( arrChannelsYCurrent, indexCurrentChannel, arrChannelToPositionIndex, arrPosY, fltChannelGrid, arrChannelsY, intPositionsChanged);
+         arrChannelsYCurrent = arrChannelsY;
+
+
+         // Movement Commands
+
+         // Move Arm over plate
+         ExecFwCmd( ML_STAR, hslTrue, "X0XP", "la" + FormatValueMmToFw( arrPosX[arrChannelToPositionIndex.GetAt( indexCurrentChannel)], 5) + "lr" + IStr( XSpeed) + "lw5dt0");
+         ExecFwCmd( ML_STAR, hslTrue, "C0RU", "");
+         // 
+         // Align channels in Y
+         strChannelsYCurrent = FormatArrayMmToFwString( arrChannelsYCurrent, 4);
+         ExecFwCmd( ML_STAR, hslTrue, "C0JY", "yp" + strChannelsYCurrent);
+
+         // Lower active channels to traverse height over plate and inactive channels to default traverse height
+         {
+            variable arrTraverseHeight[];
+            for (index = 0; index < intNumberOfChannels; ++index)
+            {
+               if (arrChannelToPositionIndex.GetAt( index) == -1)
+                  arrTraverseHeight.AddAsLast( fltTraverseHeight);
+               else
+                  arrTraverseHeight.AddAsLast( fltTraverseHeightPlate);
+            }
+            ExecFwCmd( ML_STAR, hslTrue, "C0JZ", "zp" + FormatArrayMmToFwString( arrTraverseHeight, 4));
+         }
+
+
+         // For each position in sequence, Pick
+         {
+            variable intLoop;
+            for (intLoop = 0; intLoop < intSeqCount; ++intLoop)
+            {
+               variable intChannel;
+               variable indexSequencePosition;
+
+               indexCurrentChannel = arrChannelSequence.GetAt( intLoop);
+               indexSequencePosition = arrChannelToPositionIndex.GetAt( indexCurrentChannel);
+               intChannel = indexCurrentChannel + 1;
+
+               // the calculation is already done for first loop
+               if (intLoop > 0)
+               {
+                  if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Debug) 
+                     FormatTrace( FMT_SRC, FMT_ACTION, FMTS_PROGRESS, "Pick with Channel ", intChannel);
+
+                  AdjustChannelsToGrid( arrChannelsYCurrent, indexCurrentChannel, arrChannelToPositionIndex, arrPosY, fltChannelGrid, arrChannelsY, intPositionsChanged);
+                  if (intPositionsChanged != 0)
+                  {
+                     arrChannelsYCurrent = arrChannelsY;
+                     strChannelsYCurrent = FormatArrayMmToFwString( arrChannelsYCurrent, 4);
+                     // Move all channels to Y positions
+                     ExecFwCmd( ML_STAR, hslTrue, "C0JY", "yp" + strChannelsYCurrent);
+                  }
+               }
+
+               {
+                  // Move to X position
+                  ExecFwCmd( ML_STAR, hslTrue, "X0XP", "la" + FormatValueMmToFw( arrPosX[ indexSequencePosition], 5) + "lr" + IStr( XSpeed) + "lw5dt0");
+                  ExecFwCmd( ML_STAR, hslTrue, "C0RU", "");
+
+                  // Pick. Move channel to Pick heigth, then to traverse height.
+                  ExecFwCmd( ML_STAR, hslTrue, "C0KZ", "pn" + FormatValueToFw( intChannel, 2) + "zj" + FormatValueMmToFw( arrPosZ.ElementAt( indexSequencePosition) + i_fltPickHeightOverPlate_mm, 4));
+                  if (gEasyPickII_FastPick_intDebugPick != 0)
+                  {
+                     MessageBox( "Continue", "Continue", hslOKOnly | hslInformation, hslInfinite );
+                  }
+                  ExecFwCmd( ML_STAR, hslTrue, "C0KZ", "pn" + FormatValueToFw( intChannel, 2) + "zj" + FormatValueMmToFw( fltTraverseHeightPlate, 4));
+               }
+            }
+         }
+      }
+
+      // Ausgangsposition
+      ExecFwCmd( ML_STAR, hslTrue, "C0ZA", "");
+
+      if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Info) 
+         FormatTrace( FMT_SRC, FMT_ACTION, FMTS_COMPLETE, "");
+
+      return (0);
+
+
+      Unexpected:
+      {
+         ExecFwCmd( ML_STAR, hslFalse, "C0ZA", "");
+
+         if (gEasyPickII_FastPick_intTraceLevel >= TraceLevel::Error) 
+            FormatTrace( FMT_SRC, FMT_ACTION, FMTS_COMPLETE_WITH_ERROR, "Firmware command error. ErrorCode= ", ERR_FIRMWARE);
+
+         return (ERR_FIRMWARE);
+      }
+   }
+
+/*
+   function TestFormatValueMmToFw()
+   {
+      onerror goto Unexpected;
+      
+      Trace( "1: '5' :", FormatValueMmToFw( 0.55, 1));
+      Trace( "2: '00000' :", FormatValueMmToFw( 0.0, 5));
+      Trace( "3: '10' :", FormatValueMmToFw( 1.0, 2));
+      Trace( "4: '00010' :", FormatValueMmToFw( 1.0, 5));
+      Trace( "5: '-' :", FormatValueMmToFw( 0.0, 0));  // fails
+      Trace( "6: '-' :", FormatValueMmToFw( 10.0, 2)); // fails
+
+
+      Trace( "7: '00' :", FormatValueMmToFw( 0, 2));
+      Trace( "8: '10' :", FormatValueMmToFw( 1, 2));
+      Trace( "9: '010' :", FormatValueMmToFw( 1, 3));
+
+      Trace( "10: '-' :", FormatValueMmToFw( -0.55, 1));
+      Trace( "11: '0000002147483640' :", FormatValueMmToFw( 214748364.0, 16));
+      Trace( "12: '' :", FormatValueMmToFw( 214748364, 16));
+      Trace( "13: '-' :", FormatValueMmToFw( 214748365.0, 16));
+      Trace( "14: '-' :", FormatValueMmToFw( 214748365, 16));
+      Trace( "15: '-' :", FormatValueMmToFw( 0, 17));
+
+      return;
+
+      Unexpected:
+      {
+         Trace( err.GetDescription( ));
+
+         resume next;
+      }
+   }
+
+   function TestFormatValueToFw()
+   {
+      onerror goto Unexpected;
+      
+      Trace( "1: '0' :", FormatValueToFw( 0, 1));
+      Trace( "2: '00000' :", FormatValueToFw( 0, 5));
+      Trace( "3: '01' :", FormatValueToFw( 1, 2));
+      Trace( "4: '00001' :", FormatValueToFw( 1, 5));
+      Trace( "5: '-' :", FormatValueToFw( 1, 0));  // fails
+      Trace( "6: '-' :", FormatValueToFw( 10, 1)); // fails
+
+
+      Trace( "10: '-' :", FormatValueToFw( -1, 1));
+      Trace( "11: '0000002147483646' :", FormatValueToFw( 2147483646, 16));
+      Trace( "12: '-' :", FormatValueToFw( 2147483648, 16)); // 
+      Trace( "15: '-' :", FormatValueToFw( 0, 17));
+
+      Trace( "16: '-' :", FormatValueToFw( 0.0, 1)); // float
+
+      return;
+
+      Unexpected:
+      {
+         Trace( err.GetDescription( ));
+
+         resume next;
+      }
+   }
+   method Method()
+   {
+      TestFormatValueMmToFw();
+      TestFormatValueToFw();
+   }
+*/
+}
+
+// $$author=ljegher$$valid=1$$time=2016-06-22 18:27$$checksum=60a21943$$length=084$$

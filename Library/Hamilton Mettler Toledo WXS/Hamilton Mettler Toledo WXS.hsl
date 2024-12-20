@@ -1,0 +1,1201 @@
+/***********************************************************************************
+* 
+* Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+* All rights reserved
+*
+************************************************************************************
+* 
+* Project :      gMETTLER_WXS_objScale
+* Description :  This Library provides the essentiel tools for serial communication to the Mettler WXS Scale
+*                The Library is Specialized for LCA! It's not a general Library!
+*
+* Software Version : v2.1
+*
+* Revision history:
+*
+*   30.07.2008  v1.0  Oliver Funke                    - created
+*   09.02.2009        Michael Da Rin                  - added functions: "GetWeight" (stable), "Release" (Release COM-Object)
+*   31.08.2009        Michael Da Rin                  - added parameter for unit x4
+*   01.09.2009        Michael Da Rin                  - changed parameter for unit x6 = 0: Readability of the result --> max. / 1d
+*   17.10.2012  v1.1  Daniel Kaufmann                 - General Rework
+*   16.11.2012  v2.0  Daniel Kaufmann/Bernd Huf       - DLL excluded
+*   26.03.2013  v2.1  Bernd Huf                       - fixed bug in function GetWeight
+*   02.04.2013  v2.2  Daniel Kaufmann                 - deleted unneeded output parameters, BugFixes
+*   16.07.2014  v2.3  Bernd Huf                       - included DriverTools from their standard location
+*   22.06.2015  v2.4  Simon Schiess                   - included the tare and zero immediately
+*
+************************************************************************************
+* General Information
+*
+* - Every function returns an error-code.
+***********************************************************************************/
+
+#ifndef __MettlerWXS_hsl__
+  #define __MettlerWXS_hsl__ 1
+
+  #ifndef __TraceLevel_hsl__
+    #include "ASWStandard\\TraceLevel\\TraceLevel.hsl"
+  #endif
+
+  #ifndef __ASWGLOBAL_hsl__
+    #include "ASWStandard\\ASWGlobal\\ASWGlobal.hsl"
+  #endif
+
+  #ifndef __Hamilton_DriverTools_hsl__
+    #include "Hamilton DriverTools\\Hamilton DriverTools.hsl"
+  #endif
+
+
+  namespace METTLER_WXS
+  {
+    /*******************************************************************************
+    * declaration of variables and constants
+    *******************************************************************************/
+
+    //general constants
+    static const variable PORT_MIN                          (1);
+    static const variable PORT_MAX                          (256);
+    static const variable TRIALS_MIN                        (1);
+    static const variable TRIALS_MAX                        (100);
+    static const variable TIMEOUT_CALIBRATION_SECOND_ANSWER (300.0);
+
+    //general constants [Scale Parameters]
+
+    static const variable VIBRATION_MIN                     (1);
+    static const variable VIBRATION_MAX                     (3);
+    static const variable DISPLAY_MIN                       (0);
+    static const variable DISPLAY_MAX                       (3);
+    static const variable STABILITY_MIN                     (0);
+    static const variable STABILITY_MAX                     (4);
+    static const variable UNIT_MIN                          (0);
+    static const variable UNIT_MAX                          (12);
+    static const variable AUTOZERO_MIN                      (0);
+    static const variable AUTOZERO_MAX                      (1);
+    static const variable READABILITY_MIN                   (0);
+    static const variable READABILITY_MAX                   (1);
+    static const variable UNIT_2_MIN                        (0);
+    static const variable UNIT_2_MAX                        (16);
+    static const variable TARE_MIN                          (0);
+    static const variable TARE_MAX                          (1);
+    static const variable FREEUNIT_MIN                      (0);
+    static const variable FREEUNIT_MAX                      (1);
+    static const variable FREEUNIT_RANGE_MIN                (0);
+    static const variable FREEUNIT_RANGE_MAX                (2);
+    static const variable FREEUNIT_FACTOR_MIN               (0);
+    static const variable FREEUNIT_FACTOR_MAX               (1);
+    static const variable FREEUNIT_NAME                     ("");
+    static const variable LANGUAGE_MIN                      (0);
+    static const variable LANGUAGE_MAX                      (6);
+
+    static const variable COM_PORT_SETTINGS                 ("9600,N,8,1,N,CR/LF");
+
+    // Scale Commands
+    static const string RETRIEVE_SERIAL                     ("I4");
+    static const string RETRIEVE_Scale_DATA                 ("I2");
+    static const string GET_WEIGHT                          ("S");
+    static const string GET_WEIGHT_IMMEDIATELY              ("SI");
+    static const string TARE                                ("T");
+    static const string TARE_IMMEDIATELY                    ("TI");
+    static const string ZERO                                ("Z");
+    static const string ZERO_IMMEDIATELY                    ("ZI");
+    static const string RESET_Scale                         ("@");
+    static const string MANUAL_CALIBRATION                  ("C0 0 0");
+    static const string INTERNAL_CALIBRATION                ("C3");
+
+    //***Scale Response***
+    static const string WEIGHT_STABLE                       ("S S");
+    static const string WEIGHT_ERROR                        ("S I");
+    static const string WEIGHT_DYNAMIC                      ("S D");
+    static const string WEIGHT_OVERLOAD                     ("S +");
+    static const string WEIGHT_UNDERLOAD                    ("S -");
+    static const string ZERO_SET                            ("Z A");
+    static const string ZERO_SET_DYNAMIC                    ("Z D");
+    static const string ZERO_SET_IMMIDIATE_DYNAMIC          ("ZI D");
+    static const string ZERO_SET_IMMIDIATE_SATBLE           ("ZI S");
+    static const string ZERO_ERROR                          ("Z I");
+    static const string ZERO_IMMIDIATE_ERROR                ("ZI I");
+    static const string ZERO_OVERLOAD                       ("Z +");
+    static const string ZERO_UNDERLOAD                      ("Z -");
+    static const string ZERO_IMMIDIATE_OVERLOAD             ("ZI +");
+    static const string ZERO_IMMIDIATE_UNDERLOAD            ("ZI -");
+    static const string TARE_SET                            ("T S");
+    static const string TARE_SET_IMMIDIATE                  ("TI S");
+    static const string TARE_ERROR                          ("T I");
+    static const string TARE_ERROR_IMMIDIATE                ("TI I");
+    static const string TARE_OVERLOAD                       ("T +");
+    static const string TARE_OVERLOAD_IMMIDIATE             ("TI +");
+    static const string TARE_UNDERLOAD                      ("T -");
+    static const string TARE_UNDERLOAD_IMMIDIATE            ("TI -");
+    static const string TARE_NOT_EXECUTABLE                 ("TI L");
+    static const string TARE_IMMIDIATE_DYNAMIC              ("TI D");
+    static const string COMMAND_SET                         ("I4 A");
+
+    // Parameter Response
+    static const string PARAMETER_SET                       ("MW A");
+    static const string PARAMETER_SET_ERROR                 ("MW I");
+    static const string PARAMETER_SET_COMMANDEROR           ("MW L");
+
+    // Calibration Response
+    static const string CAL_SET                             ("C0 A");
+    static const string CAL_BAD_COMMAND                     ("C0 I");
+    static const string CAL_CANNOT_SET                      ("C0 L");
+
+    static const string CALIBRATION_SUCCESS                 ("C3 A");
+    static const string CALIBRATION_ERROR                   ("C3 I");
+    static const string CALIBRATION_STARTED                 ("C3 B");
+    static const string CALIBRATION_NOT_POSSIBLE            ("C3 L");
+
+    global static file      gMETTLER_WXS_hdlComHandle;
+    global static string    gMETTLER_WXS_strComBuffer;
+    global static variable  gMETTLER_WXS_blnCOMObjectCreatedAndConnected  (hslFalse);
+    global static variable  gMETTLER_WXS_LibraryName                      ("Mettler WXS");
+    global static variable  gMETTLER_WXS_intMaxRetry                      (1);
+    global static variable  gMETTLER_WXS_fltReadTimeout                   (0.0);
+    global static event     gMETTLER_WXS_hdlSemaphore;
+
+    //trace level
+    private global variable gMETTLER_WXS_intTraceLevel (TRACE_LEVEL_RELEASE);
+
+    /*******************************************************************************
+    * Function Declaration
+    *******************************************************************************/
+    function Initialize(variable i_strPortSettings,
+                        variable i_intTraceLevel,
+                        variable i_intPort,
+                        variable i_fltTimeOutInSec,
+                        variable i_intTrials) variable;
+
+    function Terminate() variable;
+
+    function SetScaleParameters(variable i_intVibration,
+                                variable i_intStability,
+                                variable i_intReadability,
+                                variable i_intLanguage,
+                                variable i_intWeightUnit) variable;
+
+    function ResetScale() variable;
+
+    function Tare(variable& o_fltTare, variable i_blnTareImmidiatly) variable;
+
+    function SetZero(variable i_blnZeroImmidiatly) variable;
+
+    function GetSerialNumber(variable& o_varSerialNumber) variable;
+
+    function GetWeight(variable i_blnGetWeightImmedialtely,
+                       variable& o_fltWeightInGramm, 
+                       variable& o_blnIsWeightStable, 
+                       variable& o_strMeasuredWeight,
+                       variable& o_strMeasuredUnit) variable;
+
+    function InternalCalibration() variable;
+
+
+
+    /*******************************************************************************
+    * Function Declaration
+    *******************************************************************************/
+    function _SendCommand(variable i_strCommand,
+                                  variable& o_strResponse,
+                                  variable i_strCallingFunctionName) variable;
+
+    /*******************************************************************************
+    * Functions
+    *******************************************************************************/
+    //---------------------------------------------------------------------------------
+    //function Initialize
+    //---------------------------------------------------------------------------------
+    function Initialize(variable i_strPortSettings,
+                        variable i_intTraceLevel,
+                        variable i_intPort,
+                        variable i_fltTimeOutInSec,
+                        variable i_intTrials) variable
+    {
+      variable ReadIntervalTimeout(hslInfinite);
+      variable ReadTotalTimeoutMultiplier(hslInfinite);
+      variable ReadTotalTimeoutConstant(10.000);
+      variable WriteTotalTimeoutMultiplier(1.000);
+      variable WriteTotalTimeoutConstant(10.000);
+      variable strCOMOpenString("");
+      variable strFunctionName("");
+      variable i_strPortSettings ("");
+      variable o_strResponse ("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName( ), strFunctionName, gMETTLER_WXS_LibraryName);
+
+      // check input variables
+      if(!Hamilton_DriverTools::CheckString(i_strPortSettings, "i_strPortSettings", strFunctionName, gMETTLER_WXS_LibraryName))
+        return(ASWGLOBAL::BOOL::FALSE);
+      if(!Hamilton_DriverTools::CheckIntegerRange(i_intTraceLevel, "i_intTraceLevel", TRACE_LEVEL_NONE, TRACE_LEVEL_DEBUG, strFunctionName, gMETTLER_WXS_LibraryName))
+        return(ASWGLOBAL::BOOL::FALSE);
+      if(!Hamilton_DriverTools::CheckIntegerRange(i_intPort, "i_intPort", PORT_MIN, PORT_MAX, strFunctionName, gMETTLER_WXS_LibraryName))
+        return(ASWGLOBAL::BOOL::FALSE);
+      if(!Hamilton_DriverTools::CheckFloat(i_fltTimeOutInSec, "i_fltTimeOutInSec", strFunctionName, gMETTLER_WXS_LibraryName))
+        return(ASWGLOBAL::BOOL::FALSE);
+      if(!Hamilton_DriverTools::CheckIntegerRange(i_intTrials, "i_intTrials", TRIALS_MIN, TRIALS_MAX, strFunctionName, gMETTLER_WXS_LibraryName))
+        return(ASWGLOBAL::BOOL::FALSE);
+
+      // trace start of function
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                             TRACE_LEVEL_DEBUG,
+                             "i_strPortSettings = " + i_strPortSettings +
+                             ", i_intTraceLevel = " + IStr(i_intTraceLevel) +
+                             ", i_intPort = " + IStr(i_intPort) +
+                             ", i_fltTimeOutInSec = " + FStr(i_fltTimeOutInSec, hslFalse, 2) +
+                             ", i_intTrials = " + IStr(i_intTrials),
+                             strFunctionName,
+                             i_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+
+
+
+      //save trace level
+      gMETTLER_WXS_intTraceLevel = i_intTraceLevel;
+
+      onerror goto SERIAL_ERROR;
+
+      // set delimiter for serial communication
+      gMETTLER_WXS_hdlComHandle.SetDelimiter(hslAsciiText);
+
+      if(gMETTLER_WXS_hdlComHandle.AddField(1, gMETTLER_WXS_strComBuffer, hslString) == 0)
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "<AddField> failed!",
+                               strFunctionName,
+                               i_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+      
+      if (i_strPortSettings == "")
+        {
+         i_strPortSettings = COM_PORT_SETTINGS;
+        }
+
+      strCOMOpenString = "COM" + IStr(i_intPort) + " " + i_strPortSettings;
+
+      if(gMETTLER_WXS_hdlComHandle.Open(strCOMOpenString, hslWrite) == 0)
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "<port.Open> with [" + strCOMOpenString + "] failed!",
+                               strFunctionName,
+                               i_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::PROGRESS,
+                             TRACE_LEVEL_DEBUG,
+                             "port opened with [" + strCOMOpenString + "]",
+                             strFunctionName,
+                             i_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+
+      gMETTLER_WXS_fltReadTimeout = i_fltTimeOutInSec;
+      ReadTotalTimeoutConstant = gMETTLER_WXS_fltReadTimeout;
+
+      if(SetCommTimeouts(gMETTLER_WXS_hdlComHandle) == 0)
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "SetCommTimeouts failed!",
+                               strFunctionName,
+                               i_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::PROGRESS,
+                             TRACE_LEVEL_DEBUG,
+                             "communication timeouts set",
+                             strFunctionName,
+                             i_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+
+      onerror goto 0;
+
+      gMETTLER_WXS_intMaxRetry = i_intTrials;
+
+      gMETTLER_WXS_hdlSemaphore.SetEvent();
+
+      gMETTLER_WXS_blnCOMObjectCreatedAndConnected = hslTrue;
+
+      if(!_SendCommand(RETRIEVE_Scale_DATA, o_strResponse, strFunctionName))
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "No communication to scale!",
+                               strFunctionName,
+                               i_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      //return successfully
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                             TRACE_LEVEL_DEBUG,
+                             "o_strResponse = " + o_strResponse,
+                             strFunctionName,
+                             i_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+      return(ASWGLOBAL::BOOL::TRUE);
+
+      SERIAL_ERROR:
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "COM " + IStr(i_intPort) + " not available!",
+                               strFunctionName,
+                               i_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    } // Initialize
+
+    //---------------------------------------------------------------------------------
+    //function Terminate
+    //---------------------------------------------------------------------------------
+    function Terminate() variable
+    {
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName( ), strFunctionName, gMETTLER_WXS_LibraryName);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                             TRACE_LEVEL_DEBUG,
+                             "",
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+
+      gMETTLER_WXS_hdlSemaphore.WaitEvent(hslInfinite);
+
+      // Activate error handler
+      onerror goto SERIAL_ERROR;
+      gMETTLER_WXS_hdlComHandle.RemoveFields();
+      if(gMETTLER_WXS_hdlComHandle.Close() != 0)
+      {
+        gMETTLER_WXS_hdlSemaphore.SetEvent();
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "<Close> function for COM port failed!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+      onerror goto 0;
+
+      gMETTLER_WXS_hdlSemaphore.SetEvent();
+
+      gMETTLER_WXS_blnCOMObjectCreatedAndConnected = hslFalse;
+
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                               TRACE_LEVEL_RELEASE,
+                               "Connection terminated!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+      return(ASWGLOBAL::BOOL::TRUE);
+
+      SERIAL_ERROR:
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "Unable to close COM port!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+    } // Terminate
+
+    //---------------------------------------------------------------------------------
+    //function SetScaleParameters
+    //---------------------------------------------------------------------------------
+    function SetScaleParameters(variable i_intVibration,
+                                variable i_intStability,
+                                variable i_intReadability,
+                                variable i_intLanguage,
+                                variable i_intWeightUnit) variable
+    {
+      variable blnReturnValue(hslFalse);
+      variable strCommand("");
+      string strResponse(""), strResponsePart("");
+      variable strFunctionName("");
+      variable o_strScaleResponse("");
+      variable o_strScaleResponse_Part("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName( ), strFunctionName, gMETTLER_WXS_LibraryName);
+
+      // check input variables
+      if(!Hamilton_DriverTools::CheckIntegerRange(i_intVibration, "i_intVibration", VIBRATION_MIN, VIBRATION_MAX, strFunctionName, gMETTLER_WXS_LibraryName))
+        return(ASWGLOBAL::BOOL::FALSE);
+      if(!Hamilton_DriverTools::CheckIntegerRange(i_intStability, "i_intStability", STABILITY_MIN, STABILITY_MAX, strFunctionName, gMETTLER_WXS_LibraryName))
+        return(ASWGLOBAL::BOOL::FALSE);
+      if(!Hamilton_DriverTools::CheckIntegerRange(i_intReadability, "i_intReadability", READABILITY_MIN, READABILITY_MAX, strFunctionName, gMETTLER_WXS_LibraryName))
+        return(ASWGLOBAL::BOOL::FALSE);
+      if(!Hamilton_DriverTools::CheckIntegerRange(i_intLanguage, "i_intLanguage", LANGUAGE_MIN, LANGUAGE_MAX, strFunctionName, gMETTLER_WXS_LibraryName))
+        return(ASWGLOBAL::BOOL::FALSE);
+      if(!Hamilton_DriverTools::CheckIntegerRange(i_intWeightUnit, "i_intWeightUnit", UNIT_MIN, UNIT_MAX, strFunctionName, gMETTLER_WXS_LibraryName))
+        return(ASWGLOBAL::BOOL::FALSE);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                             TRACE_LEVEL_DEBUG,
+                             ", i_intVibration = " + IStr(i_intVibration) +
+                             ", i_intStability = " + IStr(i_intStability) +
+                             ", i_intReadability = " + IStr(i_intReadability) +
+                             ", i_intLanguage = " + FStr(i_intLanguage) +
+                             ", i_intWeightUnit = " + IStr(i_intWeightUnit),
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+
+      strCommand = "MW " + IStr(i_intVibration) +
+                  " 2 " + IStr(i_intStability) +
+                  " " + IStr(i_intWeightUnit) +
+                  " 0 " + IStr(i_intReadability) +
+                  " 9 0 0 0 1 \"[C]\" " + IStr(i_intLanguage);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::PROGRESS,
+                             TRACE_LEVEL_DEBUG,
+                             "strCommand = " + strCommand,
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+
+      //send command
+      if(hslTrue == _SendCommand(strCommand,strResponse,strFunctionName))
+      {
+        //analyse response
+        strResponsePart = strResponse.Left(4);
+        o_strScaleResponse = strResponse;
+        o_strScaleResponse_Part = strResponsePart;
+        if(0==strResponsePart.Compare(PARAMETER_SET))
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                 TRACE_LEVEL_RELEASE,
+                                 "Parameter Set!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::TRUE);
+        }
+        if(0==strResponsePart.Compare(PARAMETER_SET_ERROR))
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                 TRACE_LEVEL_RELEASE,
+                                 "The weighing parameters can not be set as this is not allowed (e.g. certified balances) or because another operation is taking place!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+        if(0==strResponsePart.Compare(PARAMETER_SET_COMMANDEROR))
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                 TRACE_LEVEL_RELEASE,
+                                 "The weighing parameters can not be set as at least one of the parameters is not allowed (e.g. certified balances) or is outside the admissible value range or because the number of parameters is wrong",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+       }
+     }
+    return(ASWGLOBAL::BOOL::FALSE);
+    } // SetScaleParameters
+
+    //---------------------------------------------------------------------------------
+    //function ResetScale
+    //---------------------------------------------------------------------------------
+    function ResetScale() variable
+    {
+      variable blnReturnValue(hslFalse);
+      string strResponse(""), strResponsePart("");
+      variable strFunctionName("");
+      variable o_strScaleResponse("");
+      variable o_strScaleResponse_Part("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName( ), strFunctionName, gMETTLER_WXS_LibraryName);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                             TRACE_LEVEL_DEBUG,
+                             "",
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+      //send command
+      if(hslTrue == _SendCommand(RESET_Scale, strResponse,strFunctionName))
+      {
+        //analyse response
+        strResponsePart = strResponse.Left(4);
+        o_strScaleResponse = strResponse;
+        o_strScaleResponse_Part = strResponsePart;
+        if(0==strResponsePart.Compare(COMMAND_SET))
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                 TRACE_LEVEL_RELEASE,
+                                 "Scale has been reset!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+
+            return(ASWGLOBAL::BOOL::TRUE);
+        }
+      }
+      else
+                Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                 TRACE_LEVEL_RELEASE,
+                                 "Could not perform scale reset!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+    } // ResetScale
+
+    //---------------------------------------------------------------------------------
+    //function Tare
+    //---------------------------------------------------------------------------------
+
+        //***Scale Response***
+
+    function Tare(variable& o_fltTare, variable i_blnTareImmidiatly) variable
+    {
+      variable blnReturnValue(hslFalse);
+      string strResponse(""), strResponsePart(""), strTmp("");
+      variable strFunctionName("");
+      variable o_strScaleResponse("");
+      variable o_strScaleResponse_Part("");
+
+      if(i_blnTareImmidiatly)
+      {
+        strTmp = TARE_IMMEDIATELY;
+      }
+      else
+      {
+        strTmp = TARE;
+      }
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName( ), strFunctionName, gMETTLER_WXS_LibraryName);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                             TRACE_LEVEL_DEBUG,
+                             "",
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+                             
+      // send command
+      if(!_SendCommand(strTmp, strResponse,strFunctionName))
+        return(ASWGLOBAL::BOOL::FALSE);
+
+      // cut response
+      strResponsePart = strResponse;
+      o_strScaleResponse = strResponse;
+      o_strScaleResponse_Part = strResponsePart;
+      o_fltTare = strResponse.Right (12);
+      
+       if(0==strResponsePart.Find(TARE_SET) || 0==strResponsePart.Find(TARE_SET_IMMIDIATE) || 0==strResponsePart.Find(TARE_IMMIDIATE_DYNAMIC))
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                               TRACE_LEVEL_RELEASE,
+                               "Tare complete!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::TRUE);
+      }
+      if(0==strResponsePart.Find(TARE_ERROR) || 0==strResponsePart.Find(TARE_ERROR_IMMIDIATE) || 0==strResponsePart.Find(TARE_NOT_EXECUTABLE))
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "Taring not performed (balance is currently executing another command, e.g. zero setting, or timeout as stability was not reached)!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+      if(0==strResponsePart.Find(TARE_OVERLOAD) || 0==strResponsePart.Find(TARE_OVERLOAD_IMMIDIATE))
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "Upper limit of taring range exceeded",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+      if(0==strResponsePart.Find(TARE_UNDERLOAD) || 0==strResponsePart.Find(TARE_UNDERLOAD_IMMIDIATE))
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "Lower limit of taring range exceeded",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                             TRACE_LEVEL_RELEASE,
+                             "Unknown return: '" + o_strScaleResponse + "'!",
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+      return(ASWGLOBAL::BOOL::FALSE);
+    } // Tare
+
+    //---------------------------------------------------------------------------------
+    //function SetZero
+    //---------------------------------------------------------------------------------
+    function SetZero(variable i_blnZeroImmidiatly) variable
+    {
+      variable blnReturnValue(hslFalse);
+      string strResponse(""), strResponsePart(""), strTmp("");
+      variable strFunctionName("");
+      variable o_strScaleResponse("");
+      variable o_strScaleResponse_Part("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName( ), strFunctionName, gMETTLER_WXS_LibraryName);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                             TRACE_LEVEL_DEBUG,
+                             "",
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+      //send command
+
+      if(i_blnZeroImmidiatly)
+      {
+        strTmp = ZERO_IMMEDIATELY;
+      }
+      else
+      {
+        strTmp = ZERO;
+      }
+
+      if(hslTrue == _SendCommand(strTmp, strResponse, strFunctionName))
+      {
+        //analyse response
+        strResponsePart = strResponse;
+        o_strScaleResponse = strResponse;
+        o_strScaleResponse_Part = strResponsePart;
+
+
+        if(0==strResponsePart.Find(ZERO_SET) || 0==strResponsePart.Find(ZERO_SET_IMMIDIATE_DYNAMIC) || 0==strResponsePart.Find(ZERO_SET_IMMIDIATE_SATBLE))
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                 TRACE_LEVEL_RELEASE,
+                                 "Zero setting performed!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::TRUE);
+        }
+
+        if(0==strResponsePart.Find(ZERO_ERROR) || 0==strResponsePart.Find(ZERO_IMMIDIATE_ERROR))
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                 TRACE_LEVEL_RELEASE,
+                                 "Zero setting not performed (balance is currently executing another command, e.g. taring, or timeout as stability was not reached)!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+        if(0==strResponsePart.Find(ZERO_OVERLOAD) || 0==strResponsePart.Find(ZERO_IMMIDIATE_OVERLOAD))
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                 TRACE_LEVEL_RELEASE,
+                                 "Upper limit of zero setting range exceeded!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+        if(0==strResponsePart.Find(ZERO_UNDERLOAD)|| 0==strResponsePart.Find(ZERO_IMMIDIATE_UNDERLOAD))
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                 TRACE_LEVEL_RELEASE,
+                                 "Lower limit of zero setting range exceeded!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+              Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "Connection not established!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+              return(ASWGLOBAL::BOOL::FALSE);
+    } // SetZero
+
+    //---------------------------------------------------------------------------------
+    //function GetSerialNumber
+    //---------------------------------------------------------------------------------
+    function GetSerialNumber(variable& o_strSerialNumber) variable
+    {
+      variable blnReturnValue(hslFalse);
+      string strResponse(""), strResponsePart("");
+      variable strFunctionName("");
+      variable o_strScaleResponse("");
+      variable o_strScaleResponse_Part("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName( ), strFunctionName, gMETTLER_WXS_LibraryName);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                             TRACE_LEVEL_DEBUG,
+                             "",
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+
+      //Check if the connection to the Scale is initialized
+      if(hslFalse==gMETTLER_WXS_blnCOMObjectCreatedAndConnected)
+        return(ASWGLOBAL::BOOL::TRUE);
+
+      //send command
+      if(hslTrue == _SendCommand(RETRIEVE_SERIAL,strResponse,strFunctionName))
+      {
+        //analyse response
+        strResponsePart = strResponse.Left(4);
+        o_strScaleResponse = strResponse;
+        o_strScaleResponse_Part = strResponsePart;
+        if(0==strResponsePart.Compare(COMMAND_SET))
+        {
+          o_strSerialNumber = strResponse.Mid(6,strResponse.GetLength()-7);
+          return(ASWGLOBAL::BOOL::TRUE);
+        }
+      }
+      return(ASWGLOBAL::BOOL::FALSE);
+    } // GetSerialNumber
+
+    //---------------------------------------------------------------------------------
+    //function GetWeight
+    //---------------------------------------------------------------------------------
+    function GetWeight(variable i_blnGetWeightImmedialtely,
+                       variable& o_fltWeightInGramm, 
+                       variable& o_blnIsWeightStable, 
+                       variable& o_strMeasuredWeight,
+                       variable& o_strMeasuredUnit) variable
+    {
+      variable blnReturnValue(hslFalse);
+      string strResponse(""), strResponsePart("");
+      string strMeasuredUnit(""), strMeasuredWeight("");
+      variable strFunctionName("");
+      variable o_strScaleResponse("");
+      variable o_strScaleResponse_Part("");
+
+
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName( ), strFunctionName, gMETTLER_WXS_LibraryName);
+
+      // check input variables
+      if(!Hamilton_DriverTools::CheckBool(i_blnGetWeightImmedialtely, "i_blnGetWeightImmedialtely", strFunctionName, gMETTLER_WXS_LibraryName))
+        return(ASWGLOBAL::BOOL::FALSE);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                             TRACE_LEVEL_DEBUG,
+                             "i_blnGetWeightImmedialtely = " + IStr(i_blnGetWeightImmedialtely),
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+      
+      o_fltWeightInGramm = 0.0;
+      o_blnIsWeightStable = hslFalse;
+
+      //Is connection to Scale initialized
+
+      if(!gMETTLER_WXS_blnCOMObjectCreatedAndConnected) return(ASWGLOBAL::BOOL::TRUE);
+
+      //send command
+      if(i_blnGetWeightImmedialtely == hslTrue)
+        blnReturnValue == _SendCommand(GET_WEIGHT_IMMEDIATELY, strResponse,strFunctionName);
+      else
+        blnReturnValue == _SendCommand(GET_WEIGHT, strResponse,strFunctionName);
+
+ //     if(!blnReturnValue)
+ //       return(ASWGLOBAL::BOOL::FALSE);
+
+      //analyse response
+
+      strResponsePart = strResponse.Left(3);
+      o_strScaleResponse = strResponse;
+      o_strScaleResponse_Part = strResponsePart;
+
+      if(0==strResponsePart.Compare(WEIGHT_STABLE) || 0==strResponsePart.Compare(WEIGHT_DYNAMIC))
+      {
+        o_strMeasuredWeight = strResponse.Mid(4,10);
+        o_strMeasuredUnit = strResponse.Mid(15,strResponse.GetLength()-15);
+        if(0==strResponsePart.Compare(WEIGHT_STABLE))
+          o_blnIsWeightStable = hslTrue;
+      }
+
+      if(0==strResponsePart.Compare(WEIGHT_ERROR))
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "Command not executable (balance is currently executing another command, e.g. taring)!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+      if(0==strResponsePart.Compare(WEIGHT_OVERLOAD))
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "Balance in overload range!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+      if(0==strResponsePart.Compare(WEIGHT_UNDERLOAD))
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "Balance in underload range!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+      //analyse recieved data
+
+      o_fltWeightInGramm = FVal(o_strMeasuredWeight);
+      strMeasuredUnit = o_strMeasuredUnit;
+
+      //transform weight into [g]
+      if(0==strMeasuredUnit.Compare("mg"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 0.001;
+      else if(0==strMeasuredUnit.Compare("g"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 1;
+      else if(0==strMeasuredUnit.Compare("kg"))
+          o_fltWeightInGramm = o_fltWeightInGramm * 1000;
+      else if(0==strMeasuredUnit.Compare("µg"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 0.000001;
+      else if(0==strMeasuredUnit.Compare("ct"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 0.2;
+      else if(0==strMeasuredUnit.Compare("lb"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 453.59237;
+      else if(0==strMeasuredUnit.Compare("oz"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 28.349523125;
+      else if(0==strMeasuredUnit.Compare("ozt"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 31.1034768;
+      else if(0==strMeasuredUnit.Compare("GN"))
+        o_fltWeightInGramm = o_fltWeightInGramm *  0.06479891;
+      else if(0==strMeasuredUnit.Compare("dwt"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 1.55517384;
+      else if(0==strMeasuredUnit.Compare("mom"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 3.75;
+      else if(0==strMeasuredUnit.Compare("msg"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 4.6083;
+      else if(0==strMeasuredUnit.Compare("tlh"))
+        o_fltWeightInGramm = o_fltWeightInGramm *  37.429;
+      else if(0==strMeasuredUnit.Compare("tls"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 37.7993641666667;
+      else if(0==strMeasuredUnit.Compare("tlt"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 37.5;
+      else if(0==strMeasuredUnit.Compare("tola"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 11.6638038;
+      else if(0==strMeasuredUnit.Compare("baht"))
+        o_fltWeightInGramm = o_fltWeightInGramm * 15.16;
+
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                               TRACE_LEVEL_DEBUG,
+                               "o_fltWeightInGramm = " + FStr(o_fltWeightInGramm) +
+                               ", o_blnIsWeightStable = " + IStr(o_blnIsWeightStable) +
+                               ", o_strMeasuredWeight = '" + o_strMeasuredWeight + "'" +
+                               ", o_strMeasuredUnit = '" + o_strMeasuredUnit + "'",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+
+        return(ASWGLOBAL::BOOL::TRUE);
+    } // GetWeight
+
+    //---------------------------------------------------------------------------------
+    //function InternalCalibration
+    //---------------------------------------------------------------------------------
+    function InternalCalibration() variable
+    {
+      variable ReadTotalTimeoutConstant(TIMEOUT_CALIBRATION_SECOND_ANSWER);
+      variable blnReturnValue(hslFalse);
+      variable intStatus(0), intReturnValue(0), intRetryNumber(0);
+      string strResponse(""), strResponsePart("");
+      variable strFunctionName("");
+      variable o_strScaleResponse("");
+      variable o_strScaleResponse_Part("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName( ), strFunctionName, gMETTLER_WXS_LibraryName);
+
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                             TRACE_LEVEL_DEBUG,
+                             "",
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+
+
+      if(!_SendCommand(INTERNAL_CALIBRATION,strResponse,strFunctionName))
+        return(ASWGLOBAL::BOOL::FALSE);
+
+      //analyse response
+      strResponsePart = strResponse.Left(4);
+      o_strScaleResponse = strResponse;
+      o_strScaleResponse_Part = strResponsePart;
+
+      if(0==strResponsePart.Compare(CALIBRATION_STARTED))
+      {
+        // Calibration started, wait for result of calibration
+        gMETTLER_WXS_hdlSemaphore.WaitEvent(hslInfinite);
+
+        if(SetCommTimeouts(gMETTLER_WXS_hdlComHandle) == 0)
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                 TRACE_LEVEL_RELEASE,
+                                 "SetCommTimeouts failed!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+        if(gMETTLER_WXS_hdlComHandle.ReadRecord() == 0)
+        {
+          gMETTLER_WXS_hdlSemaphore.SetEvent();
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                 TRACE_LEVEL_RELEASE,
+                                 "Calibration started, but no second answer from scale!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+
+        strResponse = gMETTLER_WXS_strComBuffer;
+        o_strScaleResponse = strResponse;
+
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::PROGRESS,
+                               TRACE_LEVEL_DEBUG,
+                               "Second answer: '" + o_strScaleResponse + "'",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+
+        ReadTotalTimeoutConstant = gMETTLER_WXS_fltReadTimeout;
+        if(SetCommTimeouts(gMETTLER_WXS_hdlComHandle) == 0)
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                 TRACE_LEVEL_RELEASE,
+                                 "SetCommTimeouts failed!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+
+        gMETTLER_WXS_hdlSemaphore.SetEvent();
+
+        strResponsePart = strResponse.Left(4);
+        o_strScaleResponse_Part = strResponsePart;
+
+        if(0==strResponsePart.Compare(CALIBRATION_SUCCESS))
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                                 TRACE_LEVEL_RELEASE,
+                                 "Calibration has been completed successfully!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::TRUE);
+        }
+        if(0==strResponsePart.Compare(CALIBRATION_ERROR))
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                 TRACE_LEVEL_RELEASE,
+                                 "calibration can not be performed at present e.g.stability not reached!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          return(ASWGLOBAL::BOOL::FALSE);
+        }
+      }
+      // calibration error
+      if(0==strResponsePart.Compare(CALIBRATION_ERROR))
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "calibration can not be performed at present as another operation is taking place!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+      // calibration not possible
+      if(0==strResponsePart.Compare(CALIBRATION_NOT_POSSIBLE))
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "Calibration operation not possible, e.g.internal weight missing!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+      // unknown answer
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                             TRACE_LEVEL_RELEASE,
+                             "Unknown answer from scale: '" + o_strScaleResponse_Part + "'!",
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+      return(ASWGLOBAL::BOOL::FALSE);
+    } // InternalCalibration
+
+    //---------------------------------------------------------------------------------
+    //private function _SendCommand
+    //---------------------------------------------------------------------------------
+    function _SendCommand(variable i_strCommand,
+                                  variable& o_strResponse,
+                                  variable i_strCallingFunctionName) variable
+    {
+      variable ReadTotalTimeoutConstant(0.1);
+      variable intStatus(0), intReturnValue(0), intRetryNumber(0);
+      variable blnReadSuccess(hslFalse);
+      variable strFunctionName("");
+
+      Hamilton_DriverTools::ExtractFunctionName(GetFunctionName( ), strFunctionName, gMETTLER_WXS_LibraryName);
+
+      strFunctionName = i_strCallingFunctionName + " - " + strFunctionName;
+
+      // trace start of function
+      Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::START,
+                             TRACE_LEVEL_DEBUG,
+                             "i_strCommand = '" + i_strCommand + "'",
+                             strFunctionName,
+                             gMETTLER_WXS_intTraceLevel,
+                             gMETTLER_WXS_LibraryName);
+
+      o_strResponse = "";
+
+      if(!gMETTLER_WXS_blnCOMObjectCreatedAndConnected)
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "Library not initialized!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        gMETTLER_WXS_hdlSemaphore.SetEvent();
+        return(hslFalse);
+      }
+
+      // Activate error handler
+      onerror goto UNEXPECTED;
+
+      gMETTLER_WXS_hdlSemaphore.WaitEvent(hslInfinite);
+
+      // empty reading buffer before sending new commands
+      if(SetCommTimeouts(gMETTLER_WXS_hdlComHandle) == 0)
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "SetCommTimeouts failed!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      while(gMETTLER_WXS_hdlComHandle.ReadRecord() != 0)
+        Trace("Empty buffer: '", gMETTLER_WXS_strComBuffer, "'");
+
+      ReadTotalTimeoutConstant = gMETTLER_WXS_fltReadTimeout;
+      if(SetCommTimeouts(gMETTLER_WXS_hdlComHandle) == 0)
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "SetCommTimeouts failed!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      for(intRetryNumber = 0; intRetryNumber < gMETTLER_WXS_intMaxRetry; intRetryNumber++)
+      {
+        gMETTLER_WXS_strComBuffer = i_strCommand;
+
+        if(gMETTLER_WXS_hdlComHandle.WriteRecord() == 0)
+        {
+          Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                                 TRACE_LEVEL_RELEASE,
+                                 "<WriteRecord> failed!",
+                                 strFunctionName,
+                                 gMETTLER_WXS_intTraceLevel,
+                                 gMETTLER_WXS_LibraryName);
+          gMETTLER_WXS_hdlSemaphore.SetEvent();
+          return(hslFalse);
+        }
+        if(gMETTLER_WXS_hdlComHandle.ReadRecord() != 0)
+        {
+          blnReadSuccess = hslTrue;
+          break;
+        }
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_DEBUG,
+                               "Retry #" + IStr(intRetryNumber + 1) + " failed!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+      }
+      if(blnReadSuccess)
+        o_strResponse = gMETTLER_WXS_strComBuffer;
+
+      gMETTLER_WXS_hdlSemaphore.SetEvent();
+
+      onerror goto 0;
+
+      if(blnReadSuccess)
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE,
+                               TRACE_LEVEL_DEBUG,
+                               "o_strResponse = '" + o_strResponse + "'",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return(hslTrue);
+      }
+      else
+      {
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "No answer from scale!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return (hslFalse);
+      }
+
+      UNEXPECTED:
+      {
+        Trace("Hallo exception");
+        Hamilton_DriverTools::StatusTrace(Hamilton_DriverTools::ACTION::COMPLETE_WITH_ERROR,
+                               TRACE_LEVEL_RELEASE,
+                               "Unexpected error while sending command!",
+                               strFunctionName,
+                               gMETTLER_WXS_intTraceLevel,
+                               gMETTLER_WXS_LibraryName);
+        return (hslFalse);
+      }
+    } // _SendCommand
+  } // namespace
+#endif
+//----------------------------------------------------------------------------------
+// $$author=cuevas_a$$valid=0$$time=2016-09-27 13:31$$checksum=944f69a2$$length=085$$

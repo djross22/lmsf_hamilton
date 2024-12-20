@@ -1,0 +1,885 @@
+// ======================================================================
+// Interface of the Daisy Chained communication library to be controlled
+// by multiple serial communication ports.
+// This library is used for all multi port daisy chained modules.
+//
+// Copyright (C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
+// All rights reserved.
+// ======================================================================
+//
+// Modification History
+//		V1.0, 2008-09-09, Ruedi Vogel, based on DaisyChainedCommunication.
+//    V1.1, 2008-10-02, Ruedi Vogel:
+//       - read timeout for message after an AI command increased to 5sec
+//          as done in the single daisy chain communication module
+//       - common read timeout increased because there exist pumping 
+//          module commands which response a delay of over 240 seconds! 
+//          (e.g. media line modules)
+//    V2.0, 2008-10-06, Ruedi Vogel:
+//       - simulation for each system (one single COM port) included
+//       - critical section event for each system
+//       - trace level for each system
+//       - commands to systems passed trough all functions until to 
+//          function DaisyChainedTxRxCommand() or function 
+//          DaisyChainedTxRxReset() resp. Simulation mode will be checked 
+//          there. Returned response in simulation mode has to be passed 
+//          by callling function trough parameter oResponse 
+//          (parameter oLastResponse resp. for function 
+//          InitializeMultiDaisyChainModule()).
+//    V2.1, 2008-11-12, Ruedi Vogel:
+//       - removed assigned module name in function 
+//          InitializeMultiDaisyChainModule() in case of an error
+//       - cleared receive buffer before transmitting "AI" command in
+//          function DaisyChainedTxRxReset()
+//    V3.0, 2010-05-17, Bernd Huf
+//       - removed function TxRxReset due to problems with AI command in daisy chain
+//
+// ======================================================================
+
+#ifndef __HSL_MultiDaisyChainCommunication_hsl__
+#define __HSL_MultiDaisyChainCommunication_hsl__	1
+
+#ifndef __HSLStrLib_hsl__
+#include "HSLStrLib.hsl"
+#endif
+
+namespace HSLMultiDaisyChainCommunication
+{
+	/*********************************************************************
+	*
+	* Module globale constants
+	*
+	*********************************************************************/
+	const static variable CMD_START    ( 1 );
+	const static variable CMD_COMPLET  ( 2 );
+	const static variable CMD_ERROR    ( 5 );   // to prevent suspicious Phoenix error messages
+	const static variable CMD_PROGRESS ( 4 );
+	const static variable CMD_ERRCOMPL ( 5 );
+
+	const variable TRACE_LEVEL_NONE   ( 0 );
+	const variable TRACE_LEVEL_NORMAL ( 1 );
+   const variable TRACE_LEVEL_FULL   ( 2 );
+
+   const variable HSL_FALSE ( hslFalse );
+   const variable HSL_TRUE  ( hslTrue  );
+   
+   const static variable ERROR_NONE                       (   0 );
+   const static variable ERROR_SYSTEM_ALREADY_INITIALIZED (  -1 );
+   const static variable ERROR_SYSTEM_NOT_YET_INITIALIZED (  -2 );
+   const static variable ERROR_MODULE_ALREADY_INITIALIZED (  -3 );
+   const static variable ERROR_MODULE_NOT_YET_INITIALIZED (  -4 );
+   const static variable ERROR_PARAMETER_OUT_OF_RANGE     (  -5 );
+   const static variable ERROR_HSL_FUNCTION_FAILED        (  -6 );
+   const static variable ERROR_WRITE_RECORD_FAILED        (  -7 );
+   const static variable ERROR_READ_RECORD_FAILED         (  -8 );
+   const static variable ERROR_UNEXPECTED_TXRX_COMMAND    (  -9 );
+   const static variable ERROR_UNEXPECTED_TXRX_RESET      ( -10 );
+   const static variable ERROR_UNKNOWN_DEVICE_NAME        ( -11 );
+
+   const static string ERROR_MSG_NONE                       ( "No error." );
+   const static string ERROR_MSG_SYSTEM_ALREADY_INITIALIZED ( "Assigned system (COM port) already initialized!" );
+   const static string ERROR_MSG_SYSTEM_NOT_YET_INITIALIZED ( "Assigned system (COM port) not yet initialized!" );
+   const static string ERROR_MSG_MODULE_ALREADY_INITIALIZED ( "Assigned module already initialized!" );
+   const static string ERROR_MSG_MODULE_NOT_YET_INITIALIZED ( "Assigned module not yet initialized!" );
+   const static string ERROR_MSG_PARAMETER_OUT_OF_RANGE     ( "Parameter out of range!" );
+   const static string ERROR_MSG_HSL_FUNCTION_FAILED        ( "Any HSL function failed!" );
+   const static string ERROR_MSG_WRITE_RECORD_FAILED        ( "Writing to COM port failed!" );
+   const static string ERROR_MSG_READ_RECORD_FAILED         ( "Reading from COM port failed (e.g. timeout)!" );
+   const static string ERROR_MSG_UNEXPECTED_TXRX_COMMAND    ( "Unexpected error in transmitting command/receiving response occurred!" );
+   const static string ERROR_MSG_UNEXPECTED_TXRX_RESET      ( "Unexpected error in transmitting software reset/receiving response occurred!" );
+   const static string ERROR_MSG_UNKNOWN_DEVICE_NAME        ( "Unknown device name (module identifier)!" );
+   const static string ERROR_MSG_UNKNOWN_ERROR_CODE         ( "Unknown error code!" );
+
+   static const  variable MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS( 4 );
+	static const  variable MultiDaisyChainCommunication_COM_SETTINGS( "1200,E,8,1,N,CR/LF" );
+
+
+	/*********************************************************************
+	*
+	* Module globale variables
+	*
+	*********************************************************************/
+
+	static global variable MultiDaisyChainCommunication_firstInitialize( 0 );
+	static global event    MultiDaisyChainCommunication_criticalSection[]( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS );
+	static global variable MultiDaisyChainCommunication_simulationFlag[]( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS );
+	static global variable MultiDaisyChainCommunication_trcLvl[]( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS );
+	static global variable MultiDaisyChainCommunication_portNo[]( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS );
+	static global file     MultiDaisyChainCommunication_comPort[]( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS );
+	static global variable MultiDaisyChainCommunication_comBuffer[]( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS );
+	static global variable MultiDaisyChainCommunication_moduleNames[]( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS );
+
+	/*********************************************************************
+	*
+	* Declarations
+	*
+	*********************************************************************/
+
+	function InitializeMultiDaisyChainCommPort( variable iSystemID, variable iComPort, variable iTraceLevel, variable iSimulate ) variable;
+	function InitializeMultiDaisyChainModule( variable iSystemID, variable iModuleName, variable iInitCommands, variable & oLastResponse ) variable;
+
+	function TerminateMultiDaisyChainModule( variable iSystemID, variable iModuleName, variable iTerminateCommands ) variable;
+	function TerminateMultiDaisyChainCommPort( variable iSystemID ) variable;	
+
+	function ListAllSystemIDs( variable & oSystemList[] ) void;
+	function ListAllModuleNames( variable iSystemID, variable & oModuleList[] ) variable;
+
+	function EvaluateCommErrorMessage( variable iErrorCode ) string;
+
+   function DaisyChainedTxRxCommandList( variable iSystemID, variable iModuleName, variable iCommandList, variable & oResponse ) variable;
+
+	static function DaisyChainedTxRxCommand( variable iSystemIDzeroBased, variable iModuleName, variable iCommand, variable iParameter, variable & oResponse ) variable;
+	static function DaisyChainedTxRxReset( variable iSystemIDzeroBased, variable iModuleName, variable & oResponse ) variable;
+	
+	/*********************************************************************
+	*
+	* Implementations
+	*
+	*********************************************************************/
+
+	function InitializeMultiDaisyChainCommPort( variable iSystemID, variable iComPort, variable iTraceLevel, variable iSimulate ) variable 
+	{
+      variable ii;
+
+
+		// -------------------------------------------------------------------------
+		// check parameters
+		// -------------------------------------------------------------------------
+		if(( 1 > iSystemID ) || ( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS <= iSystemID ))
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..", MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS, "]!" );
+			return( ERROR_PARAMETER_OUT_OF_RANGE );
+		}
+      iSystemID--;
+		if(( 1 > iComPort ) || ( 255 < iComPort ))
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Parameter comPort #", iComPort, " out of range [1..255]!" );
+			return( ERROR_PARAMETER_OUT_OF_RANGE );
+		}
+
+		// -------------------------------------------------------------------------
+		// check if first initialisation call
+		// -------------------------------------------------------------------------
+      if( 0 == MultiDaisyChainCommunication_firstInitialize )
+      {
+         for( ii = 0; ii < MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS; ii++ )
+         {
+	         MultiDaisyChainCommunication_portNo.SetAt( ii, 0 );
+	         MultiDaisyChainCommunication_comBuffer.SetAt( ii, "" );
+	         MultiDaisyChainCommunication_moduleNames.SetAt( ii, "" );
+      		MultiDaisyChainCommunication_trcLvl.SetAt( ii, TRACE_LEVEL_NORMAL );
+            MultiDaisyChainCommunication_simulationFlag.SetAt( ii, hslFalse );
+         }
+         MultiDaisyChainCommunication_firstInitialize++;
+      }
+
+		// -------------------------------------------------------------------------
+		// set trace level and output first function trace
+		// -------------------------------------------------------------------------
+		MultiDaisyChainCommunication_trcLvl.SetAt( iSystemID, iTraceLevel );
+		if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_START, " Initialize Multiport Daisy Chain on COM", iComPort, " for system ID #", iSystemID );
+
+		// -------------------------------------------------------------------------
+		// initialize common variables
+		// -------------------------------------------------------------------------
+      MultiDaisyChainCommunication_simulationFlag.SetAt( iSystemID, iSimulate );
+		MultiDaisyChainCommunication_criticalSection[iSystemID].SetEvent();
+
+		// -------------------------------------------------------------------------
+		// check if already initialized
+		// -------------------------------------------------------------------------
+      if( 0 != MultiDaisyChainCommunication_portNo.GetAt( iSystemID ))
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " System #", iSystemID + 1, " already initialized!" );
+			return( ERROR_SYSTEM_ALREADY_INITIALIZED );
+      }
+
+		// -------------------------------------------------------------------------
+		// check simulation mode
+		// -------------------------------------------------------------------------
+		if(( GetSimulationMode() == 1 ) || ( hslTrue == MultiDaisyChainCommunication_simulationFlag.GetAt( iSystemID )))
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_COMPLET, " Port initialisation and configuration simulated." );
+		}
+      else
+      {
+   		// -------------------------------------------------------------------------
+   		// initialize communication port
+   		// -------------------------------------------------------------------------
+   		MultiDaisyChainCommunication_criticalSection[iSystemID].WaitEvent( hslInfinite );
+   		MultiDaisyChainCommunication_comPort[iSystemID].SetDelimiter( hslAsciiText );
+   		if( 0 == MultiDaisyChainCommunication_comPort[iSystemID].AddField( 1, MultiDaisyChainCommunication_comBuffer.ElementAt( iSystemID ), hslString ))
+   		{
+   			FormatTrace( GetFunctionName(), "()", CMD_ERROR, "<AddField> failed!" );
+   			MultiDaisyChainCommunication_criticalSection[iSystemID].SetEvent();
+   			return( ERROR_HSL_FUNCTION_FAILED );
+   		}
+
+   		// -------------------------------------------------------------------------
+   		// Open port
+   		// -------------------------------------------------------------------------
+   		{
+   			variable openString( "COM" + IStr( iComPort ) + " " +  MultiDaisyChainCommunication_COM_SETTINGS );
+
+   			if( 0 == MultiDaisyChainCommunication_comPort[iSystemID].Open( openString, hslWrite ))
+   			{
+   				MultiDaisyChainCommunication_comPort[iSystemID].RemoveFields();  // is evident for redundant inits!!
+   				FormatTrace( GetFunctionName(), "()", CMD_ERROR, "<port.Open()> with [" + openString + "] failed!" );
+   				MultiDaisyChainCommunication_criticalSection[iSystemID].SetEvent();
+   				return( ERROR_HSL_FUNCTION_FAILED );
+   			}
+   			if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_PROGRESS, " port opened with [" + openString + "]" );
+   		}
+
+         // -------------------------------------------------------------------------
+         // first configure short timeouts and transmit/receive an empty string to
+         // initialize some Dell docking stations in a proper way!!!
+   		// -------------------------------------------------------------------------
+   		// Configure Timeouts
+   		// Timeout settings for timeout within HSL-functions <file::ReadRecord> and 
+   		// <file::WriteString>
+   		// These settings are used by the function <SetCommTimeouts>.
+   		// For more information see HSL Reference (document e253518b)
+   		// -------------------------------------------------------------------------
+   		{
+   			variable ReadIntervalTimeout( hslInfinite );			   // maximum time between read chars
+   			variable ReadTotalTimeoutMultiplier( hslInfinite );	// mutiplier of characters
+   			variable ReadTotalTimeoutConstant( 5.000 );	         // constant in seconds
+   			variable WriteTotalTimeoutMultiplier( 0.000 );			// mutiplier of characters 
+   			variable WriteTotalTimeoutConstant( 1.000 );			   // constant in seconds
+   			if( 0 == SetCommTimeouts( MultiDaisyChainCommunication_comPort.GetAt( iSystemID )))
+   			{
+   				MultiDaisyChainCommunication_criticalSection[iSystemID].SetEvent();
+   				TerminateMultiDaisyChainCommPort( iSystemID + 1 );  
+   				FormatTrace( GetFunctionName(), "()", CMD_ERROR, "<SetCommTimeouts> failed!" );
+   				return( ERROR_HSL_FUNCTION_FAILED );
+   			}
+   		}
+
+         MultiDaisyChainCommunication_comPort[iSystemID].WriteRecord();
+   		MultiDaisyChainCommunication_comPort[iSystemID].ReadRecord();
+
+   		// -------------------------------------------------------------------------
+   		// Configure Timeouts
+   		// Timeout settings for timeout within HSL-functions <file::ReadRecord> and 
+   		// <file::WriteString>
+   		// These settings are used by the function <SetCommTimeouts>.
+   		// For more information see HSL Reference (document e253518b)
+   		// -------------------------------------------------------------------------
+   		{
+   			variable ReadIntervalTimeout( hslInfinite );			   // maximum time between read chars
+   			variable ReadTotalTimeoutMultiplier( hslInfinite );	// mutiplier of characters
+   			variable ReadTotalTimeoutConstant( 250.000 );	      // constant in seconds
+   			variable WriteTotalTimeoutMultiplier( 0.000 );			// mutiplier of characters 
+   			variable WriteTotalTimeoutConstant( 1.000 );			   // constant in seconds
+   			if( 0 == SetCommTimeouts( MultiDaisyChainCommunication_comPort.GetAt( iSystemID )))
+   			{
+   				MultiDaisyChainCommunication_criticalSection[iSystemID].SetEvent();
+   				TerminateMultiDaisyChainCommPort( iSystemID + 1 );  
+   				FormatTrace( GetFunctionName(), "()", CMD_ERROR, "<SetCommTimeouts> failed!" );
+   				return( ERROR_HSL_FUNCTION_FAILED );
+   			}
+   		}
+   		MultiDaisyChainCommunication_criticalSection[iSystemID].SetEvent();
+      }
+
+		// -------------------------------------------------------------------------
+		// set initialized flag
+		// -------------------------------------------------------------------------
+		MultiDaisyChainCommunication_portNo.SetAt( iSystemID, iComPort );
+
+		if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_COMPLET );
+		return( ERROR_NONE );
+	}
+
+
+	
+	function InitializeMultiDaisyChainModule( variable iSystemID, variable iModuleName, variable iInitCommands, variable & oLastResponse ) variable
+   {
+      variable allModuleNames;
+      variable errCode;
+      variable command;
+      variable response;
+
+
+		if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_START, " Initialize module ", iModuleName, " on Multiport Daisy Chain for system ID #", iSystemID );
+		
+		// -------------------------------------------------------------------------
+		// check parameters
+		// -------------------------------------------------------------------------
+		if(( 1 > iSystemID ) || ( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS <= iSystemID ))
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..", MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS, "]!" );
+			return( ERROR_PARAMETER_OUT_OF_RANGE );
+		}
+      iSystemID--;
+
+		// -------------------------------------------------------------------------
+		// check if system initialized
+		// -------------------------------------------------------------------------
+      if( 0 == MultiDaisyChainCommunication_portNo.GetAt( iSystemID ))
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " System #", iSystemID + 1, " not yet initialized!" );
+			return( ERROR_SYSTEM_NOT_YET_INITIALIZED );
+      }
+
+		// -------------------------------------------------------------------------
+		// check if module already initialized
+		// -------------------------------------------------------------------------
+      allModuleNames = MultiDaisyChainCommunication_moduleNames.GetAt( iSystemID );
+      if( 0 <= StrFind( allModuleNames, iModuleName ))
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Module <", iModuleName, "> on System #", iSystemID + 1, " is already initialized!" );
+			return( ERROR_MODULE_ALREADY_INITIALIZED );
+      }
+
+		// -------------------------------------------------------------------------
+		// append new module name to module names string
+		// -------------------------------------------------------------------------
+      allModuleNames = allModuleNames + iModuleName;
+      MultiDaisyChainCommunication_moduleNames.SetAt( iSystemID, allModuleNames );
+/*
+		// -------------------------------------------------------------------------
+		// reset new module (with configuring timeouts)
+		// -------------------------------------------------------------------------
+      response = iModuleName + "AIer00";
+      errCode = DaisyChainedTxRxReset( iSystemID, iModuleName, response );
+      if( ERROR_NONE != errCode )
+      {
+   		// remove module name from module list because of failure
+         allModuleNames = StrLeft( allModuleNames, StrFind( allModuleNames, iModuleName )) + StrMid( allModuleNames, StrFind( allModuleNames, iModuleName ) + 2, StrGetLength( allModuleNames ));
+         MultiDaisyChainCommunication_moduleNames.SetAt( iSystemID, allModuleNames );
+         oLastResponse = response;
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Resetting module <", iModuleName, "> on System #", iSystemID + 1, " failed! Returned error message: ", EvaluateCommErrorMessage( errCode ));
+			return( errCode );
+      }
+      if( StrGetLength( response ) < 8 )
+      {
+   		// remove module name from module list because of failure
+         allModuleNames = StrLeft( allModuleNames, StrFind( allModuleNames, iModuleName )) + StrMid( allModuleNames, StrFind( allModuleNames, iModuleName ) + 2, StrGetLength( allModuleNames ));
+         MultiDaisyChainCommunication_moduleNames.SetAt( iSystemID, allModuleNames );
+         oLastResponse = response;
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Resetting module <", iModuleName, "> on System #", iSystemID + 1, " failed! (response = <", oLastResponse, ">, Length of response too short!) Error Text: ", EvaluateCommErrorMessage( ERROR_UNKNOWN_DEVICE_NAME ));
+         return( ERROR_UNKNOWN_DEVICE_NAME );
+      }
+		errCode = IVal( StrMid( oLastResponse, 6, 2 ));
+      if( errCode != 0 )
+      {
+   		// remove module name from module list because of failure
+         allModuleNames = StrLeft( allModuleNames, StrFind( allModuleNames, iModuleName )) + StrMid( allModuleNames, StrFind( allModuleNames, iModuleName ) + 2, StrGetLength( allModuleNames ));
+         MultiDaisyChainCommunication_moduleNames.SetAt( iSystemID, allModuleNames );
+         oLastResponse = response;
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Resetting module <", iModuleName, "> on System #", iSystemID + 1, " failed! Returned module error code = ", errCode );
+   		return( errCode );
+      }
+*/
+		// -------------------------------------------------------------------------
+		// transmit all necessary initialization commands
+		// -------------------------------------------------------------------------
+      errCode = DaisyChainedTxRxCommandList( iSystemID + 1, iModuleName, iInitCommands, oLastResponse );
+      if( ERROR_NONE != errCode )
+      {
+	   	if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Transmitting commands list failed! (Error code = ", errCode, ", response to last transmitted command is <", oLastResponse, ">" );
+   		return( errCode );
+      }
+
+		if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_COMPLET );
+		return( ERROR_NONE );
+   }
+
+
+
+	function TerminateMultiDaisyChainModule( variable iSystemID, variable iModuleName, variable iTerminateCommands ) variable
+   {
+      variable allModuleNames;
+      variable response;
+      variable errCode;
+
+
+		if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_START, " Terminate module ", iModuleName, " on Multiport Daisy Chain for system ID #", iSystemID );
+		
+		// -------------------------------------------------------------------------
+		// check parameters
+		// -------------------------------------------------------------------------
+		if(( 1 > iSystemID ) || ( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS <= iSystemID ))
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..", MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS, "]!" );
+			return( ERROR_PARAMETER_OUT_OF_RANGE );
+		}
+      iSystemID--;
+
+		// -------------------------------------------------------------------------
+		// check if system initialized
+		// -------------------------------------------------------------------------
+      if( 0 == MultiDaisyChainCommunication_portNo.GetAt( iSystemID ))
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " System #", iSystemID + 1, " not yet initialized!" );
+			return( ERROR_SYSTEM_NOT_YET_INITIALIZED );
+      }
+
+		// -------------------------------------------------------------------------
+		// check if module initialized
+		// -------------------------------------------------------------------------
+      allModuleNames = MultiDaisyChainCommunication_moduleNames.GetAt( iSystemID );
+      if( 0 > StrFind( allModuleNames, iModuleName ))
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Module <", iModuleName, "> on System #", iSystemID + 1, " was not initialized!" );
+			return( ERROR_MODULE_NOT_YET_INITIALIZED );
+      }
+
+		// -------------------------------------------------------------------------
+		// transmit all necessary commands before removing module from list
+		// -------------------------------------------------------------------------
+      response = iModuleName + "RFer00rf Module Simulation terminated";
+      errCode = DaisyChainedTxRxCommandList( iSystemID + 1, iModuleName, iTerminateCommands, response );
+      if( ERROR_NONE != errCode )
+      {
+	   	if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Transmitting commands list failed! (Error code = ", errCode, ", response to last transmitted command is <", response, ">" );
+   		return( errCode );
+      }
+
+		// -------------------------------------------------------------------------
+		// remove module name from module list
+		// -------------------------------------------------------------------------
+      allModuleNames = StrLeft( allModuleNames, StrFind( allModuleNames, iModuleName )) + StrMid( allModuleNames, StrFind( allModuleNames, iModuleName ) + 2, StrGetLength( allModuleNames ));
+      MultiDaisyChainCommunication_moduleNames.SetAt( iSystemID, allModuleNames );
+
+		if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_COMPLET );
+		return( ERROR_NONE );
+   }
+
+
+
+	function TerminateMultiDaisyChainCommPort( variable iSystemID ) variable
+	{
+		if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_START, " System ID #", iSystemID );
+	
+		// -------------------------------------------------------------------------
+		// check parameters
+		// -------------------------------------------------------------------------
+		if(( 1 > iSystemID ) || ( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS <= iSystemID ))
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..", MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS, "]!" );
+			return( ERROR_PARAMETER_OUT_OF_RANGE );
+		}
+      iSystemID--;
+
+		// -------------------------------------------------------------------------
+		// check if system initialized
+		// -------------------------------------------------------------------------
+      if( 0 == MultiDaisyChainCommunication_portNo.GetAt( iSystemID ))
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " System #", iSystemID + 1, " not yet initialized!" );
+			return( ERROR_SYSTEM_NOT_YET_INITIALIZED );
+      }
+
+		// -------------------------------------------------------------------------
+		// check if module(s) already initialized
+		// -------------------------------------------------------------------------
+      if( "" != MultiDaisyChainCommunication_moduleNames.GetAt( iSystemID ))
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " There are already initialized modules on System #", iSystemID + 1, " (moodule list is <", MultiDaisyChainCommunication_moduleNames.GetAt( iSystemID ), ">)!" );
+			return( ERROR_MODULE_ALREADY_INITIALIZED );
+      }
+
+		// -------------------------------------------------------------------------
+		// check simulation mode
+		// -------------------------------------------------------------------------
+		if(( GetSimulationMode() == 1 ) || ( hslTrue == MultiDaisyChainCommunication_simulationFlag.GetAt( iSystemID )))
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_COMPLET, " Port termination simulated." );
+		}
+      else
+      {
+   		// -------------------------------------------------------------------------
+   		// close comm. port
+   		// -------------------------------------------------------------------------
+   		MultiDaisyChainCommunication_criticalSection[iSystemID].WaitEvent( hslInfinite );
+   		MultiDaisyChainCommunication_comPort[iSystemID].RemoveFields();
+   		if( 0 != MultiDaisyChainCommunication_comPort[iSystemID].Close())
+   		{
+      		MultiDaisyChainCommunication_criticalSection[iSystemID].SetEvent();
+   			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " <port.Close()> failed!" );
+   			return( ERROR_HSL_FUNCTION_FAILED );
+   		}
+   		MultiDaisyChainCommunication_criticalSection[iSystemID].SetEvent();
+      }
+
+		// -------------------------------------------------------------------------
+		// remove COM port number from list
+		// -------------------------------------------------------------------------
+		MultiDaisyChainCommunication_portNo.SetAt( iSystemID, 0 );
+
+		if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_COMPLET );
+		return( ERROR_NONE );
+	}
+
+
+
+	function ListAllSystemIDs( variable & oSystemList[] ) void
+   {
+      variable ii;
+
+
+      for( ii = 0; ii < MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS; ii++ )
+      {
+         if( 0 < MultiDaisyChainCommunication_portNo.GetAt( ii ))
+         {
+            oSystemList.AddAsLast( ii + 1 );
+         }
+      }
+   }
+
+
+
+	function ListAllModuleNames( variable iSystemID, variable & oModuleList[] ) variable
+   {
+      variable allModuleNames;
+      variable moduleName;
+
+		// -------------------------------------------------------------------------
+		// check parameters
+		// -------------------------------------------------------------------------
+		if(( 1 > iSystemID ) || ( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS <= iSystemID ))
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..", MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS, "]!" );
+			return( ERROR_PARAMETER_OUT_OF_RANGE );
+		}
+      iSystemID--;
+
+		// -------------------------------------------------------------------------
+		// initialize variables;
+		// -------------------------------------------------------------------------
+      while( 0 < oModuleList.GetSize()) oModuleList.RemoveElementAt( 0 );
+      allModuleNames = MultiDaisyChainCommunication_moduleNames.GetAt( iSystemID );
+
+		// -------------------------------------------------------------------------
+		// search list
+		// -------------------------------------------------------------------------
+      while( 0 < StrGetLength( allModuleNames ))
+      {
+         moduleName = StrLeft( allModuleNames, 2 );
+         allModuleNames = StrMid( allModuleNames, 2, StrGetLength( allModuleNames ));
+         oModuleList.AddAsLast( moduleName );
+      }
+   }
+
+
+
+	function EvaluateCommErrorMessage( variable iErrorCode ) string
+	{
+	     if( iErrorCode == ERROR_NONE                       ) return( ERROR_MSG_NONE ); 
+	else if( iErrorCode == ERROR_SYSTEM_ALREADY_INITIALIZED ) return( ERROR_MSG_SYSTEM_ALREADY_INITIALIZED );
+   else if( iErrorCode == ERROR_SYSTEM_NOT_YET_INITIALIZED ) return( ERROR_MSG_SYSTEM_NOT_YET_INITIALIZED );
+	else if( iErrorCode == ERROR_MODULE_ALREADY_INITIALIZED ) return( ERROR_MSG_MODULE_ALREADY_INITIALIZED );
+   else if( iErrorCode == ERROR_MODULE_NOT_YET_INITIALIZED ) return( ERROR_MSG_MODULE_NOT_YET_INITIALIZED );
+	else if( iErrorCode == ERROR_PARAMETER_OUT_OF_RANGE     ) return( ERROR_MSG_PARAMETER_OUT_OF_RANGE );
+	else if( iErrorCode == ERROR_HSL_FUNCTION_FAILED        ) return( ERROR_MSG_HSL_FUNCTION_FAILED );
+	else if( iErrorCode == ERROR_WRITE_RECORD_FAILED        ) return( ERROR_MSG_WRITE_RECORD_FAILED );
+	else if( iErrorCode == ERROR_READ_RECORD_FAILED         ) return( ERROR_MSG_READ_RECORD_FAILED );
+	else if( iErrorCode == ERROR_UNEXPECTED_TXRX_COMMAND    ) return( ERROR_MSG_UNEXPECTED_TXRX_COMMAND );
+	else if( iErrorCode == ERROR_UNEXPECTED_TXRX_RESET      ) return( ERROR_MSG_UNEXPECTED_TXRX_RESET );
+   else if( iErrorCode == ERROR_UNKNOWN_DEVICE_NAME        ) return( ERROR_MSG_UNKNOWN_DEVICE_NAME );
+   else if( iErrorCode <  ERROR_NONE                       ) return( "Module error code!" );
+	else                                                      return( ERROR_MSG_UNKNOWN_ERROR_CODE );
+	}
+
+
+
+   function DaisyChainedTxRxCommandList( variable iSystemID, variable iModuleName, variable iCommandList, variable & oResponse ) variable
+   {
+      variable command;
+      variable parameter;
+      variable response;
+      variable errCode;
+Trace("*********************  COMMUNICATION LIB    **************************");
+Trace("*********************  PARAMETER    **************************");
+Trace("command = '", command , "'");
+Trace("parameter = '", parameter , "'");
+Trace("response = '", response , "'");
+Trace("errCode = '", errCode , "'");
+
+
+		// -------------------------------------------------------------------------
+		// check parameters
+		// -------------------------------------------------------------------------
+		if(( 1 > iSystemID ) || ( MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS <= iSystemID ))
+		{
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Parameter system ID #", iSystemID, " out of range [1..", MultiDaisyChainCommunication_NO_OF_MAX_SYSTEMS, "]!" );
+			return( ERROR_PARAMETER_OUT_OF_RANGE );
+		}
+      iSystemID--;
+      if( 0 > StrFind( MultiDaisyChainCommunication_moduleNames.GetAt( iSystemID ), iModuleName ))
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Module <", iModuleName, "> on System #", iSystemID + 1, " was not initialized!" );
+			return( ERROR_MODULE_NOT_YET_INITIALIZED );
+      }
+
+      while( "" != iCommandList )
+      {
+   		// -------------------------------------------------------------------------
+	   	// extract command and shorten command string
+		   // -------------------------------------------------------------------------
+         command = StrLeft( iCommandList, 2 );
+         iCommandList = StrMid( iCommandList, 2, StrGetLength( iCommandList ));
+
+   		// -------------------------------------------------------------------------
+	   	// extract parameter (if there are) and shorten init commands string
+		   // -------------------------------------------------------------------------
+         if(( 0 > StrFind( iCommandList, "," )) && (0 < StrGetLength( iCommandList )))
+         {
+            parameter = iCommandList;
+            iCommandList = "";
+         }
+         else
+         {
+            parameter = StrLeft( iCommandList, StrFind( iCommandList, "," ));
+            iCommandList = StrMid( iCommandList, StrFind( iCommandList, "," ) + 1, StrGetLength( iCommandList ));
+         }
+
+   		// -------------------------------------------------------------------------
+	   	// transmit found command with parameter and evaluate response
+		   // -------------------------------------------------------------------------
+         response = oResponse;
+
+Trace("*********************  RxCommand    **************************");
+Trace("iSystemID = '", iSystemID , "'");
+Trace("iModuleName = '", iModuleName , "'");
+Trace("command = '", command , "'");
+Trace("parameter = '", parameter , "'");
+Trace("response = '", response , "'");
+
+
+   		errCode = DaisyChainedTxRxCommand( iSystemID, iModuleName, command, parameter, response );
+Trace("Return response = '", response , "'");
+
+   		if( ERROR_NONE != errCode )
+   		{
+            oResponse = response;
+   			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Transmitting command/parameter <", command, parameter, "> to module <", iModuleName, "> on system #", iSystemID, " failed! (TxRxCommand(", iModuleName, command, parameter, "), response = <", oResponse, ">)" );
+   			return( errCode );
+   		}
+      }
+
+      oResponse = response;
+		if( TRACE_LEVEL_NORMAL < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemID )) FormatTrace( GetFunctionName(), "()", CMD_COMPLET, "Last response: <", oResponse, ">" );
+		return( ERROR_NONE );
+   }
+
+
+
+	static function DaisyChainedTxRxCommand( variable iSystemIDzeroBased, variable iModuleName, variable iCommand, variable iParameter, variable & oResponse ) variable
+	{
+		string cmd;
+	   variable errCode;
+
+
+		if( TRACE_LEVEL_NORMAL < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemIDzeroBased )) FormatTrace( GetFunctionName(), "()", CMD_START, "Command to send to system #", iSystemIDzeroBased + 1, ": <", iModuleName, iCommand, iParameter, ">" );
+
+		// Activate error handler
+		onerror goto Unexpected;
+		
+		// -------------------------------------------------------------------------
+		// prepare command string
+		// -------------------------------------------------------------------------
+		cmd = iModuleName;
+		cmd = cmd + iCommand;
+		cmd = cmd + iParameter;
+
+		// -------------------------------------------------------------------------
+		// check simulation mode
+		// -------------------------------------------------------------------------
+		if(( GetSimulationMode() == 1 ) || ( hslTrue == MultiDaisyChainCommunication_simulationFlag.GetAt( iSystemIDzeroBased )))
+		{
+			if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemIDzeroBased )) FormatTrace( GetFunctionName(), "()", CMD_PROGRESS, " Simulated command <", iModuleName, iCommand, iParameter, "> to system #", iSystemIDzeroBased + 1, ", simulated response <", oResponse, ">" );
+		}
+      else
+      {
+   		MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].WaitEvent( hslInfinite );
+	   	MultiDaisyChainCommunication_comBuffer.SetAt( iSystemIDzeroBased, cmd );
+
+   		// -------------------------------------------------------------------------
+   		// transmit command
+   		// -------------------------------------------------------------------------
+   		if( 0 == MultiDaisyChainCommunication_comPort[iSystemIDzeroBased].WriteRecord())
+   		{
+   			FormatTrace( GetFunctionName(), "()", CMD_ERROR, "<WriteRecord()> on system #", iSystemIDzeroBased + 1, " for command <", iModuleName, iCommand, iParameter, "> failed!" );
+   			MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].SetEvent();
+   			return( ERROR_WRITE_RECORD_FAILED );
+   		}
+
+   		// -------------------------------------------------------------------------
+   		// receive response
+   		// -------------------------------------------------------------------------
+   		if( 0 == MultiDaisyChainCommunication_comPort[iSystemIDzeroBased].ReadRecord())
+   		{
+   			FormatTrace( GetFunctionName(), "()", CMD_ERROR, "<ReadRecord()> on system #", iSystemIDzeroBased + 1, " for command <", iModuleName, iCommand, iParameter, "> failed!" );
+   			MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].SetEvent();
+   			return( ERROR_READ_RECORD_FAILED );
+   		}
+   		oResponse = MultiDaisyChainCommunication_comBuffer.GetAt( iSystemIDzeroBased );
+Trace(" ***************  COM BUFFER = '", oResponse, "'" );
+   		MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].SetEvent();
+		}
+
+		// -------------------------------------------------------------------------
+		// evaluate module response
+		// -------------------------------------------------------------------------
+      if( StrGetLength( oResponse ) < 8 )
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Command transmission on system #", iSystemIDzeroBased + 1, " failed! (TxRxCommand(", iModuleName, iCommand, iParameter, "), response = <", oResponse, ">, Length of response too short!) Error Text: ", EvaluateCommErrorMessage( ERROR_UNKNOWN_DEVICE_NAME ));
+         return( ERROR_UNKNOWN_DEVICE_NAME );
+      }
+		errCode = IVal( StrMid( oResponse, 6, 2 ));
+      if( errCode != 0 )
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Command transmission on system #", iSystemIDzeroBased + 1, " failed! (TxRxCommand(", iModuleName, iCommand, iParameter, "), response = <", oResponse, ">, module error code = ", errCode, ")" );
+   		return( errCode );
+      }
+
+		if( TRACE_LEVEL_NORMAL < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemIDzeroBased )) FormatTrace( GetFunctionName(), "()", CMD_COMPLET, "Response: <", oResponse, ">" );
+		return( ERROR_NONE );
+
+		Unexpected:
+		{
+			MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].SetEvent();
+			FormatTrace( GetFunctionName(), "()", CMD_PROGRESS, "Unexpected: Command <", iModuleName, iCommand, iParameter, "> to system #", iSystemIDzeroBased + 1, " responsed with <", oResponse, ">" );
+			return( ERROR_UNEXPECTED_TXRX_COMMAND );
+		}
+	}
+
+
+
+	static function DaisyChainedTxRxReset( variable iSystemIDzeroBased, variable iModuleName, variable & oResponse ) variable
+	{
+      variable response;
+      variable errCode;
+
+	
+		if( TRACE_LEVEL_NORMAL < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemIDzeroBased )) FormatTrace( GetFunctionName(), "()", CMD_START, " on system #", iSystemIDzeroBased + 1, " for module <", iModuleName, ">" );
+
+		// Activate error handler
+		onerror goto Unexpected;
+		
+		// -------------------------------------------------------------------------
+		// check simulation mode
+		// -------------------------------------------------------------------------
+		if(( GetSimulationMode() == 1 ) || ( hslTrue == MultiDaisyChainCommunication_simulationFlag.GetAt( iSystemIDzeroBased )))
+		{
+			if( TRACE_LEVEL_NONE < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemIDzeroBased )) FormatTrace( GetFunctionName(), "()", CMD_PROGRESS, " Simulated software reset to system #", iSystemIDzeroBased + 1, ", simulated response <", oResponse, ">" );
+		}
+      else
+      {
+   		response = "";
+   		MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].WaitEvent( hslInfinite );
+
+   		// -------------------------------------------------------------------------
+   		// Configure Timeouts
+   		// Timeout settings for timeout within HSL-functions <file::ReadRecord> and 
+   		// <file::WriteString>
+   		// These settings are used by the function <SetCommTimeouts>.
+   		// For more information see HSL Reference (document e253518b)
+   		// -------------------------------------------------------------------------
+   		{
+   			variable ReadIntervalTimeout( hslInfinite );			   // maximum time between read chars
+   			variable ReadTotalTimeoutMultiplier( hslInfinite );	// mutiplier of characters
+   			variable ReadTotalTimeoutConstant( 5.000 );	         // constant in seconds
+   			variable WriteTotalTimeoutMultiplier( 0.000 );			// mutiplier of characters 
+   			variable WriteTotalTimeoutConstant( 1.000 );			   // constant in seconds
+   			if( 0 == SetCommTimeouts( MultiDaisyChainCommunication_comPort.GetAt( iSystemIDzeroBased )))
+   			{
+   				MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].SetEvent();
+   				FormatTrace( GetFunctionName(), "()", CMD_ERROR, "<SetCommTimeouts> failed!" );
+   				return( ERROR_HSL_FUNCTION_FAILED );
+   			}
+   		}
+		
+      	// -------------------------------------------------------------------------
+         // clear receive buffer
+   		// -------------------------------------------------------------------------
+         MultiDaisyChainCommunication_comPort[iSystemIDzeroBased].ReadRecord();
+
+      	// -------------------------------------------------------------------------
+         // send reset command
+   		// -------------------------------------------------------------------------
+   		MultiDaisyChainCommunication_comBuffer.SetAt( iSystemIDzeroBased, iModuleName + "AI" );
+   		if( 0 == MultiDaisyChainCommunication_comPort[iSystemIDzeroBased].WriteRecord())
+   		{
+   			FormatTrace( GetFunctionName(), "()", CMD_ERROR, "<WriteRecord on system #", iSystemIDzeroBased, " for command <", iModuleName, "AI> failed!" );
+   			MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].SetEvent();
+   			return( ERROR_WRITE_RECORD_FAILED );
+   		}
+
+      	// -------------------------------------------------------------------------
+         // wait for command's response
+   		// -------------------------------------------------------------------------
+   		if( 0 == MultiDaisyChainCommunication_comPort[iSystemIDzeroBased].ReadRecord())
+   		{
+   			FormatTrace( GetFunctionName(), "()", CMD_ERROR, "<ReadRecord> on system #", iSystemIDzeroBased, " for command <", iModuleName, "AI> failed!" );
+   			MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].SetEvent();
+   			return( ERROR_READ_RECORD_FAILED );
+   		}
+   		response = MultiDaisyChainCommunication_comBuffer.GetAt( iSystemIDzeroBased );
+
+      	// -------------------------------------------------------------------------
+         // wait for empty message transmitted by software reset
+   		// -------------------------------------------------------------------------
+         MultiDaisyChainCommunication_comPort[iSystemIDzeroBased].ReadRecord();
+
+   		// -------------------------------------------------------------------------
+   		// Reconfigure Timeouts to normal settings
+   		// Timeout settings for timeout within HSL-functions <file::ReadRecord> and 
+   		// <file::WriteString>
+   		// These settings are used by the function <SetCommTimeouts>.
+   		// For more information see HSL Reference (document e253518b)
+   		// -------------------------------------------------------------------------
+   		{
+   			variable ReadIntervalTimeout( hslInfinite );			   // maximum time between read chars
+   			variable ReadTotalTimeoutMultiplier( hslInfinite );	// mutiplier of characters
+   			variable ReadTotalTimeoutConstant( 250.000 );	      // constant in seconds
+   			variable WriteTotalTimeoutMultiplier( 0.000 );			// mutiplier of characters 
+   			variable WriteTotalTimeoutConstant( 1.000 );			   // constant in seconds
+   			if( 0 == SetCommTimeouts( MultiDaisyChainCommunication_comPort.GetAt( iSystemIDzeroBased )))
+   			{
+   				MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].SetEvent();
+   				FormatTrace( GetFunctionName(), "()", CMD_ERROR, "<SetCommTimeouts> failed!" );
+   				return( ERROR_HSL_FUNCTION_FAILED );
+   			}
+   		}
+			MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].SetEvent();
+         oResponse = response;
+      }
+
+		// -------------------------------------------------------------------------
+		// evaluate module response
+		// -------------------------------------------------------------------------
+      if( StrGetLength( oResponse ) < 8 )
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Resetting system #", iSystemIDzeroBased + 1, " failed! (TxRxCommand(", iModuleName, "AI), response = <", oResponse, ">, Length of response too short!) Error Text: ", EvaluateCommErrorMessage( ERROR_UNKNOWN_DEVICE_NAME ));
+         return( ERROR_UNKNOWN_DEVICE_NAME );
+      }
+		errCode = IVal( StrMid( oResponse, 6, 2 ));
+      if( errCode != 0 )
+      {
+			FormatTrace( GetFunctionName(), "()", CMD_ERROR, " Command transmission on system #", iSystemIDzeroBased + 1, " failed! (TxRxCommand(", iModuleName, "AI), response = <", oResponse, ">, module error code = ", errCode, ")" );
+   		return( errCode );
+      }
+
+		if( TRACE_LEVEL_NORMAL < MultiDaisyChainCommunication_trcLvl.GetAt( iSystemIDzeroBased )) FormatTrace( GetFunctionName(), "()", CMD_COMPLET, "Response: <", oResponse, ">" );
+		return( ERROR_NONE );
+
+		Unexpected:
+		{
+			MultiDaisyChainCommunication_criticalSection[iSystemIDzeroBased].SetEvent();
+			FormatTrace( GetFunctionName(), "()", CMD_PROGRESS, "Unexpected: Command <", iModuleName, "AI> to system #", iSystemIDzeroBased + 1, " responded with <", oResponse, ">" );
+			return( ERROR_UNEXPECTED_TXRX_RESET );
+		}
+	}
+
+
+
+}	//end namespace 
+
+
+#endif
+// $$author=dkaufmann$$valid=0$$time=2015-10-07 17:02$$checksum=26c9d488$$length=088$$
