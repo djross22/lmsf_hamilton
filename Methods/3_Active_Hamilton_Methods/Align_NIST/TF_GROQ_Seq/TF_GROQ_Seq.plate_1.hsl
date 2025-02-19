@@ -1,0 +1,255 @@
+ namespace _Method { #include "Common\\Common96HeadSubMethods.hs_" } 
+ namespace _Method { #include "HSLTipCountingLib.hsl" } 
+ namespace _Method { #include "HSLSeqLib.hsl" } 
+ namespace _Method { #include "HSLStrLib.hsl" } 
+ namespace _Method { #include "HSLTrcLib.hsl" } 
+ namespace _Method { #include "HSLExtensions\\Dictionary.hsl" } 
+ namespace _Method { #include "HSLExtensions\\String.hsl" } 
+ namespace _Method { #include "HSLExtensions\\File.hsl" } 
+ namespace _Method { #include "Common\\Tip Handling\\With 96-Head\\Tip Handling with 96-Head.hs_" } 
+ namespace _Method { #include "HSLExtensions\\Directory.hsl" } 
+ namespace _Method { #include "HSLTimLib.hsl" } 
+ namespace _Method { #include "Common\\LMSF_Utilities.hs_" } 
+ namespace _Method { #include "Common\\PlateAndLidMovement.hs_" } 
+ namespace _Method { #include "GSF-IMS Project\\GSF-IMS.shared_submethods.hs_" } 
+#include "TF_GROQ_Seq.NIST.res"
+/* {{ 2 "LibraryInsertLine" "" */ // }} ""
+variable inducer_stock_concentration;
+variable inducer_id;
+variable inducer_units;
+variable worklist_file_path;
+variable strain_1_id;
+sequence tip_seq_arr[];
+variable tip_counter_array[];
+variable is_pipetting;
+variable culture_volume;
+variable additive_id;
+variable additive_units;
+variable additive_stock_concentration;
+sequence bacteria_stocks_arr[];
+sequence bacteria_dispense_arr[];
+variable is_clonal_test;
+variable plasmid_1_id_arr[];
+variable plasmid_2_id_arr[];
+variable plasmid_3_id_arr[];
+variable media_volume;
+variable cell_volume;
+variable cell_counter;
+global device ML_STAR ("TF_GROQ_Seq.NIST.lay", "ML_STAR", hslTrue);
+/* {{ 2 "VariableInsertLine" "" */ // }} ""
+// {{ 2 "TemplateIncludeBlock" ""
+ namespace _Method { #include "HSLMETEDLib.hs_" } 
+ namespace _Method { #include "HSLMECCLib.hs_" } 
+ namespace _Method { #include "HSLPTLLib.hsl" } 
+// }} ""
+// {{{ 2 "LocalSubmethodInclude" ""
+ namespace _Method {  #include __filename__ ".sub"  } 
+// }} ""
+/* {{ 2 "ProcessInsertLine" "" */ // }} ""
+// {{{ 5 "main" "Begin"
+namespace _Method { method main(  ) void {
+// }} ""
+// {{ 5 "main" "InitLocals"
+// }} ""
+// {{ 2 "AutoInitBlock" ""
+PTL::SetWashingStateDefault("RinseTime1", 5);
+PTL::SetWashingStateDefault("SoakTime1", 5);
+PTL::SetWashingStateDefault("FlowRate1", 11);
+PTL::SetWashingStateDefault("RinseTime2", 0);
+PTL::SetWashingStateDefault("SoakTime2", 0);
+PTL::SetWashingStateDefault("FlowRate2", 11);
+PTL::SetWashingStateDefault("DrainingTime", 10);
+PTL::SetWashingStateDefault("StartWashLiquid", 0);
+PTL::SetLoadingStateDefault("RecoveryOptionContinue", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionExclude", hslTrue);
+PTL::SetLoadingStateDefault("RecoveryOptionDefault", 0);
+PTL::SetLoadingStateDefault("KitLotCheckEnabled", hslFalse);
+COMMON96HEADSUBMETHODS::_InitLibrary();
+TIP_HANDLING_WITH_96_HEAD::_InitLibrary();
+LMSF_UTILITIES::_InitLibrary();
+PLATEANDLIDMOVEMENT::_InitLibrary();
+GSF_IMS_SHARED_SUBMETHODS::_InitLibrary();
+::RegisterAbortHandler( "OnAbort");
+// }} ""
+// {{ 1 1 0 "9c35cf45_2429_48b9_94f1edf36e444c8a" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("==========================================================================================\nThis method used for preparing plate 1, with just media and bacteria in all the wells, for growth to stationary phase.\n\nIt uses 16 1000 uL tips\n=========================================================================================="));
+// }} ""
+// {{{ 2 1 0 "a2db3744_86f1_4de2_8e15edca45a5c869" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+GetParams();
+// }} ""
+// {{{ 3 1 0 "65492f06_28ca_4957_8a7421bef78e3006" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+StartUp();
+// }} ""
+// {{ 4 1 0 "43ac2d7b_1277_468a_b3ed8e5c3562321b" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 5 1 0 "62d98c75_292c_42cb_9a3ce63aba77ed9e" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+bacteria_stocks_arr.SetSize(0);
+// }} ""
+// {{ 6 1 0 "7406a19e_8483_40ba_becc338faca4c14d" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_clonal_test == "true")
+{
+// }} ""
+// {{ 7 1 0 "a7d6f8cf_c43e_4521_bc73c618e6227665" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+bacteria_stocks_arr.AddAsLast(ML_STAR.bacteria_stocks_1);
+// }} ""
+// {{ 8 1 0 "7f2a522b_e347_4411_8b1d3143f086237a" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+bacteria_stocks_arr.AddAsLast(ML_STAR.bacteria_stocks_2);
+// }} ""
+// {{ 9 1 0 "5861b584_7ca8_48e4_87fc88ba011bfa2d" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+bacteria_stocks_arr.AddAsLast(ML_STAR.bacteria_stocks_3);
+// }} ""
+// {{ 10 1 0 "7406a19e_8483_40ba_becc338faca4c14d" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+else
+{
+// }} ""
+// {{ 11 1 0 "3b53b4c8_d7d5_4b7d_9792e224319b64fe" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+bacteria_stocks_arr.AddAsLast(ML_STAR.library_stock_1);
+// }} ""
+// {{ 12 1 0 "b7d5d54f_74f8_471c_89acf53b347abddb" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+bacteria_stocks_arr.AddAsLast(ML_STAR.library_stock_2);
+// }} ""
+// {{ 13 1 0 "dfc119b6_915f_4fa9_91e377bed76b96e0" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+bacteria_stocks_arr.AddAsLast(ML_STAR.library_stock_3);
+// }} ""
+// {{ 14 1 0 "7406a19e_8483_40ba_becc338faca4c14d" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 15 1 0 "d8a592b8_ecea_4a65_a68758f2fa62be26" "{4900C1F7-0FB7-4033-8253-760BDB9354DC}"
+bacteria_dispense_arr.SetSize(0);
+// }} ""
+// {{ 16 1 0 "b2ac061b_c6cd_44b9_a03f48ddbb2c4fbc" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+bacteria_dispense_arr.AddAsLast(ML_STAR.bacteria_dispense_1);
+// }} ""
+// {{ 17 1 0 "1e6e4576_8f85_4d79_9c7715422d710532" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+bacteria_dispense_arr.AddAsLast(ML_STAR.bacteria_dispense_2);
+// }} ""
+// {{ 18 1 0 "4376f6f1_e9a2_492d_bed9864a75477072" "{F17B7626-27CB-47f1-8477-8C4158339A6D}"
+bacteria_dispense_arr.AddAsLast(ML_STAR.bacteria_dispense_3);
+// }} ""
+// {{ 19 1 0 "43ac2d7b_1277_468a_b3ed8e5c3562321b" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 20 1 0 "1e3f5f6d_7860_477c_aea32b640937b25f" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 21 1 0 "f1d7976d_0e3e_4dfc_83bc007c9a979e8f" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveGrowthPlateWithLid(ML_STAR.Move_Growth_Plate_Handoff, ML_STAR.Growth_Plate_Handoff_lid, ML_STAR.Move_Growth_Plate, ML_STAR.Growth_Plate_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 1, 0, ML_STAR);
+// }} ""
+// {{{ 22 1 0 "c21ca61a_f72e_4f80_9a87f63e630961ed" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Growth_Plate_lid, ML_STAR.Lid_parking_Growth_Plate, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{{ 23 1 0 "9b14e2e7_bfeb_48a5_af15b47f57035a94" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Media_source_lid, ML_STAR.Lid_parking_Media_trough, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 1, ML_STAR);
+// }} ""
+// {{ 24 1 0 "1e3f5f6d_7860_477c_aea32b640937b25f" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 25 1 0 "6cb5501c_995e_4ad3_8362d561739d3ed0" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 26 1 0 "042fea7b_b011_4531_9a0da7dab056cfff" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("==============================================================\nPipette media into growth plate.\n=============================================================="));
+// }} ""
+// {{ 27 1 0 "11fef283_5245_4dbc_9b2ebc9c4e7055be" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_pipetting == "true")
+{
+// }} ""
+// {{ 28 1 0 "89900999_4ae9_4db4_94bbb70f5ac0e9e7" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+media_volume = culture_volume * 0.9;
+// }} ""
+// {{{ 29 1 0 "fb046d9b_77d6_42da_bb73fa6ff07a64c0" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+GSF_IMS_SHARED_SUBMETHODS::tip_pickup(ML_STAR.Tips_1000_Channels, 8, ML_STAR);
+// }} ""
+// {{{ 30 1 0 "122176c8_fb3a_4950_b1f20dbbd73197c9" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+GSF_IMS_SHARED_SUBMETHODS::pipette_media(ML_STAR.Media_pipette_from, ML_STAR.Media_dispense_all, media_volume, 1, ML_STAR.Tips_1000_Channels, 8, ML_STAR);
+// }} ""
+// {{{ 31 1 0 "00525ef5_9109_4625_9c2ae610a46e8db2" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+GSF_IMS_SHARED_SUBMETHODS::tip_eject(8, ML_STAR);
+// }} ""
+// {{ 32 1 0 "11fef283_5245_4dbc_9b2ebc9c4e7055be" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 33 1 0 "6cb5501c_995e_4ad3_8362d561739d3ed0" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 34 1 0 "e8e5c69c_3406_4152_87ef92d802a3f585" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 35 1 0 "9f63f2b3_d641_49c3_a1f4c27c76341683" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Lid_parking_Media_trough, ML_STAR.Media_source_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 1, 1, ML_STAR);
+// }} ""
+// {{ 36 1 0 "e8e5c69c_3406_4152_87ef92d802a3f585" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 37 1 0 "32938ea6_c20d_4df0_8c60437524c702c6" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 38 1 0 "bd52fcb3_fc2a_4366_8075223a54a4d878" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("==============================================================\nPipette cells into growth plate.\n=============================================================="));
+// }} ""
+// {{ 39 1 0 "536d71cc_5da1_4218_9d08c0b3614efd22" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+if (is_pipetting == "true")
+{
+// }} ""
+// {{ 40 1 0 "1f49af05_795b_463e_971bd893a55155e2" "{B31F3544-5D80-11d4-A5EB-0050DA737D89}"
+cell_volume = culture_volume * 0.1;
+// }} ""
+// {{ 41 1 0 "437b8eff_cb95_4c2d_8cd3737e3be234d0" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+{
+for(cell_counter = 0; cell_counter < 3;)
+{
+cell_counter = cell_counter + 1;
+// }} ""
+// {{{ 42 1 0 "7b533d4b_645a_4f10_84610b9d4e4e3f37" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+GSF_IMS_SHARED_SUBMETHODS::pipette_cells_from_tubes(bacteria_stocks_arr.ElementAt( cell_counter -1), bacteria_dispense_arr.ElementAt( cell_counter -1), cell_volume, 2, 800, ML_STAR.Tips_1000_Channels, 8, ML_STAR);
+// }} ""
+// {{ 43 1 0 "437b8eff_cb95_4c2d_8cd3737e3be234d0" "{B31F3532-5D80-11d4-A5EB-0050DA737D89}"
+}
+}
+// }} ""
+// {{ 44 1 0 "536d71cc_5da1_4218_9d08c0b3614efd22" "{B31F3531-5D80-11d4-A5EB-0050DA737D89}"
+}
+// }} ""
+// {{ 45 1 0 "32938ea6_c20d_4df0_8c60437524c702c6" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 46 1 0 "c2ad5188_f710_438e_bac566e587f28d91" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{{ 47 1 0 "237300d5_f32c_434a_b2c9c0dedba032fa" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Lid_parking_Growth_Plate, ML_STAR.Growth_Plate_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 1, 0, ML_STAR);
+// }} ""
+// {{{ 48 1 0 "5cd3a348_2cc1_48cb_a4a78762f8e6eace" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveGrowthPlateWithLid(ML_STAR.Move_Growth_Plate, ML_STAR.Growth_Plate_lid, ML_STAR.Move_Growth_Plate_Handoff, ML_STAR.Growth_Plate_Handoff_lid, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 0, ML_STAR);
+// }} ""
+// {{{ 49 1 0 "2218b08a_8bc4_448f_88b09caf9c2f0844" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+PLATEANDLIDMOVEMENT::MoveLid(ML_STAR.Growth_Plate_Handoff_lid, ML_STAR.Lid_parking_Old_Growth_Plate, ML_STAR.COREGripTool_OnWaste_1000ul_0001, 0, 1, ML_STAR);
+// }} ""
+// {{ 50 1 0 "c2ad5188_f710_438e_bac566e587f28d91" "{586C3429-F931-405f-9938-928E22C90BFA}"
+
+// }} ""
+// {{ 51 1 0 "73927669_4892_43d0_b78e4d7585d1a8cc" "{F07B0071-8EFC-11d4-A3BA-002035848439}"
+MECC::TraceComment(Translate("-----------------------------------------------------------------------------------------------------------"));
+// }} ""
+// {{{ 52 1 0 "7e1eb7b1_c099_4a28_864ac3e87a2c5123" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+CalculateOutputs();
+// }} ""
+// {{{ 53 1 0 "2baee7a6_c11a_4d48_bbde669b3c03f78d" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+SaveWorklistAndMetadata();
+// }} ""
+// {{{ 54 1 0 "0d6e5c5e_f5d8_4d67_85f0d3dcafb7bb67" "{7C4EF7A7-39BE-406a-897F-71F3A35B4093}"
+CleanUp();
+// }} ""
+// {{ 2 "AutoExitBlock" ""
+COMMON96HEADSUBMETHODS::_ExitLibrary();
+TIP_HANDLING_WITH_96_HEAD::_ExitLibrary();
+LMSF_UTILITIES::_ExitLibrary();
+PLATEANDLIDMOVEMENT::_ExitLibrary();
+GSF_IMS_SHARED_SUBMETHODS::_ExitLibrary();
+// }} ""
+// {{{ 5 "main" "End"
+} }
+// }} ""
+// $$author=djross$$valid=0$$time=2025-02-19 15:09$$checksum=d4a01541$$length=085$$
