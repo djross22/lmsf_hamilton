@@ -1,11 +1,12 @@
-// ======================================================================
+// ------------------------------------------------------------------------------------------------------------------------------------------------------
 // Implementation of Hamilton DriverTools used in HSL libraries
 //
 // Copyright(C) by HAMILTON Bonaduz AG, CH-7402 Bonaduz.
 // All rights reserved.
-// ======================================================================
+// ------------------------------------------------------------------------------------------------------------------------------------------------------
 //
 // Modification History
+//
 //      2012-10-05, v1.0: Bernd Huf,          created
 //      2012-12-19, v1.1: Bernd Huf,          changed name and namespace to Hamilton DriverTools
 //      2013-02-04, v1.2: Bernd Huf,          new functions:
@@ -78,7 +79,77 @@
 //      2015-09-23  v3.2  DKaufmann           new functionality
 //                                            - Set/Get IniFile Values (DLL)
 //      2016-01-12  v3.3  DKaufmann           files validated
-// ======================================================================
+//      2016-10-05  v3.4  Bernd Huf           new functions:
+//                                            - ASCII2Char
+//                                            - Char2ASCII
+//                                            new private function:
+//                                            - _CheckStringLength
+//                                            bugfix in function 'CheckChannelPattern': exchanged string parameter by variable parameter
+//                                            cleaned up a bit
+//      2017-01-19  v3.5  Bernd Huf           bugfix in function 'ASCII2Char': string handling
+//                                            bugfix in function 'Char2ASCII': string handling
+//      2017-09-20  v3.6  Bernd Huf           changes
+//                                            - return value of function 'StatusTrace' changed from variable to void
+//                                            - return value of function 'StatusTraceArray' changed from variable to void
+//                                            - return value of function 'TraceArrayFaceToFace' changed from variable to void
+//                                            - name of function 'TraceArrayFaceToFace' to 'StatusTraceTwoArrays' (old name still available)
+//      2019-07-03  v3.7  Bernd Huf           new function:
+//                                            - CheckIPv4Address
+//                                            new private function:
+//                                            - _SplitString
+//                                            enhancement in private function
+//                                            - _CheckIntegerRange exchanges min and max in case they are set reversed
+//      2020-09-23  v3.8  Bernd Huf           new functions:
+//                                            - GetAvailablePortNames
+//                                            - GetAvailablePortNumbers
+//      2020-10-30  v3.9  Bernd Huf           changes:
+//                                            - bugfix in function 'FindInArray': return -1 instead of ASWGLOBAL::BOOL::FALSE in case of wrong parameters
+//                                            - bugfix in function 'ReverseFind': return -1 instead of ASWGLOBAL::BOOL::FALSE in case of wrong parameters
+//                                            - bugfix in function 'FillLeft': return "" instead of ASWGLOBAL::BOOL::FALSE in case of wrong parameters
+//                                            - bugfix in function 'FillRight': return "" instead of ASWGLOBAL::BOOL::FALSE in case of wrong parameters
+//                                            - bugfix in function 'TrimLeft': return "" instead of ASWGLOBAL::BOOL::FALSE in case of wrong parameters
+//                                            - bugfix in function 'TrimRight': return "" instead of ASWGLOBAL::BOOL::FALSE in case of wrong parameters
+//                                            - bugfix in function 'Uppercase': return "" instead of ASWGLOBAL::BOOL::FALSE in case of wrong parameters
+//                                            - bugfix in function 'Lowercase': return "" instead of ASWGLOBAL::BOOL::FALSE in case of wrong parameters
+//                                            - bugfix in function 'Replace': return "" instead of ASWGLOBAL::BOOL::FALSE in case of wrong parameters
+//                                            - bugfix in function 'FloatToString': return "" instead of ASWGLOBAL::BOOL::FALSE in case of wrong parameters
+//                                            - bugfix in function 'FloatToString': return "" instead of ASWGLOBAL::BOOL::FALSE in case of wrong parameters
+//                                            - changed function 'GetAvailablePortNames' and 'GetAvailablePortNumbers' due to changes in dll
+//      2020-12-04  v4.0  Bernd Huf           new function:
+//                                            - GetFilesInDirectory
+//                                            change:
+//                                            - adapted array names to v3.0 of AAW 650410
+//      2021-12-21  v4.1  Bernd Huf / Janis Magnin
+//                                           new function:
+//                                            - 'StatusTrace_2_Arrays' replaces (now static) function 'StatusTraceTwoArrays'
+//                                            - 'StatusTrace_3_Arrays'
+//                                            changes:
+//                                            - bugfix in function 'StatusTrace_2_Arrays': trace info about empty arrays in case of all arrays empty
+//                                            - bugfix in function 'StatusTrace_3_Arrays': trace info about empty arrays in case of all arrays empty
+//      2022-02-04  v4.5  Janis Magnin / Bernd Huf
+//                                           new function:
+//                                            - 'StatusAddArray'
+//                                            - 'StatusTraceArrays' replaces all (now static) array trace functions
+//                                            - 'CheckValueInArray' extends and replace (now static) function 'CheckIntegerInArray'
+//                                            change:
+//                                            - versioning adapted to output version
+//                                            - changed DATA_TYPE to VALUE_TYPE using HSL constants
+//                                            - cosmetic changes in trace strings
+//                                            - removed private function 'ConvertToString' and exchanged all occurrences with '_ToString'
+//      2022-09-20  v4.6  Bernd Huf
+//                                            - changed VALUE_TYPE back to DATA_TYPE
+//                                            - bugfix in function 'StatusAddArray': add parameter 'i_strReferenceModuleName' for thread-safety
+//                                            - new private functions '_ArrayToString' and '_StringToArray'
+//      2022-10-26  v4.7  Bernd Huf
+//                                            - changed constants of namespace ACTION to static (redundant with TraceLevel library)
+//                                            - added function 'RegistryKeyExists'
+//                                            - added function 'RegistryGetValue'
+//                                            - added function 'CheckVenus'
+//                                            - added private function '_InitializeLibrary'
+//                                            - added global variable 'gHamilton_DriverTools_blnInitialized'
+//                                            - added global event 'gHamilton_DriverTools_hdlSemaphore'
+//                                            - cosmetic changes in function 'StatusTraceArrays'
+// ------------------------------------------------------------------------------------------------------------------------------------------------------
 
 #ifndef __Hamilton_DriverTools_hsl__
   #define __Hamilton_DriverTools_hsl__ 1
@@ -95,77 +166,72 @@
   {
     namespace ACTION
     {
-      const variable START                (1);
-      const variable COMPLETE             (2);
-      const variable ERROR                (3);
-      const variable PROGRESS             (4);
-      const variable COMPLETE_WITH_ERROR  (5);
+      static const variable START                         (1);
+      static const variable COMPLETE                      (2);
+      static const variable ERROR                         (3);
+      static const variable PROGRESS                      (4);
+      static const variable COMPLETE_WITH_ERROR           (5);
     }
 
     namespace VALUE_RANGE
     {
-      const variable POSITIVE_ZERO        (0);
-      const variable POSITIVE             (1);
-      const variable NEGATIVE_ZERO        (2);
-      const variable NEGATIVE             (3);
+      const variable POSITIVE_ZERO                        (0);
+      const variable POSITIVE                             (1);
+      const variable NEGATIVE_ZERO                        (2);
+      const variable NEGATIVE                             (3);
     }
 
     namespace DATA_TYPE
     {
-      const variable INTEGER                ("i");
-      const variable FLOAT                  ("f");
-      const variable STRING                 ("s");
+      const variable INTEGER                              ("i");
+      const variable FLOAT                                ("f");
+      const variable STRING                               ("s");
     }
 
-    namespace TYPE
-    {
-      const variable INTEGER                ("integer");
-      const variable FLOAT                  ("float");
-      const variable STRING                 ("string");
-    }
+    const static string   chr                             ("\001\002\003\004\005\006\007\008\009\010\011\012\013\014\015\016\017\018\019\020\021\022\023\024\025\026\027\028\029\030\031\032\033\034\035\036\037\038\039\040\041\042\043\044\045\046\047\048\049\050\051\052\053\054\055\056\057\058\059\060\061\062\063\064\065\066\067\068\069\070\071\072\073\074\075\076\077\078\079\080\081\082\083\084\085\086\087\088\089\090\091\092\093\094\095\096\097\098\099\100\101\102\103\104\105\106\107\108\109\110\111\112\113\114\115\116\117\118\119\120\121\122\123\124\125\126\127\128\129\130\131\132\133\134\135\136\137\138\139\140\141\142\143\144\145\146\147\148\149\150\151\152\153\154\155\156\157\158\159\160\161\162\163\164\165\166\167\168\169\170\171\172\173\174\175\176\177\178\179\180\181\182\183\184\185\186\187\188\189\190\191\192\193\194\195\196\197\198\199\200\201\202\203\204\205\206\207\208\209\210\211\212\213\214\215\216\217\218\219\220\221\222\223\224\225\226\227\228\229\230\231\232\233\234\235\236\237\238\239\240\241\242\243\244\245\246\247\248\249\250\251\252\253\254\255");
+    const static variable Hamilton_DriverTools_ModuleName ("Hamilton DriverTools");
+    const static variable NetDriverTools                  ("Hamilton.HSL.DriverTools");
 
-    const static variable Hamilton_DriverTools_ModuleName           ("Hamilton DriverTools");
-    const static variable NetDriverTools                            ("Hamilton.HSL.DriverTools");
+    global private variable gHamilton_DriverTools_arrStrArraysToTrace[]       (0);
+    global private variable gHamilton_DriverTools_arrStrArrayDescriptions[]   (0);
+    global private variable gHamilton_DriverTools_arrStrArrayReferenceNames[] (0);
+    global private variable gHamilton_DriverTools_blnInitialized              (hslFalse);
+    global private event    gHamilton_DriverTools_hdlSemaphore;
 
-    // declarations of public functions 
+    // --------------------------------------------------------------------------------
     // Trace functions
+    // --------------------------------------------------------------------------------
     function StatusTrace(variable i_intState,
                          variable i_intTraceLevel,
                          variable i_strMessage,
                          variable i_strFunctionName,
                          variable i_intReferenceTraceLevel,
-                         variable i_strReferenceModuleName) variable;
-
-    function StatusTraceArray(variable i_intState,
-                              variable i_intTraceLevel,
-                              variable i_arrvarToTrace[],
-                              variable i_strDescription,
-                              variable i_strFunctionName,
-                              variable i_intReferenceTraceLevel,
-                              variable i_strReferenceModuleName) variable;
+                         variable i_strReferenceModuleName) void;
 
     function ExtractFunctionName(variable i_strFunctionName,
                                  variable& o_strExtractedFunctionName,
                                  variable i_strReferenceModuleName) variable;
 
-    function TraceArrayFaceToFace(variable i_intState,
-                                  variable i_intTraceLevel,
-                                  variable i_strDescription_1,
-                                  variable i_arrvarArray_1[],
-                                  variable i_strDescription_2,
-                                  variable i_arrvarArray_2[],
-                                  variable i_strFunctionName,
-                                  variable i_intReferenceTraceLevel,
-                                  variable i_strReferenceModuleName) variable;
+    function StatusAddArray(variable i_strDescription,
+                            variable i_arrVarValues[],
+                            variable i_strReferenceModuleName) void;
 
+    function StatusTraceArrays(variable i_intState,
+                               variable i_intTraceLevel,
+                               variable i_strFunctionName,
+                               variable i_intReferenceTraceLevel,
+                               variable i_strReferenceModuleName) void;
+
+    // --------------------------------------------------------------------------------
     // Check functions
+    // --------------------------------------------------------------------------------
     function CheckTypeRange(variable i_strType,               //i, s, f
                             variable i_strVariableToCheck,    // variable name
                             variable& io_varVariable,         // variable to check
                             variable i_varMin,                // min value(f, i) min length (s)
                             variable i_varMax,                // max value(f, i) max length (s)
                             variable i_varDefault,            // default value on error
-                            variable i_strFunctionName,       // calling funcktion
+                            variable i_strFunctionName,       // calling function
                             variable i_strReferenceModuleName) variable; //calling module
 
     function CheckInteger(variable i_varVariableToCheck,
@@ -179,12 +245,6 @@
                                variable i_intMax,
                                variable i_strFunctionName,
                                variable i_strReferenceModuleName) variable;
-
-    function CheckIntegerInArray(variable i_varVariableToCheck,
-                                 variable i_strTraceEntry,
-                                 variable i_arrintAllowedValues[],
-                                 variable i_strFunctionName,
-                                 variable i_strReferenceModuleName) variable;
 
     function CheckIntegerValue(variable i_varVariableToCheck,
                                variable i_strTraceEntry,
@@ -243,38 +303,52 @@
                                variable i_strFunctionName,
                                variable i_strReferenceModuleName) variable;
 
-    function CheckChannelPattern(string i_varVariableToCheck,
+    function CheckChannelPattern(variable i_varVariableToCheck,
                                  variable i_strTraceEntry,
                                  variable i_intChannelCount,
                                  variable i_strFunctionName,
                                  variable i_strReferenceModuleName) variable;
 
-    function CheckArrayEquality(variable i_arrvarCheck_1[],
-                                variable i_arrvarCheck_2[],
+    function CheckIPv4Address(variable i_varVariableToCheck,
+                              variable i_strTraceEntry,
+                              variable i_strFunctionName,
+                              variable i_strReferenceModuleName) variable;
+
+    function CheckArrayEquality(variable i_arrVarCheck_1[],
+                                variable i_arrVarCheck_2[],
                                 variable i_strFunctionName,
                                 variable i_strReferenceModuleName) variable;
 
-    function CheckArraysForSameSize(variable i_arrvarCheck_1[],
-                                    variable i_arrvarCheck_2[],
+    function CheckArraysForSameSize(variable i_arrVarCheck_1[],
+                                    variable i_arrVarCheck_2[],
                                     variable i_strTraceEntry1,
                                     variable i_strTraceEntry2,
                                     variable i_strFunctionName,
                                     variable i_strReferenceModuleName) variable;
 
-    function CheckArraySize(variable i_arrvarCheck[],
+    function CheckArraySize(variable i_arrVarCheck[],
                             variable i_strTraceEntry,
                             variable i_intMinSize,
                             variable i_intMaxSize,
                             variable i_strFunctionName,
                             variable i_strReferenceModuleName) variable;
 
-    function CheckArrayType(variable i_arrvarCheck[],
+    function CheckArrayType(variable i_arrVarCheck[],
                             variable i_strTraceEntry,
                             variable i_strType,
                             variable i_strFunctionName,
                             variable i_strReferenceModuleName) variable;
 
+    function CheckValueInArray(variable i_varVariableToCheck,
+                               variable i_strTraceEntry,
+                               variable i_strValueType,
+                               variable i_arrVarAllowedValues[],
+                               variable i_strFunctionName,
+                               variable i_strReferenceModuleName) variable;
+
+    // --------------------------------------------------------------------------------
     // String functions
+    // --------------------------------------------------------------------------------
     function ReverseFind(variable i_strStringToParse,
                          variable i_strSubstringToFind,
                          variable i_strFunctionName,
@@ -325,12 +399,26 @@
                            variable i_strFunctionName,
                            variable i_strReferenceModuleName) variable;
 
+    function ASCII2Char(variable i_intASCIICode,
+                        variable i_strTraceEntry,
+                        variable& o_strChar,
+                        variable i_strFunctionName,
+                        variable i_strReferenceModuleName) variable;
+
+    function Char2ASCII(variable i_strChar,
+                        variable i_strTraceEntry,
+                        variable& o_intASCIIValue,
+                        variable i_strFunctionName,
+                        variable i_strReferenceModuleName) variable;
+
+    // --------------------------------------------------------------------------------
     // Miscellaneous functions
+    // --------------------------------------------------------------------------------
     function Delay(variable i_fltDelayTime,
                    variable i_strFunctionName,
                    variable i_strReferenceModuleName) variable;
 
-    function FindInArray(variable i_arrvarArrayToCheck[],
+    function FindInArray(variable i_arrVarArrayToCheck[],
                          variable i_varValueToFind,
                          variable i_strFunctionName,
                          variable i_strReferenceModuleName) variable;
@@ -359,7 +447,89 @@
                              variable i_strValue,
                              variable& o_strErrorMessage)variable;
 
+    function GetAvailablePortNames(variable i_strFunctionName,
+                                   variable i_strReferenceModuleName,
+                                   variable& o_arrStrAvailablePortNames[])variable;
+
+    function GetAvailablePortNumbers(variable i_strFunctionName,
+                                    variable i_strReferenceModuleName,
+                                    variable& o_arrIntAvailablePortNumbers[])variable;
+
+    function GetFilesInDirectory(variable i_strDirectoryName,
+                                 variable i_strFunctionName,
+                                 variable i_strReferenceModuleName,
+                                 variable& o_arrStrFileNames[])variable;
+
+    function RegistryKeyExists(variable i_strKeyName,
+                               variable i_strValueName,
+                                variable i_strFunctionName,
+                                variable i_strReferenceModuleName,
+                               variable& o_blnKeyExists) variable;
+
+    function RegistryGetValue(variable i_strKeyName,
+                               variable i_strValueName,
+                               variable i_strFunctionName,
+                               variable i_strReferenceModuleName,
+                               variable& o_blnKeyExists,
+                               variable& o_strValue) variable;
+
+    function CheckVenus(variable i_strFunctionName,
+                        variable i_strReferenceModuleName,
+                        variable& o_strVenusVersion,
+                        variable& o_blnIsVoV) variable;
+
+    // --------------------------------------------------------------------------------
+    // static functions
+    // --------------------------------------------------------------------------------
+    static function StatusTraceTwoArrays(variable i_intState,
+                                         variable i_intTraceLevel,
+                                         variable i_strDescription_1,
+                                         variable i_arrVarArray_1[],
+                                         variable i_strDescription_2,
+                                         variable i_arrVarArray_2[],
+                                         variable i_strFunctionName,
+                                         variable i_intReferenceTraceLevel,
+                                         variable i_strReferenceModuleName) void;
+
+    static function CheckIntegerInArray(variable i_varVariableToCheck,
+                                        variable i_strTraceEntry,
+                                        variable i_arrIntAllowedValues[],
+                                        variable i_strFunctionName,
+                                        variable i_strReferenceModuleName) variable;
+
+    static function StatusTraceArray(variable i_intState,
+                                     variable i_intTraceLevel,
+                                     variable i_arrVarToTrace[],
+                                     variable i_strDescription,
+                                     variable i_strFunctionName,
+                                     variable i_intReferenceTraceLevel,
+                                     variable i_strReferenceModuleName) void;
+
+    static function StatusTrace_2_Arrays(variable i_intState,
+                                         variable i_intTraceLevel,
+                                         variable i_arrVarArray_1[],
+                                         variable i_arrVarArray_2[],
+                                         variable i_strDescription_1,
+                                         variable i_strDescription_2,
+                                         variable i_strFunctionName,
+                                         variable i_intReferenceTraceLevel,
+                                         variable i_strReferenceModuleName) void;
+
+    static function StatusTrace_3_Arrays(variable i_intState,
+                                         variable i_intTraceLevel,
+                                         variable i_arrVarArray_1[],
+                                         variable i_arrVarArray_2[],
+                                         variable i_arrVarArray_3[],
+                                         variable i_strDescription_1,
+                                         variable i_strDescription_2,
+                                         variable i_strDescription_3,
+                                         variable i_strFunctionName,
+                                         variable i_intReferenceTraceLevel,
+                                         variable i_strReferenceModuleName) void;
+
+    // --------------------------------------------------------------------------------
     // declarations of private functions
+    // --------------------------------------------------------------------------------
     private function _CheckBool(variable i_varVariableToCheck,
                                 variable i_strTraceEntry,
                                 variable i_strFunctionName,
@@ -387,6 +557,13 @@
                                   variable i_strFunctionName,
                                   variable i_strReferenceModuleName) variable;
 
+    private function _CheckStringLength(variable i_varVariableToCheck,
+                                        variable i_strTraceEntry,
+                                        variable i_intLengthMin,
+                                        variable i_intLengthMax,
+                                        variable i_strFunctionName,
+                                        variable i_strReferenceModuleName) variable;
+
     private function _ReverseFind(string i_strStringToParse,
                                   string i_strSubstringToFind) variable;
 
@@ -410,21 +587,35 @@
 
     private function _ToString(variable i_varValue) variable;
 
+    private function _ToStringWithQuotes(variable i_varValue) variable;
+
     private function _GetComma() string;
 
-    private function _FindInArray(variable i_arrvarArrayToCheck[],
+    private function _FindInArray(variable i_arrVarArrayToCheck[],
                                   variable i_varValueToFind) variable;
 
     private function _ExtractFunctionName(variable i_strFunctionName) variable;
 
     private function _StringLength(string i_strStringToCheck) variable;
 
-    private function _LongestElementSize(variable i_arrvarToCheck[]) variable;
+    private function _LongestElementSize(variable i_arrVarToCheck[]) variable;
 
-    private function _ConvertToString(variable i_varVariableToConvert) variable;
-    //********************************************************************************
-    //* functions
-    //********************************************************************************
+    private function _SplitString(variable i_strToSplit,
+                                  variable i_strSplitCharacter,
+                                  variable& o_arrStrSplitted[]) void;
+
+    private function _GetState(i_intState) variable;
+
+    private function _ArrayToString(variable i_arrVarArray[]) variable;
+
+    private function _StringToArray(variable i_strArrayString,
+                                    variable& o_arrVarArray[]) void;
+
+    private function _InitializeLibrary() void;
+
+    //----------------------------------------------------------------------------------------------
+    // function LibraryTest
+    //----------------------------------------------------------------------------------------------
     static function LibraryTest() void
     {
       variable var;
@@ -442,7 +633,8 @@
       var = "25"; Trace("StartValue = ", var); CheckTypeRange(DATA_TYPE::INTEGER, "TestValue", var, 0, 10, 5, GetFunctionName(), Hamilton_DriverTools_ModuleName); Trace("Result = ", var);
       var = 22; Trace("StartValue = ", var); CheckTypeRange(DATA_TYPE::FLOAT, "TestValue", var, 0.0, 10.0, 5.0, GetFunctionName(), Hamilton_DriverTools_ModuleName); Trace("Result = ", var);
       var = "22"; Trace("StartValue = ", var); CheckTypeRange(DATA_TYPE::FLOAT, "TestValue", var, 0.0, 10.0, 5.0, GetFunctionName(), Hamilton_DriverTools_ModuleName); Trace("Result = ", var);
-   }
+    } // LibraryTest
+
     //----------------------------------------------------------------------------------------------
     // function StatusTrace
     //----------------------------------------------------------------------------------------------
@@ -451,164 +643,164 @@
                          variable i_strMessage,
                          variable i_strFunctionName,
                          variable i_intReferenceTraceLevel,
-                         variable i_strReferenceModuleName) variable
+                         variable i_strReferenceModuleName) void
     {
       variable strFunctionName("");
 
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "StatusTrace")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "StatusTrace")) return;
       strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckIntegerRange(i_intState, "i_intState", ACTION::START, ACTION::COMPLETE_WITH_ERROR, strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckIntegerRange(i_intTraceLevel, "i_intTraceLevel", TRACE_LEVEL_NONE, TRACE_LEVEL_DEBUG, strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strMessage, "i_strMessage", strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strFunctionName, "i_strFunctionName", strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckIntegerRange(i_intReferenceTraceLevel, "i_intReferenceTraceLevel", TRACE_LEVEL_NONE, TRACE_LEVEL_DEBUG, strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strReferenceModuleName, "i_strReferenceModuleName", strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckIntegerRange(i_intState, "i_intState", ACTION::START, ACTION::COMPLETE_WITH_ERROR, strFunctionName, i_strReferenceModuleName)) return;
+      if(!_CheckIntegerRange(i_intTraceLevel, "i_intTraceLevel", TRACE_LEVEL_NONE, TRACE_LEVEL_DEBUG, strFunctionName, i_strReferenceModuleName)) return;
+      if(!_CheckString(i_strMessage, "i_strMessage", strFunctionName, i_strReferenceModuleName)) return;
+      if(!_CheckString(i_strFunctionName, "i_strFunctionName", strFunctionName, i_strReferenceModuleName)) return;
+      if(!_CheckIntegerRange(i_intReferenceTraceLevel, "i_intReferenceTraceLevel", TRACE_LEVEL_NONE, TRACE_LEVEL_DEBUG, strFunctionName, i_strReferenceModuleName)) return;
+      if(!_CheckString(i_strReferenceModuleName, "i_strReferenceModuleName", strFunctionName, i_strReferenceModuleName)) return;
 
       if(i_intTraceLevel <= i_intReferenceTraceLevel)
         FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, i_intState, " ", i_strMessage);
-      return(ASWGLOBAL::BOOL::TRUE);
-    } // _StatusTrace
+    } // StatusTrace
 
     //----------------------------------------------------------------------------------------------
-    // function StatusTraceArray
+    // function StatusAddArray
     //----------------------------------------------------------------------------------------------
-    function StatusTraceArray(variable i_intState,
-                              variable i_intTraceLevel,
-                              variable i_arrvarToTrace[],
-                              variable i_strDescription,
-                              variable i_strFunctionName,
-                              variable i_intReferenceTraceLevel,
-                              variable i_strReferenceModuleName) variable
+    function StatusAddArray(variable i_strDescription,
+                            variable i_arrVarValues[],
+                            variable i_strReferenceModuleName) void
     {
-      variable intActualPosition, intArraySize, intFillupSize;
-      variable strFunctionName("");
+      _InitializeLibrary();
+      gHamilton_DriverTools_hdlSemaphore.WaitEvent(hslInfinite);
+      // convert the array to trace into a string and save it to the global array
+      gHamilton_DriverTools_arrStrArraysToTrace.AddAsLast(_ArrayToString(i_arrVarValues));
+      gHamilton_DriverTools_arrStrArrayDescriptions.AddAsLast(i_strDescription);
+      gHamilton_DriverTools_arrStrArrayReferenceNames.AddAsLast(i_strReferenceModuleName);
+      gHamilton_DriverTools_hdlSemaphore.SetEvent();
+    } // StatusAddArray
 
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "StatusTraceArray")) return(ASWGLOBAL::BOOL::FALSE);
-      strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckIntegerRange(i_intState, "i_intState", ACTION::START, ACTION::COMPLETE_WITH_ERROR, strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckIntegerRange(i_intTraceLevel, "i_intTraceLevel", TRACE_LEVEL_NONE, TRACE_LEVEL_DEBUG, strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strDescription, "i_strDescription", strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckIntegerRange(i_intReferenceTraceLevel, "i_intReferenceTraceLevel", TRACE_LEVEL_NONE, TRACE_LEVEL_DEBUG, strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+    //----------------------------------------------------------------------------------------------
+    // function StatusTraceArrays
+    //----------------------------------------------------------------------------------------------
+    function StatusTraceArrays(variable i_intState,
+                               variable i_intTraceLevel,
+                               variable i_strFunctionName,
+                               variable i_intReferenceTraceLevel,
+                               variable i_strReferenceModuleName) void
+    {
+      variable blnDescriptionAvailable(hslTrue);
+      variable intActualElement(0), intInputArraySize(0), intArraySize(0), intIndex(0), intFillupSize(0), intNumberSize(0);
+      variable strSingleLine(""), strDescription("");
+      variable arrStrArrays[](0), arrStrDescriptions[](0), arrOutput[](0), arrVarTemp[](0), arrStrArrayToAdd[](0);
 
+      _InitializeLibrary();
+      gHamilton_DriverTools_hdlSemaphore.WaitEvent(hslInfinite);
       if(i_intTraceLevel <= i_intReferenceTraceLevel)
       {
-        intArraySize = i_arrvarToTrace.GetSize();
-        if(intArraySize >0)
+        // extract all lines (=arrays) to trace from global arrays
+        for(intActualElement = 0; intActualElement < gHamilton_DriverTools_arrStrArraysToTrace.GetSize(); intActualElement++)
         {
-          intFillupSize = _StringLength(IStr(intArraySize));
-          for(intActualPosition = 0; intActualPosition < intArraySize; intActualPosition++)
-            FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, i_intState,
-                        i_strDescription + " [" + _FillLeft(IStr(intActualPosition), "0", intFillupSize) + "] : ",
-                        i_arrvarToTrace.GetAt(intActualPosition));
+          if(gHamilton_DriverTools_arrStrArrayReferenceNames.GetAt(intActualElement) == i_strReferenceModuleName)
+          {
+            arrStrArrays.AddAsLast(gHamilton_DriverTools_arrStrArraysToTrace.GetAt(intActualElement));
+            arrStrDescriptions.AddAsLast(gHamilton_DriverTools_arrStrArrayDescriptions.GetAt(intActualElement));
+          }
         }
-        else
-          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, i_intState,
-                      i_strDescription + ": empty array.");
+
+        for(intActualElement = 0; intActualElement < arrStrArrays.GetSize(); intActualElement++)
+        {
+          arrStrArrayToAdd.SetSize(0);
+          blnDescriptionAvailable = hslTrue;
+
+          // extract each array of the arrays to trace
+          _StringToArray(arrStrArrays.GetAt(intActualElement), arrVarTemp);
+
+          intInputArraySize = arrVarTemp.GetSize();
+
+          if(intActualElement == 0)
+          {
+            // initialize array if not yet done
+            for(intIndex = 0; intIndex < intInputArraySize; intIndex++)
+              arrOutput.AddAsLast("");
+          }
+
+          // calculate the size of the position information
+          intNumberSize = _StringLength(IStr(intInputArraySize));
+
+          strDescription = arrStrDescriptions.GetAt(intActualElement) +  "[" + _FillLeft("", "0", intNumberSize) + "]: ";
+
+          if(intInputArraySize == 0)
+          {
+            arrStrArrayToAdd.AddAsLast(arrStrDescriptions.GetAt(intActualElement) + ": empty array");
+            intInputArraySize = intInputArraySize + 1;
+            strDescription = "";
+            blnDescriptionAvailable = hslFalse;
+          }
+          else
+          {
+            for(intIndex = 0; intIndex < intInputArraySize; intIndex++)
+              arrStrArrayToAdd.AddAsLast(_ToStringWithQuotes(arrVarTemp.GetAt(intIndex)));
+          }
+
+          // get longest element in array to trace for filling up with spaces
+          intFillupSize = _LongestElementSize(arrStrArrayToAdd);
+          intFillupSize = intFillupSize + _StringLength(strDescription) + 2; // add two spaces to separate from next array to add
+
+          intArraySize = arrOutput.GetSize();
+
+          if(intInputArraySize > intArraySize)
+          {
+            variable intLongestElementSize(0);
+            intLongestElementSize = _LongestElementSize(arrOutput);
+            for(intIndex = intArraySize; intIndex < intInputArraySize; intIndex++)
+            {
+              arrOutput.AddAsLast(_FillRight("", " ", intLongestElementSize));
+            }
+            intArraySize = intInputArraySize;
+          }
+
+          for(intIndex = 0; intIndex < intArraySize; intIndex++)
+          {
+            strSingleLine = arrOutput.GetAt(intIndex);
+
+            if(blnDescriptionAvailable)
+             strDescription = arrStrDescriptions.GetAt(intActualElement) +  "[" + _FillLeft(IStr(intIndex + 1), "0", intNumberSize) + "]: ";
+
+            if(intIndex < intInputArraySize)
+            {
+              // add array value
+              strSingleLine = strSingleLine + _FillRight(strDescription + 
+                                                         arrStrArrayToAdd.GetAt(intIndex),
+                                                         " ", intFillupSize);
+            }
+            else
+            {
+              // add spaces for non existing array value
+              strSingleLine = strSingleLine + _FillRight(""," ", intFillupSize);
+            }
+
+            arrOutput.SetAt(intIndex, strSingleLine);
+          }
+        }
+
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, i_intState, _FillRight("", "-", _LongestElementSize(arrOutput)));
+
+        for(intActualElement = 0; intActualElement < arrOutput.GetSize(); intActualElement++)
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, i_intState, arrOutput.GetAt(intActualElement));
+
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, i_intState, _FillRight("", "-", _LongestElementSize(arrOutput)));
       }
-      return(ASWGLOBAL::BOOL::TRUE);
-    } // StatusTraceArray
 
-    //----------------------------------------------------------------------------------------------
-    // function TraceArrayFaceToFace
-    //----------------------------------------------------------------------------------------------
-    function TraceArrayFaceToFace(variable i_intState,
-                                  variable i_intTraceLevel,
-                                  variable i_strDescription_1,
-                                  variable i_arrvarArray_1[],
-                                  variable i_strDescription_2,
-                                  variable i_arrvarArray_2[],
-                                  variable i_strFunctionName,
-                                  variable i_intReferenceTraceLevel,
-                                  variable i_strReferenceModuleName) variable
-    {
-      variable intActualPosition, intArraySize_1, intArraySize_2, intArraySizeMax, intFillupSize_1, intFillupSize_2, intGapLength;
-      variable strFunctionName(""), strToTrace("");
-
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "TraceArrayFaceToFace")) return(ASWGLOBAL::BOOL::FALSE);
-      strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckIntegerRange(i_intState, "i_intState", ACTION::START, ACTION::COMPLETE_WITH_ERROR, strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckIntegerRange(i_intTraceLevel, "i_intTraceLevel", TRACE_LEVEL_NONE, TRACE_LEVEL_DEBUG, strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strDescription_1, "i_strDescription_1", strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strDescription_2, "i_strDescription_2", strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckIntegerRange(i_intReferenceTraceLevel, "i_intReferenceTraceLevel", TRACE_LEVEL_NONE, TRACE_LEVEL_DEBUG, strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-
-      if(i_intTraceLevel > i_intReferenceTraceLevel) return(ASWGLOBAL::BOOL::TRUE);
-
-      // save array size for later usage
-      intArraySize_1 = i_arrvarArray_1.GetSize();
-      intArraySize_2 = i_arrvarArray_2.GetSize();
-
-      // calculate the size of the position information (example: [001] for array with 100 to 999 elements)
-      intFillupSize_1 = _StringLength(IStr(intArraySize_1));
-      intFillupSize_2 = _StringLength(IStr(intArraySize_2));
-
-      // in case of empty array, "fake" the entry that is written in this case
-      if(intArraySize_1 == 0) i_arrvarArray_1.AddAsLast("empty array");
-      if(intArraySize_2 == 0) i_arrvarArray_2.AddAsLast("empty array");
-
-      // check for the longest element in array 1 to calculate the gap to fill up for shorter elements
-      intGapLength = _LongestElementSize(i_arrvarArray_1);
-
-      if(intArraySize_1 == 0) i_arrvarArray_1.SetSize(0);
-      if(intArraySize_2 == 0) i_arrvarArray_2.SetSize(0);
-
-      if(intGapLength > 0) intGapLength = intGapLength + _StringLength(i_strDescription_1) + intFillupSize_1;
-
-      if(i_strDescription_1 != "") intGapLength = intGapLength + 8;
-
-      if(intArraySize_1 > intArraySize_2) intArraySizeMax = intArraySize_1; else intArraySizeMax = intArraySize_2;
-
-      for(intActualPosition = 0; intActualPosition < intArraySizeMax; intActualPosition++)
+      // clear global arrays from traced entries
+      for(intActualElement = 0; intActualElement < gHamilton_DriverTools_arrStrArraysToTrace.GetSize(); intActualElement++)
       {
-        strToTrace = "";
-        if(intActualPosition < intArraySize_1)
+        if(gHamilton_DriverTools_arrStrArrayReferenceNames.GetAt(intActualElement) == i_strReferenceModuleName)
         {
-          if(i_strDescription_1 != "")
-          {
-            strToTrace = i_strDescription_1 +
-                         " [" +
-                         _FillLeft(IStr(intActualPosition + 1), "0", intFillupSize_1) +
-                         "]: ";
-          }
-          strToTrace = strToTrace + _ToString(i_arrvarArray_1.GetAt(intActualPosition));
+          gHamilton_DriverTools_arrStrArraysToTrace.RemoveElementAt(intActualElement);
+          gHamilton_DriverTools_arrStrArrayDescriptions.RemoveElementAt(intActualElement);
+          gHamilton_DriverTools_arrStrArrayReferenceNames.RemoveElementAt(intActualElement);
+          intActualElement--;
         }
-
-        if(intActualPosition == 0 && intArraySize_1 == 0)
-        {
-          if(i_strDescription_1 != "")
-          {
-            strToTrace = i_strDescription_1 + ": ";
-          }
-          strToTrace = strToTrace + "empty array";
-        }
-
-        strToTrace = _FillRight(strToTrace, " ", intGapLength);
-
-        if(intActualPosition < intArraySize_2)
-        {
-          if(i_strDescription_2 != "")
-          {
-            strToTrace = strToTrace +
-                         i_strDescription_2 +
-                         " [" +
-                         _FillLeft(IStr(intActualPosition + 1), "0", intFillupSize_2) +
-                         "]: ";
-          }
-          strToTrace = strToTrace + _ToString(i_arrvarArray_2.GetAt(intActualPosition));
-        }
-
-        if(intActualPosition == 0 && intArraySize_2 == 0)
-        {
-          if(i_strDescription_2 != "")
-          {
-            strToTrace = strToTrace + i_strDescription_2 + ": ";
-          }
-          strToTrace = strToTrace + "empty array";
-        }
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, i_intState, strToTrace);
       }
-      return(ASWGLOBAL::BOOL::TRUE);
-    } // TraceArrayFaceToFace
+      gHamilton_DriverTools_hdlSemaphore.SetEvent();
+    } // StatusTraceArrays
 
     //----------------------------------------------------------------------------------------------
     // function CheckTypeRange
@@ -623,7 +815,7 @@
                             variable i_strReferenceModuleName) variable // calling module
     {
       string tmp;
-      //IMNPUT CHECK
+
       if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "CheckTypeRange")) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckString(i_strVariableToCheck, "i_strVariableToCheck", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
@@ -632,7 +824,7 @@
         if(!_CheckInteger(i_varMin, "i_varMin", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
         if(!_CheckInteger(i_varMax, "i_varMax", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
       }
-      if(i_strType == DATA_TYPE::FLOAT) 
+      if(i_strType == DATA_TYPE::FLOAT)
       {
         if(GetType(i_varMin) != "f")
         {
@@ -643,7 +835,7 @@
           else
           {
             FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, 
-            " ", "Value [" + _ConvertToString(i_varMin) + "] is not a Number!");
+            " ", "Value [" + _ToString(i_varMin) + "] is not a Number !");
             return(ASWGLOBAL::BOOL::FALSE);
           }
         }
@@ -656,7 +848,7 @@
           else
           {
             FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, 
-            " ", "Value [" + _ConvertToString(i_varMax) + "] is not a Number!");
+            " ", "Value [" + _ToString(i_varMax) + "] is not a Number !");
             return(ASWGLOBAL::BOOL::FALSE);
           }
         }
@@ -664,9 +856,9 @@
       if(GetType(i_varDefault) == DATA_TYPE::STRING)
       {
         if(GetType(i_varDefault) != DATA_TYPE::STRING)
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, 
-        " ", "DefaultValue is not of Type string!");
-        return(ASWGLOBAL::BOOL::FALSE);         
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, 
+          " ", "DefaultValue is not of type string !");
+        return(ASWGLOBAL::BOOL::FALSE);
       }
 
       if(GetType(i_varDefault) != i_strType)
@@ -678,18 +870,18 @@
         else
         {
           FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, 
-          " ", "DefaultValue [" + _ConvertToString(i_varMax) + "] is not of Type " + _ConvertToString(i_strType) + "!");
+          " ", "DefaultValue [" + _ToString(i_varMax) + "] is not of type " + _ToString(i_strType) + " !");
           return(ASWGLOBAL::BOOL::FALSE);
         }
       }
 
-     // FLOAT / INTEGER
+      // FLOAT / INTEGER
       if(i_strType == DATA_TYPE::INTEGER)
       {
         if(!_CheckInteger(io_varVariable, "io_varVariable", i_strFunctionName, i_strReferenceModuleName)) 
         {
           FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE, 
-          " ", "Dwfault Value [" + _ConvertToString(i_varMax) + "] has been set!");
+          " ", "Dwfault Value [" + _ToString(i_varMax) + "] has been set !");
           io_varVariable = i_varDefault;
           return(ASWGLOBAL::BOOL::TRUE);
         }
@@ -697,34 +889,34 @@
         if(io_varVariable < i_varMin)
         {
           FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE, 
-          " ", "Min Value [" + _ConvertToString(i_varMin) + "] has been set!");
+          " ", "Min Value [" + _ToString(i_varMin) + "] has been set !");
           io_varVariable = i_varMin;
           return(ASWGLOBAL::BOOL::TRUE);
         }
         if(io_varVariable > i_varMax)
         {
           FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE, 
-          " ", "Max Value [" + _ConvertToString(i_varMax) + "] has been set!");
+          " ", "Max Value [" + _ToString(i_varMax) + "] has been set !");
           io_varVariable = i_varMax;
           return(ASWGLOBAL::BOOL::TRUE);
         }
       }
-      //STRING
+      // STRING
       if(i_strType == DATA_TYPE::STRING)
       {
         if(!_CheckString(io_varVariable, "io_varVariable", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
         tmp = io_varVariable;
-        if(tmp.GetLength() < i_varMin || tmp.GetLength() > i_varMin)
+        if(tmp.GetLength() < i_varMin || tmp.GetLength() > i_varMax)
         {
           FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, 
-          " ", "String length must be between " + _ConvertToString(i_varMin) + " and " + _ConvertToString(i_varMax) + " characters long!");
+          " ", "String length must be between " + _ToString(i_varMin) + " and " + _ToString(i_varMax) + " characters long !");
           io_varVariable = i_varDefault;
           return(ASWGLOBAL::BOOL::FALSE);
         }
       }
       return(ASWGLOBAL::BOOL::TRUE);
-    }
+    } // CheckTypeRange
 
     //----------------------------------------------------------------------------------------------
     // function CheckInteger
@@ -736,12 +928,10 @@
     {
       if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "CheckInteger")) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      
+      if(!_CheckInteger(i_varVariableToCheck, i_strTraceEntry, i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
-      if(GetType(i_varVariableToCheck) == "i")
-        return (ASWGLOBAL::BOOL::TRUE);
-      else
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type integer !");
-      return(ASWGLOBAL::BOOL::FALSE);
+      return(ASWGLOBAL::BOOL::TRUE);
     } // CheckInteger
 
     //----------------------------------------------------------------------------------------------
@@ -759,15 +949,9 @@
       if(!_CheckInteger(i_intMin, "i_intMin", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckInteger(i_intMax, "i_intMax", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
-      if(GetType(i_varVariableToCheck) == "i")
-        if(i_varVariableToCheck >= i_intMin && i_varVariableToCheck <= i_intMax)
-          return (ASWGLOBAL::BOOL::TRUE);
-        else
-          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry +
-                      "'  Value " + IStr(i_varVariableToCheck) + " is out of range (" + IStr(i_intMin) + ".." + IStr(i_intMax) + ") !");
-      else
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type integer !");
-      return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckIntegerRange(i_varVariableToCheck, i_strTraceEntry, i_intMin, i_intMax, i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      return(ASWGLOBAL::BOOL::TRUE);
     } // CheckIntegerRange
 
     //----------------------------------------------------------------------------------------------
@@ -789,7 +973,7 @@
 
       if(GetType(i_varVariableToCheck) == "i")
         if(i_varVariableToCheck >= i_intMin && i_varVariableToCheck <= i_intMax)
-          if(i_varVariableToCheck % i_intFactor == 0.0)
+          if(i_varVariableToCheck % i_intFactor == 0)
             return (ASWGLOBAL::BOOL::TRUE);
           else
           FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
@@ -800,55 +984,9 @@
       else
         FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
                     "Parameter '" + i_strTraceEntry + "' is not of type integer !");
+
       return (ASWGLOBAL::BOOL::FALSE);
     } // CheckIntegerFactorRange
-
-    //----------------------------------------------------------------------------------------------
-    // function CheckIntegerInArray
-    //----------------------------------------------------------------------------------------------
-    function CheckIntegerInArray(variable i_varVariableToCheck,
-                                 variable i_strTraceEntry,
-                                 variable i_arrintAllowedValues[],
-                                 variable i_strFunctionName,
-                                 variable i_strReferenceModuleName) variable
-    {
-      variable intActualArrayPosition;
-      variable blnReturnValue(ASWGLOBAL::BOOL::FALSE);
-      variable strArrayTrace("");
-      variable varActualValue;
-
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "CheckIntegerInArray")) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-
-      if(GetType(i_varVariableToCheck) != "i")
-      {
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type integer !");
-        return(ASWGLOBAL::BOOL::FALSE);
-      }
-      else
-      {
-        for(intActualArrayPosition = 0; intActualArrayPosition < i_arrintAllowedValues.GetSize(); intActualArrayPosition++)
-        {
-          varActualValue = i_arrintAllowedValues.GetAt(intActualArrayPosition);
-          if(GetType(varActualValue) != "i")
-            FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::PROGRESS, " ", "Value at array index '" + IStr(intActualArrayPosition) +
-            " in array i_arrintAllowedValues is not of type integer!");
-          else
-          {
-            if(i_varVariableToCheck == varActualValue) blnReturnValue = ASWGLOBAL::BOOL::TRUE;
-            strArrayTrace = strArrayTrace + IStr(varActualValue) + ", ";
-          }
-        }
-      }
-      if(blnReturnValue == ASWGLOBAL::BOOL::FALSE)
-      {
-        strArrayTrace = TrimRight(strArrayTrace, ", ",i_strFunctionName, i_strReferenceModuleName);
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                    "Parameter '" + i_strTraceEntry + "' with value of " + IStr(i_varVariableToCheck) +
-                    " not found in array of allowed values (" + strArrayTrace + ") !");
-      }
-      return(blnReturnValue);
-    } // CheckIntegerInArray
 
     //----------------------------------------------------------------------------------------------
     // function CheckFloat
@@ -861,11 +999,9 @@
       if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "CheckFloat")) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
-      if(GetType(i_varVariableToCheck) == "f")
-        return (ASWGLOBAL::BOOL::TRUE);
-      else
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type float !");
-      return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckFloat(i_varVariableToCheck, i_strTraceEntry, i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      return(ASWGLOBAL::BOOL::TRUE);
     } // CheckFloat
 
     //----------------------------------------------------------------------------------------------
@@ -891,6 +1027,7 @@
                       + FStr(i_fltMin) + ".." + FStr(i_fltMax) + ") !");
       else
         FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type float !");
+
       return (ASWGLOBAL::BOOL::FALSE);
     } // CheckFloatRange
 
@@ -913,7 +1050,7 @@
 
       if(GetType(i_varVariableToCheck) == "f")
         if(i_varVariableToCheck >= i_fltMin && i_varVariableToCheck <= i_fltMax)
-          if(i_varVariableToCheck % i_fltFactor == 0.0)
+          if(i_varVariableToCheck % i_fltFactor == 0)
             return (ASWGLOBAL::BOOL::TRUE);
           else
           FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "': outside factor ("
@@ -923,6 +1060,7 @@
                       + FStr(i_fltMin) + ".." + FStr(i_fltMax) + ") !");
       else
         FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type float !");
+
       return (ASWGLOBAL::BOOL::FALSE);
     } // CheckFloatFactorRange
 
@@ -937,11 +1075,9 @@
       if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "CheckString")) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
-      if(GetType(i_varVariableToCheck) == "s")
-        return (ASWGLOBAL::BOOL::TRUE);
-      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                  "Parameter '", i_strTraceEntry, "' is not of type string !");
-      return (ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_varVariableToCheck, i_strTraceEntry, i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      return (ASWGLOBAL::BOOL::TRUE);
     } // CheckString
 
     //----------------------------------------------------------------------------------------------
@@ -954,71 +1090,101 @@
                                variable i_strFunctionName,
                                variable i_strReferenceModuleName) variable
     {
-      string strTemp("");
-      variable intLength(-1);
-
       if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "CheckStringLength")) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckInteger(i_intLengthMin, "i_intLengthMin", "Hamilton DriverTools::CheckStringLength", i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckInteger(i_intLengthMax, "i_intLengthMax", "Hamilton DriverTools::CheckStringLength", i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
-      if(GetType(i_varVariableToCheck) == "s")
-      {
-        strTemp = i_varVariableToCheck;
-        intLength = strTemp.GetLength();
-        if(intLength >= i_intLengthMin && intLength <= i_intLengthMax)
-          return (ASWGLOBAL::BOOL::TRUE);
-        else
-          FormatTrace("LIBRARY: " + i_strReferenceModuleName,
-                      i_strFunctionName, ACTION::COMPLETE_WITH_ERROR,
-                      " ", "Parameter '" + i_strTraceEntry + "' = '" + i_varVariableToCheck +
-                      "': length is out of range (" + IStr(i_intLengthMin) + ".." + IStr(i_intLengthMin) + ") !");
-      }
-      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                  "Parameter '", i_strTraceEntry, "' is not of type string !");
-      return (ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckStringLength(i_varVariableToCheck, i_strTraceEntry, i_intLengthMin, i_intLengthMax, i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      
+      return (ASWGLOBAL::BOOL::TRUE);
     } // CheckStringLength
 
     //----------------------------------------------------------------------------------------------
     // function CheckChannelPattern
     //----------------------------------------------------------------------------------------------
-    function CheckChannelPattern(string i_varVariableToCheck,
+    function CheckChannelPattern(variable i_varVariableToCheck,
                                  variable i_strTraceEntry,
                                  variable i_intChannelCount,
                                  variable i_strFunctionName,
                                  variable i_strReferenceModuleName) variable
     {
       variable intLength(0), intChannelNumber(0);
+      variable strSingleChannelValue("");
+      variable blnReturnValue(ASWGLOBAL::BOOL::TRUE);
+      string strTemp("");
+
       if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "CheckChannelPattern")) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_varVariableToCheck, i_strTraceEntry, i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
-      if(GetType(i_varVariableToCheck) == "s")
+      strTemp = i_varVariableToCheck;
+      intLength = strTemp.GetLength();
+      if(intLength != i_intChannelCount)
       {
-        intLength = i_varVariableToCheck.GetLength();
-        if(intLength != i_intChannelCount)
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
+                    "Parameter '", i_strTraceEntry, "' does not match requested pattern length of " + IStr(i_intChannelCount) + " !");
+        return (ASWGLOBAL::BOOL::FALSE);
+      }
+      for(intChannelNumber = 0; intChannelNumber < i_intChannelCount; intChannelNumber++)
+      {
+        strSingleChannelValue = strTemp.Mid(intChannelNumber, 1);
+        if(strSingleChannelValue != "0" && strSingleChannelValue != "1")
         {
           FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                      "Parameter '", i_varVariableToCheck, "' does not match the Channel Number on this System");
-          return (ASWGLOBAL::BOOL::FALSE);
-        }
-        for(intChannelNumber = 0; intChannelNumber < i_intChannelCount; intChannelNumber++)
-        {
-          if(intLength <= i_intChannelCount)
-            i_varVariableToCheck = i_varVariableToCheck + "0";
-          if(i_varVariableToCheck.Mid(intChannelNumber, 1) == "0" || i_varVariableToCheck.Mid(intChannelNumber, 1) == "1"){}
-          else
-          {
-            FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                        "Parameter '", i_varVariableToCheck, "' contains charactor that are not allowed in a Channelpattern [0/1]");
-            return (ASWGLOBAL::BOOL::FALSE);
-          }
+                      "Parameter '", i_varVariableToCheck, "' character '", strSingleChannelValue, "' at position ",
+                       IStr(intChannelNumber + 1), " is not allowed in a Channelpattern [0/1]");
+          blnReturnValue = ASWGLOBAL::BOOL::FALSE;
         }
       }
-        return (ASWGLOBAL::BOOL::TRUE);
-      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                  "Parameter '", i_strTraceEntry, "' is not of type string !");
-      return (ASWGLOBAL::BOOL::FALSE);
+
+      return (blnReturnValue);
     } // CheckChannelPattern  
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckIPv4Address
+    //----------------------------------------------------------------------------------------------
+    function CheckIPv4Address(variable i_varVariableToCheck,
+                              variable i_strTraceEntry,
+                              variable i_strFunctionName,
+                              variable i_strReferenceModuleName) variable
+    {
+      variable intArraySize(0), intActualPos(0), intActualValue(0),  intMin(1);
+      variable blnReturnValue(ASWGLOBAL::BOOL::TRUE);
+      variable arrStrSplittedAddress[];
+
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "CheckChannelPattern")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_varVariableToCheck, i_strTraceEntry, i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      _SplitString(i_varVariableToCheck, ".", arrStrSplittedAddress);
+
+      intArraySize = arrStrSplittedAddress.GetSize();
+
+      if(intArraySize != 4)
+      {
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
+                    "Parameter '", i_varVariableToCheck, "' is not a valid IP address: must consist of 4 parts separated by a dot but consists of " +
+                    IStr(intArraySize) + " parts");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+
+      for(intActualPos = 0; intActualPos < intArraySize; intActualPos++)
+      {
+        intActualValue = IVal(arrStrSplittedAddress[intActualPos]);
+        if(intActualValue < intMin || intActualValue > 255)
+        {
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
+                      "Parameter '", i_varVariableToCheck, "' is not a valid IP address: " + IStr(intActualPos + 1) +
+                      ". parameter (" + IStr(intActualValue) + ") is out of valid range of " + IStr(intMin) +
+                      "..255");
+          blnReturnValue =ASWGLOBAL::BOOL::FALSE;
+        }
+        intMin = 0;
+      }
+
+      return (blnReturnValue);
+    } // CheckIPv4Address   
 
     //----------------------------------------------------------------------------------------------
     // function CheckBool
@@ -1031,16 +1197,9 @@
       if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "CheckBool")) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
-      if(GetType(i_varVariableToCheck) == "i")
-        if(i_varVariableToCheck == ASWGLOBAL::BOOL::TRUE || i_varVariableToCheck == ASWGLOBAL::BOOL::FALSE)
-          return (ASWGLOBAL::BOOL::TRUE);
-        else
-          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                      "Parameter '", i_strTraceEntry, "' Value ", i_varVariableToCheck, " is not of type bool !");
-      else
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                    "Parameter '", i_strTraceEntry, "' is not of type bool !");
-      return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckBool(i_varVariableToCheck, i_strTraceEntry, i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      return(ASWGLOBAL::BOOL::TRUE);
     } // CheckBool
 
     //----------------------------------------------------------------------------------------------
@@ -1067,7 +1226,7 @@
           return (ASWGLOBAL::BOOL::TRUE);
         else
         {
-          strTemp = strTemp = "Parameter '" + i_strTraceEntry + "' with value of " + IStr(i_varVariableToCheck) + " is out of allowed range ";
+          strTemp = strTemp = "Parameter '" + i_strTraceEntry + "' with value of " + _ToString(i_varVariableToCheck) + " is out of allowed range ";
           if(i_intValueRange == VALUE_RANGE::POSITIVE_ZERO) strTemp = strTemp + "(>= 0)";
           if(i_intValueRange == VALUE_RANGE::POSITIVE) strTemp = strTemp + "(> 0)";
           if(i_intValueRange == VALUE_RANGE::NEGATIVE_ZERO) strTemp = strTemp + "(<= 0)";
@@ -1075,7 +1234,9 @@
         }
       else
         strTemp = "Parameter '" + i_strTraceEntry + "' is not of type integer";
+
       FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", strTemp + " !");
+
       return(ASWGLOBAL::BOOL::FALSE);
     } // CheckIntegerValue
 
@@ -1103,23 +1264,25 @@
           return (ASWGLOBAL::BOOL::TRUE);
         else
         {
-          strTemp = strTemp = "Parameter '" + i_strTraceEntry + "' with value of " + FStr(i_varVariableToCheck) + " is out of allowed range ";
+          strTemp = strTemp = "Parameter '" + i_strTraceEntry + "' with value of " + _ToString(i_varVariableToCheck) + " is out of allowed range ";
           if(i_intValueRange == VALUE_RANGE::POSITIVE_ZERO) strTemp = strTemp + "(>= 0)";
           if(i_intValueRange == VALUE_RANGE::POSITIVE) strTemp = strTemp + "(> 0)";
           if(i_intValueRange == VALUE_RANGE::NEGATIVE_ZERO) strTemp = strTemp + "(<= 0)";
           if(i_intValueRange == VALUE_RANGE::NEGATIVE) strTemp = strTemp + "(< 0)";
         }
       else
-        strTemp = "Parameter '" + i_strTraceEntry + "' is not of type float !";
+        strTemp = "Parameter '" + i_strTraceEntry + "' is not of type float";
+
       FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", strTemp + " !");
+
       return(ASWGLOBAL::BOOL::FALSE);
     } // CheckFloatValue
 
     //----------------------------------------------------------------------------------------------
     // function CheckArrayEquality
     //----------------------------------------------------------------------------------------------
-    function CheckArrayEquality(variable i_arrvarCheck_1[],
-                                variable i_arrvarCheck_2[],
+    function CheckArrayEquality(variable i_arrVarCheck_1[],
+                                variable i_arrVarCheck_2[],
                                 variable i_strFunctionName,
                                 variable i_strReferenceModuleName) variable
     {
@@ -1129,28 +1292,28 @@
 
       if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "CheckArrayEquality")) return(ASWGLOBAL::BOOL::FALSE);
 
-      intArraySize_1 = i_arrvarCheck_1.GetSize();
-      intArraySize_2 = i_arrvarCheck_2.GetSize();
+      intArraySize_1 = i_arrVarCheck_1.GetSize();
+      intArraySize_2 = i_arrVarCheck_2.GetSize();
 
       if(intArraySize_1 != intArraySize_2)
       {
         FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                    "Unequal array sizes: (", intArraySize_1, " != ", intArraySize_2, ")!");
+                    "Unequal array sizes: (", intArraySize_1, " != ", intArraySize_2, ") !");
         blnReturnValue = ASWGLOBAL::BOOL::FALSE;
       }
       else
       {
         for(intLoopCounterCheckEntries = 0; intLoopCounterCheckEntries < intArraySize_1; intLoopCounterCheckEntries++)
         {
-          varSingleEntry_1 = i_arrvarCheck_1.ElementAt(intLoopCounterCheckEntries);
-          varSingleEntry_2 = i_arrvarCheck_2.ElementAt(intLoopCounterCheckEntries);
+          varSingleEntry_1 = i_arrVarCheck_1.ElementAt(intLoopCounterCheckEntries);
+          varSingleEntry_2 = i_arrVarCheck_2.ElementAt(intLoopCounterCheckEntries);
 
           if(GetType(varSingleEntry_1) == GetType(varSingleEntry_2))
           {
             if(varSingleEntry_1 != varSingleEntry_2)
             {
               FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::PROGRESS, " ",
-                          "Elements at index ", intLoopCounterCheckEntries, " are unequal (", varSingleEntry_1, " != ", varSingleEntry_2, ")!");
+                          "Elements at index ", intLoopCounterCheckEntries, " are unequal (", varSingleEntry_1, " != ", varSingleEntry_2, ") !");
               blnReturnValue = ASWGLOBAL::BOOL::FALSE;
             }
           }
@@ -1158,20 +1321,22 @@
           {
               FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::PROGRESS, " ",
                           "Elements at index ", intLoopCounterCheckEntries, " are of differnt type (",
-                          GetType(varSingleEntry_1), " != ", GetType(varSingleEntry_2), ")!");
+                          GetType(varSingleEntry_1), " != ", GetType(varSingleEntry_2), ") !");
             blnReturnValue = ASWGLOBAL::BOOL::FALSE;
           }
         }
       }
+
       if(blnReturnValue == ASWGLOBAL::BOOL::FALSE) FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR);
+
       return(blnReturnValue);
     } // CheckArrayEquality
 
     //----------------------------------------------------------------------------------------------
     // function CheckArraysForSameSize
     //----------------------------------------------------------------------------------------------
-    function CheckArraysForSameSize(variable i_arrvarCheck_1[],
-                                    variable i_arrvarCheck_2[],
+    function CheckArraysForSameSize(variable i_arrVarCheck_1[],
+                                    variable i_arrVarCheck_2[],
                                     variable i_strTraceEntry1,
                                     variable i_strTraceEntry2,
                                     variable i_strFunctionName,
@@ -1181,21 +1346,22 @@
       if(!_CheckString(i_strTraceEntry1, "i_strTraceEntry1", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckString(i_strTraceEntry2, "i_strTraceEntry2", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
-      if(i_arrvarCheck_1.GetSize() == i_arrvarCheck_2.GetSize()) return(ASWGLOBAL::BOOL::TRUE);
+      if(i_arrVarCheck_1.GetSize() == i_arrVarCheck_2.GetSize()) return(ASWGLOBAL::BOOL::TRUE);
 
       FormatTrace("LIBRARY: " + i_strReferenceModuleName,
                   i_strFunctionName,
                   ACTION::COMPLETE_WITH_ERROR,
                   " ",
-                  "Size of array ", i_strTraceEntry1, "(", i_arrvarCheck_1.GetSize(), ") != ",
-                  "size of array ", i_strTraceEntry2, "(", i_arrvarCheck_2.GetSize(), ") !");
+                  "Size of array ", i_strTraceEntry1, "(", i_arrVarCheck_1.GetSize(), ") != ",
+                  "size of array ", i_strTraceEntry2, "(", i_arrVarCheck_2.GetSize(), ") !");
+
       return(ASWGLOBAL::BOOL::FALSE);
     } // CheckArraysForSameSize
 
     //----------------------------------------------------------------------------------------------
     // function CheckArraySize
     //----------------------------------------------------------------------------------------------
-    function CheckArraySize(variable i_arrvarCheck[],
+    function CheckArraySize(variable i_arrVarCheck[],
                             variable i_strTraceEntry,
                             variable i_intMinSize,
                             variable i_intMaxSize,
@@ -1207,7 +1373,7 @@
       if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "CheckArraySize")) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckString(i_strTraceEntry, "i_strTraceEntry", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
-      intArraySize = i_arrvarCheck.GetSize();
+      intArraySize = i_arrVarCheck.GetSize();
 
       if(i_intMinSize <= intArraySize && i_intMaxSize >= intArraySize)
         return(ASWGLOBAL::BOOL::TRUE);
@@ -1221,7 +1387,7 @@
     //----------------------------------------------------------------------------------------------
     // function CheckArrayType
     //----------------------------------------------------------------------------------------------
-    function CheckArrayType(variable i_arrvarCheck[],
+    function CheckArrayType(variable i_arrVarCheck[],
                             variable i_strTraceEntry,
                             variable i_strType,
                             variable i_strFunctionName,
@@ -1238,29 +1404,88 @@
       if(i_strType != "integer" && i_strType != "float" && i_strType != "string")
       {
         FormatTrace("call to LIBRARY: Hamilton DriverTools", "CheckArrayType", ACTION::COMPLETE_WITH_ERROR, " ", "Parameter 'i_strType' ('" +
-                    i_strType + "') is not 'integer', 'float' or 'string'!");
+                    i_strType + "') is not 'integer', 'float' or 'string' !");
         return(ASWGLOBAL::BOOL::FALSE);
       }
       // 
-      intArraySize = i_arrvarCheck.GetSize();
+      intArraySize = i_arrVarCheck.GetSize();
       strTemp = IStr(intArraySize);
       intFillupSize = strTemp.GetLength();
 
       strTemp = i_strType;
       for(intLoopCounterCheckEntries = 0; intLoopCounterCheckEntries < intArraySize; intLoopCounterCheckEntries++)
       {
-        varSingleEntry = i_arrvarCheck.ElementAt(intLoopCounterCheckEntries);
+        varSingleEntry = i_arrVarCheck.ElementAt(intLoopCounterCheckEntries);
 
         if(GetType(varSingleEntry) != strTemp.Mid(0,1))
         {
           FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::ERROR, " ",
-                      "Element [", _FillLeft(IStr(intLoopCounterCheckEntries), "0", intFillupSize), "] = ", varSingleEntry, " is not of type ", i_strType, "!");
+                      "Element [", _FillLeft(IStr(intLoopCounterCheckEntries), "0", intFillupSize), "] = ", varSingleEntry, " is not of type ", i_strType, " !");
           blnReturnValue = ASWGLOBAL::BOOL::FALSE;
         }
       }
+
       if(blnReturnValue == ASWGLOBAL::BOOL::FALSE) FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR);
+
       return(blnReturnValue);
     } // CheckArrayType
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckValueInArray
+    //----------------------------------------------------------------------------------------------
+    function CheckValueInArray(variable i_varVariableToCheck,
+                               variable i_strTraceEntry,
+                               variable i_strValueType,
+                               variable i_arrVarAllowedValues[],
+                               variable i_strFunctionName,
+                               variable i_strReferenceModuleName) variable
+    {
+      variable intActualArrayPosition;
+      variable blnReturnValue(ASWGLOBAL::BOOL::FALSE);
+      variable strArrayTrace("");
+      variable varActualValue;
+      variable strValueType("");
+
+      if(i_strValueType == DATA_TYPE::INTEGER) strValueType = "integer";
+      if(i_strValueType == DATA_TYPE::FLOAT) strValueType = "float";
+      if(i_strValueType == DATA_TYPE::STRING) strValueType = "string";
+
+      if(GetType(i_varVariableToCheck) != i_strValueType)
+      {
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type " + strValueType + " !");
+        return(ASWGLOBAL::BOOL::FALSE);
+      }
+      else
+      {
+        for(intActualArrayPosition = 0; intActualArrayPosition < i_arrVarAllowedValues.GetSize(); intActualArrayPosition++)
+        {
+          varActualValue = i_arrVarAllowedValues.GetAt(intActualArrayPosition);
+          if(GetType(varActualValue) != i_strValueType)
+            FormatTrace("LIBRARY: " + i_strReferenceModuleName,
+                        i_strFunctionName,
+                        ACTION::PROGRESS,
+                        " ",
+                        "Value at array index " + IStr(intActualArrayPosition) +
+                        " (" + _ToStringWithQuotes(varActualValue) +
+                        ") in array i_arrVarAllowedValues is not of type " + strValueType + " !");
+          else
+          {
+            if(i_varVariableToCheck == varActualValue) blnReturnValue = ASWGLOBAL::BOOL::TRUE;
+            strArrayTrace = strArrayTrace + _ToStringWithQuotes(varActualValue) + ", ";
+          }
+        }
+      }
+
+      if(blnReturnValue == ASWGLOBAL::BOOL::FALSE)
+      {
+        strArrayTrace = TrimRight(strArrayTrace, ", ",i_strFunctionName, i_strReferenceModuleName);
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
+                    "Parameter '" + i_strTraceEntry + "' with value of " + _ToStringWithQuotes(i_varVariableToCheck) +
+                    " not found in array of allowed values (" + strArrayTrace + ") !");
+      }
+
+      return(blnReturnValue);
+    } // CheckValueInArray
 
     //----------------------------------------------------------------------------------------------
     // function ExtractFunctionName
@@ -1284,10 +1509,10 @@
                          variable i_strFunctionName,
                          variable i_strReferenceModuleName)variable
     {
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "ReverseFind")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "ReverseFind")) return(-1);
       i_strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckString(i_strStringToParse, "i_strStringToParse", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strSubstringToFind, "i_strSubstringToFind", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strStringToParse, "i_strStringToParse", i_strFunctionName, i_strReferenceModuleName)) return(-1);
+      if(!_CheckString(i_strSubstringToFind, "i_strSubstringToFind", i_strFunctionName, i_strReferenceModuleName)) return(-1);
 
       return(_ReverseFind(i_strStringToParse, i_strSubstringToFind));
     } // ReverseFind
@@ -1301,11 +1526,11 @@
                       variable i_strFunctionName,
                       variable i_strReferenceModuleName) variable
     {
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "FillLeft")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "FillLeft")) return("");
       i_strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckString(i_strStringToFill, "i_strStringToFill", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strFillCharacter, "i_strFillCharacter", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckInteger(i_intLength, "i_intLength", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strStringToFill, "i_strStringToFill", i_strFunctionName, i_strReferenceModuleName)) return("");
+      if(!_CheckString(i_strFillCharacter, "i_strFillCharacter", i_strFunctionName, i_strReferenceModuleName)) return("");
+      if(!_CheckInteger(i_intLength, "i_intLength", i_strFunctionName, i_strReferenceModuleName)) return("");
 
       return(_FillLeft(i_strStringToFill, i_strFillCharacter, i_intLength));
     } // FillLeft
@@ -1319,15 +1544,14 @@
                        variable i_strFunctionName,
                        variable i_strReferenceModuleName) variable
     {
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "FillRight")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "FillRight")) return("");
       i_strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckString(i_strStringToFill, "i_strStringToFill", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strFillCharacter, "i_strFillCharacter", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckInteger(i_intLength, "i_intLength", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strStringToFill, "i_strStringToFill", i_strFunctionName, i_strReferenceModuleName)) return("");
+      if(!_CheckString(i_strFillCharacter, "i_strFillCharacter", i_strFunctionName, i_strReferenceModuleName)) return("");
+      if(!_CheckInteger(i_intLength, "i_intLength", i_strFunctionName, i_strReferenceModuleName)) return("");
 
       return(_FillRight(i_strStringToFill, i_strFillCharacter, i_intLength));
     } // FillRight
-
 
     //----------------------------------------------------------------------------------------------
     // function TrimLeft
@@ -1337,10 +1561,10 @@
                       variable i_strFunctionName,
                       variable i_strReferenceModuleName) variable
     {
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "TrimLeft")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "TrimLeft")) return("");
       i_strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckString(i_strStringToTrim, "i_strStringToTrim", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strToRemove, "i_strToRemove", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strStringToTrim, "i_strStringToTrim", i_strFunctionName, i_strReferenceModuleName)) return("");
+      if(!_CheckString(i_strToRemove, "i_strToRemove", i_strFunctionName, i_strReferenceModuleName)) return("");
 
       return(_TrimLeft(i_strStringToTrim, i_strToRemove));
     } // TrimLeft
@@ -1353,10 +1577,10 @@
                        variable i_strFunctionName,
                        variable i_strReferenceModuleName) variable
     {
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "TrimRight")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "TrimRight")) return("");
       i_strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckString(i_strStringToTrim, "i_strStringToTrim", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strToRemove, "i_strToRemove", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strStringToTrim, "i_strStringToTrim", i_strFunctionName, i_strReferenceModuleName)) return("");
+      if(!_CheckString(i_strToRemove, "i_strToRemove", i_strFunctionName, i_strReferenceModuleName)) return("");
 
       return(_TrimRight(i_strStringToTrim, i_strToRemove));
     } // TrimRight
@@ -1370,9 +1594,9 @@
     {
       string strReturn("");
 
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "Uppercase")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "Uppercase")) return("");
       i_strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckString(i_strStringToChange, "i_strStringToChange", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strStringToChange, "i_strStringToChange", i_strFunctionName, i_strReferenceModuleName)) return("");
 
       strReturn = i_strStringToChange;
 
@@ -1388,9 +1612,9 @@
     {
       string strReturn("");
 
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "Lowercase")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "Lowercase")) return("");
       i_strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckString(i_strStringToChange, "i_strStringToChange", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strStringToChange, "i_strStringToChange", i_strFunctionName, i_strReferenceModuleName)) return("");
 
       strReturn = i_strStringToChange;
 
@@ -1418,7 +1642,8 @@
         else
           FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is no digit");
       else
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "': not a single character!");
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "': not a single character !");
+
       return(ASWGLOBAL::BOOL::FALSE);
     } // IsDigit
 
@@ -1434,11 +1659,11 @@
       variable intCutPosition(0), intReplaceLength(0);
       string strTemp("");
 
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "Replace")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "Replace")) return("");
       i_strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckString(i_strToChange, "i_strToChange", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strToReplace, "i_strToReplace", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
-      if(!_CheckString(i_strReplaceWith, "i_strReplaceWith", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strToChange, "i_strToChange", i_strFunctionName, i_strReferenceModuleName)) return("");
+      if(!_CheckString(i_strToReplace, "i_strToReplace", i_strFunctionName, i_strReferenceModuleName)) return("");
+      if(!_CheckString(i_strReplaceWith, "i_strReplaceWith", i_strFunctionName, i_strReferenceModuleName)) return("");
 
       strTemp = i_strToReplace;
       intReplaceLength = strTemp.GetLength();
@@ -1463,12 +1688,49 @@
                            variable i_strFunctionName,
                            variable i_strReferenceModuleName) variable
     {
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "FloatToString")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "FloatToString")) return("");
       i_strFunctionName = i_strFunctionName + " - " + Hamilton_DriverTools_ModuleName + "::" + _ExtractFunctionName(GetFunctionName());
-      if(!_CheckFloat(i_fltValue, "i_fltValue", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckFloat(i_fltValue, "i_fltValue", i_strFunctionName, i_strReferenceModuleName)) return("");
 
       return(_ToString(i_fltValue));
     } // FloatToString
+
+    //----------------------------------------------------------------------------------------------
+    // function ASCII2Char
+    //----------------------------------------------------------------------------------------------
+    function ASCII2Char(variable i_intASCIICode,
+                        variable i_strTraceEntry,
+                        variable& o_strChar,
+                        variable i_strFunctionName,
+                        variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "ASCII2Char")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckIntegerRange(i_intASCIICode, i_strTraceEntry, 0, 255, i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(i_intASCIICode == 0) o_strChar = "\000"; else o_strChar = chr.Mid(i_intASCIICode - 1, 1);
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // ASCII2Char
+
+    //----------------------------------------------------------------------------------------------
+    // function Char2ASCII
+    //----------------------------------------------------------------------------------------------
+    function Char2ASCII(variable i_strChar,
+                        variable i_strTraceEntry,
+                        variable& o_intASCIIValue,
+                        variable i_strFunctionName,
+                        variable i_strReferenceModuleName) variable
+    {
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "ASCII2Char")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckStringLength(i_strChar, i_strTraceEntry, 1, 1, i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(i_strChar == "\000")
+        o_intASCIIValue = 0;
+      else
+        for(o_intASCIIValue = 1; o_intASCIIValue < 255; o_intASCIIValue++) if(chr.Mid(o_intASCIIValue - 1, 1) == i_strChar) break;
+
+      return(ASWGLOBAL::BOOL::TRUE);
+    } // Char2ASCII
 
     //----------------------------------------------------------------------------------------------
     // function Delay
@@ -1492,20 +1754,19 @@
     //----------------------------------------------------------------------------------------------
     // function FindInArray
     //----------------------------------------------------------------------------------------------
-    function FindInArray(variable i_arrvarArrayToCheck[],
+    function FindInArray(variable i_arrVarArrayToCheck[],
                          variable i_varValueToFind,
                          variable i_strFunctionName,
                          variable i_strReferenceModuleName) variable
     {
-      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "FindInArray")) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckTraceStrings(i_strReferenceModuleName, i_strFunctionName, "FindInArray")) return(-1);
 
-      return(_FindInArray(i_arrvarArrayToCheck, i_varValueToFind));
+      return(_FindInArray(i_arrVarArrayToCheck, i_varValueToFind));
     } // FindInArray
 
     //----------------------------------------------------------------------------------------------
     // function CheckSimulationMode
     //----------------------------------------------------------------------------------------------
-
     function CheckSimulationMode(variable i_blnReferenceSimulationMode,
                                  variable i_strFunctionName,
                                  variable i_strReferenceModuleName) variable
@@ -1516,7 +1777,7 @@
 
       if(i_blnReferenceSimulationMode == ASWGLOBAL::BOOL::TRUE) 
       {
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE, " ", "Library is used in simulation mode!");
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE, " ", "Library is used in simulation mode !");
         return(ASWGLOBAL::BOOL::TRUE);
       }
       else
@@ -1539,7 +1800,7 @@
       if(i_blnReferenceLibraryInitialized == ASWGLOBAL::BOOL::TRUE) return(ASWGLOBAL::BOOL::TRUE);
       else
       {
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Library is not Initialized!");
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Library is not Initialized !");
         return(ASWGLOBAL::BOOL::FALSE);
       }
     }// CheckInitialization
@@ -1565,14 +1826,15 @@
       
       if(objDriverTools.IsNull()) {
         if(!objDriverTools.CreateObject(NetDriverTools, hslTrue)) {
-          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Could could create Object Driver Tools - check if Dll is registered!");
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Could could create Object Driver Tools - check if Dll is registered !");
           return(ASWGLOBAL::BOOL::FALSE); 
         }
       }
       if(!objDriverTools.GetIniValue(i_strFilePath, i_strSection, i_strKey, o_strValue, o_strErrorMessage))
-        return(ASWGLOBAL::BOOL::FALSE); 
+        return(ASWGLOBAL::BOOL::FALSE);
+
       return(ASWGLOBAL::BOOL::TRUE); 
-    }//GetIniFileValue
+    }// GetIniFileValue
 
     //----------------------------------------------------------------------------------------------
     // function SetIniFileValue
@@ -1585,6 +1847,7 @@
                              variable i_strValue,
                              variable& o_strErrorMessage)variable
     {
+      variable blnSuccess(ASWGLOBAL::BOOL::TRUE);
       object objDriverTools;
       if(!_CheckString(i_strFunctionName, "i_strFunctionName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckString(i_strReferenceModuleName, "i_strReferenceModuleName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
@@ -1594,17 +1857,334 @@
       if(!_CheckString(i_strKey, "i_strKey", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
       if(!_CheckString(i_strValue, "i_strValue", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
 
-      if(objDriverTools.IsNull()) {
-        if(!objDriverTools.CreateObject(NetDriverTools, hslTrue)) {
-          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Could could create Object Driver Tools - check if Dll is registered!");
+      if(objDriverTools.IsNull())
+      {
+        if(!objDriverTools.CreateObject(NetDriverTools, hslTrue))
+        {
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Could could create Object Driver Tools - check if Dll is registered !");
           return(ASWGLOBAL::BOOL::FALSE); 
         }
       }
-      if(!objDriverTools.SetIniValue(i_strFilePath, i_strSection, i_strKey, i_strValue, o_strErrorMessage))
-        return(ASWGLOBAL::BOOL::FALSE); 
-      return(ASWGLOBAL::BOOL::TRUE); 
-    }//SetIniFileValue
 
+      if(!objDriverTools.SetIniValue(i_strFilePath, i_strSection, i_strKey, i_strValue, o_strErrorMessage)) blnSuccess = ASWGLOBAL::BOOL::FALSE;
+
+      objDriverTools.ReleaseObject();
+
+      return(blnSuccess); 
+    }// SetIniFileValue
+
+    //----------------------------------------------------------------------------------------------
+    // function GetAvailablePortNames
+    //----------------------------------------------------------------------------------------------
+    function GetAvailablePortNames(variable i_strFunctionName,
+                                   variable i_strReferenceModuleName,
+                                   variable& o_arrStrAvailablePortNames[])variable
+    {
+      object objDriverTools;
+      variable arrIntTemp[];
+
+      if(!_CheckString(i_strFunctionName, "i_strFunctionName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strReferenceModuleName, "i_strReferenceModuleName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(objDriverTools.IsNull())
+      {
+        if(!objDriverTools.CreateObject(NetDriverTools, hslTrue))
+        {
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Could could create Object Driver Tools - check if Dll is registered !");
+          return(ASWGLOBAL::BOOL::FALSE); 
+        }
+      }
+
+      objDriverTools.GetAvailablePorts(arrIntTemp, o_arrStrAvailablePortNames);
+
+      objDriverTools.ReleaseObject();
+
+      return(ASWGLOBAL::BOOL::TRUE); 
+    }// GetAvailablePortNames
+
+    //----------------------------------------------------------------------------------------------
+    // function GetAvailablePortNumbers
+    //----------------------------------------------------------------------------------------------
+    function GetAvailablePortNumbers(variable i_strFunctionName,
+                                     variable i_strReferenceModuleName,
+                                     variable& o_arrIntAvailablePortNumbers[])variable
+    {
+      object objDriverTools;
+      variable arrStrTemp[];
+
+      if(!_CheckString(i_strFunctionName, "i_strFunctionName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strReferenceModuleName, "i_strReferenceModuleName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(objDriverTools.IsNull())
+      {
+        if(!objDriverTools.CreateObject(NetDriverTools, hslTrue))
+        {
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Could could create Object Driver Tools - check if Dll is registered !");
+          return(ASWGLOBAL::BOOL::FALSE); 
+        }
+      }
+
+      objDriverTools.GetAvailablePorts(o_arrIntAvailablePortNumbers, arrStrTemp);
+
+      objDriverTools.ReleaseObject();
+
+      return(ASWGLOBAL::BOOL::TRUE); 
+    }// GetAvailablePortNumbers
+
+    //----------------------------------------------------------------------------------------------
+    // function GetFilesInDirectory
+    //----------------------------------------------------------------------------------------------
+    function GetFilesInDirectory(variable i_strDirectoryName,
+                                 variable i_strFunctionName,
+                                 variable i_strReferenceModuleName,
+                                 variable& o_arrStrFileNames[])variable
+    {
+      object objDriverTools;
+      variable arrStrTemp[];
+
+      if(!_CheckString(i_strFunctionName, "i_strFunctionName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strReferenceModuleName, "i_strReferenceModuleName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(objDriverTools.IsNull())
+      {
+        if(!objDriverTools.CreateObject(NetDriverTools, hslTrue))
+        {
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Could could create Object Driver Tools - check if Dll is registered !");
+          return(ASWGLOBAL::BOOL::FALSE); 
+        }
+      }
+
+      objDriverTools.GetFilesInDirectory(i_strDirectoryName, o_arrStrFileNames);
+
+      objDriverTools.ReleaseObject();
+
+      return(ASWGLOBAL::BOOL::TRUE); 
+    }// GetFilesInDirectory
+
+    //----------------------------------------------------------------------------------------------
+    // function RegistryKeyExists
+    //----------------------------------------------------------------------------------------------
+    function RegistryKeyExists(variable i_strKeyName,
+                               variable i_strValueName,
+                               variable i_strFunctionName,
+                               variable i_strReferenceModuleName,
+                               variable& o_blnKeyExists) variable
+    {
+      object objDriverTools;
+      variable intKeyExists(-99);
+
+      o_blnKeyExists = ASWGLOBAL::BOOL::FALSE;
+
+      if(!_CheckString(i_strFunctionName, "i_strFunctionName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strReferenceModuleName, "i_strReferenceModuleName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(objDriverTools.IsNull())
+      {
+        if(!objDriverTools.CreateObject(NetDriverTools, hslTrue))
+        {
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Could could create Object Driver Tools - check if Dll is registered !");
+          return(ASWGLOBAL::BOOL::FALSE); 
+        }
+      }
+
+      objDriverTools.RegistryKeyExists(i_strKeyName, i_strValueName, intKeyExists);
+
+      objDriverTools.ReleaseObject();
+
+      if(intKeyExists == -1)
+      {
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Unable to retriev value of registry key '" + i_strKeyName + "\\" + i_strValueName + "' !");
+        return(ASWGLOBAL::BOOL::FALSE); 
+      }
+
+      if(intKeyExists == 1) o_blnKeyExists = ASWGLOBAL::BOOL::TRUE;
+
+      return(ASWGLOBAL::BOOL::TRUE); 
+    }// RegistryKeyExists
+
+    //----------------------------------------------------------------------------------------------
+    // function RegistryGetValue
+    //----------------------------------------------------------------------------------------------
+    function RegistryGetValue(variable i_strKeyName,
+                              variable i_strValueName,
+                              variable i_strFunctionName,
+                              variable i_strReferenceModuleName,
+                              variable& o_blnKeyExists,
+                              variable& o_strValue) variable
+    {
+      object objDriverTools;
+      variable intKeyExists(-99);
+
+      o_blnKeyExists = ASWGLOBAL::BOOL::FALSE;
+      o_strValue = "";
+
+      if(!_CheckString(i_strFunctionName, "i_strFunctionName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strReferenceModuleName, "i_strReferenceModuleName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(objDriverTools.IsNull())
+      {
+        if(!objDriverTools.CreateObject(NetDriverTools, hslTrue))
+        {
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Could could create Object Driver Tools - check if Dll is registered !");
+          return(ASWGLOBAL::BOOL::FALSE); 
+        }
+      }
+
+      objDriverTools.RegistryGetValue(i_strKeyName, i_strValueName, intKeyExists, o_strValue);
+
+      objDriverTools.ReleaseObject();
+
+      if(intKeyExists == -1)
+      {
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Unable to retriev value of registry key '" + i_strKeyName + "\\" + i_strValueName + "' !");
+        return(ASWGLOBAL::BOOL::FALSE); 
+      }
+
+      if(intKeyExists == 1) o_blnKeyExists = ASWGLOBAL::BOOL::TRUE;
+
+      return(ASWGLOBAL::BOOL::TRUE); 
+    }// RegistryGetValue
+
+    //----------------------------------------------------------------------------------------------
+    // function CheckVenus
+    //----------------------------------------------------------------------------------------------
+    function CheckVenus(variable i_strFunctionName,
+                        variable i_strReferenceModuleName,
+                        variable& o_strVenusVersion,
+                        variable& o_blnIsVoV) variable
+    {
+      variable intKeyExists(-99);
+
+      o_strVenusVersion = "";
+      o_blnIsVoV = ASWGLOBAL::BOOL::FALSE;
+
+      if(!_CheckString(i_strFunctionName, "i_strFunctionName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+      if(!_CheckString(i_strReferenceModuleName, "i_strReferenceModuleName", i_strFunctionName, i_strReferenceModuleName)) return(ASWGLOBAL::BOOL::FALSE);
+
+      if(RegistryGetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Phoenix\\Release", "VERSION", i_strFunctionName, i_strReferenceModuleName, intKeyExists, o_strVenusVersion) == ASWGLOBAL::BOOL::FALSE ||
+         RegistryKeyExists("HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\Phoenix\\Instruments\\TrackGripper", "", i_strFunctionName, i_strReferenceModuleName, o_blnIsVoV) == ASWGLOBAL::BOOL::FALSE) return(ASWGLOBAL::BOOL::FALSE);
+
+      return(ASWGLOBAL::BOOL::TRUE); 
+    }// CheckVenus
+
+    //----------------------------------------------------------------------------------------------
+    // function StatusTraceArray (deprecated)
+    //----------------------------------------------------------------------------------------------
+    static function StatusTraceArray(variable i_intState,
+                                     variable i_intTraceLevel,
+                                     variable i_arrVarToTrace[],
+                                     variable i_strDescription,
+                                     variable i_strFunctionName,
+                                     variable i_intReferenceTraceLevel,
+                                     variable i_strReferenceModuleName) void
+    {
+      StatusAddArray(i_strDescription, i_arrVarToTrace, i_strReferenceModuleName);
+      StatusTraceArrays(i_intState, i_intTraceLevel, i_strFunctionName, i_intReferenceTraceLevel, i_strReferenceModuleName);
+    } // StatusTraceArray
+
+    //----------------------------------------------------------------------------------------------
+    // function TraceArrayFaceToFace (deprecated)
+    //----------------------------------------------------------------------------------------------
+    static function TraceArrayFaceToFace(variable i_intState,
+                                         variable i_intTraceLevel,
+                                         variable i_strDescription_1,
+                                         variable i_arrVarArray_1[],
+                                         variable i_strDescription_2,
+                                         variable i_arrVarArray_2[],
+                                         variable i_strFunctionName,
+                                         variable i_intReferenceTraceLevel,
+                                         variable i_strReferenceModuleName) void
+    {
+      StatusTraceTwoArrays(i_intState,
+                           i_intTraceLevel,
+                           i_strDescription_1,
+                           i_arrVarArray_1,
+                           i_strDescription_2,
+                           i_arrVarArray_2,
+                           i_strFunctionName,
+                           i_intReferenceTraceLevel,
+                           i_strReferenceModuleName);
+    } // TraceArrayFaceToFace
+
+    //----------------------------------------------------------------------------------------------
+    // function StatusTraceTwoArrays (deprecated)
+    //----------------------------------------------------------------------------------------------
+    static function StatusTraceTwoArrays(variable i_intState,
+                                         variable i_intTraceLevel,
+                                         variable i_strDescription_1,
+                                         variable i_arrVarArray_1[],
+                                         variable i_strDescription_2,
+                                         variable i_arrVarArray_2[],
+                                         variable i_strFunctionName,
+                                         variable i_intReferenceTraceLevel,
+                                         variable i_strReferenceModuleName) void
+    {
+      StatusTrace_2_Arrays(i_intState,
+                           i_intTraceLevel,
+                           i_arrVarArray_1,
+                           i_arrVarArray_2,
+                           i_strDescription_1,
+                           i_strDescription_2,
+                           i_strFunctionName,
+                           i_intReferenceTraceLevel,
+                           i_strReferenceModuleName);
+    } // StatusTraceTwoArrays
+
+    //----------------------------------------------------------------------------------------------
+    // function StatusTrace_2_Arrays (deprecated) (deprecated)
+    //----------------------------------------------------------------------------------------------
+    static function StatusTrace_2_Arrays(variable i_intState,
+                                         variable i_intTraceLevel,
+                                         variable i_arrVarArray_1[],
+                                         variable i_arrVarArray_2[],
+                                         variable i_strDescription_1,
+                                         variable i_strDescription_2,
+                                         variable i_strFunctionName,
+                                         variable i_intReferenceTraceLevel,
+                                         variable i_strReferenceModuleName) void
+    {
+      StatusAddArray(i_strDescription_1, i_arrVarArray_1, i_strReferenceModuleName);
+      StatusAddArray(i_strDescription_2, i_arrVarArray_2, i_strReferenceModuleName);
+      StatusTraceArrays(i_intState, i_intTraceLevel, i_strFunctionName, i_intReferenceTraceLevel, i_strReferenceModuleName);
+    } // StatusTrace_2_Arrays
+
+    //----------------------------------------------------------------------------------------------
+    // function StatusTrace_3_Arrays (deprecated)
+    //----------------------------------------------------------------------------------------------
+    static function StatusTrace_3_Arrays(variable i_intState,
+                                         variable i_intTraceLevel,
+                                         variable i_arrVarArray_1[],
+                                         variable i_arrVarArray_2[],
+                                         variable i_arrVarArray_3[],
+                                         variable i_strDescription_1,
+                                         variable i_strDescription_2,
+                                         variable i_strDescription_3,
+                                         variable i_strFunctionName,
+                                         variable i_intReferenceTraceLevel,
+                                         variable i_strReferenceModuleName) void
+    {
+      StatusAddArray(i_strDescription_1, i_arrVarArray_1, i_strReferenceModuleName);
+      StatusAddArray(i_strDescription_2, i_arrVarArray_2, i_strReferenceModuleName);
+      StatusAddArray(i_strDescription_3, i_arrVarArray_3, i_strReferenceModuleName);
+      StatusTraceArrays(i_intState, i_intTraceLevel, i_strFunctionName, i_intReferenceTraceLevel, i_strReferenceModuleName);
+    } // StatusTrace_3_Arrays
+
+    //----------------------------------------------------------------------------------------------
+    // static function CheckIntegerInArray (deprecated)
+    //----------------------------------------------------------------------------------------------
+    static function CheckIntegerInArray(variable i_varVariableToCheck,
+                                        variable i_strTraceEntry,
+                                        variable i_arrIntAllowedValues[],
+                                        variable i_strFunctionName,
+                                        variable i_strReferenceModuleName) variable
+    {
+      return(CheckValueInArray(i_varVariableToCheck,
+                               i_strTraceEntry,
+                               DATA_TYPE::INTEGER,
+                               i_arrIntAllowedValues,
+                               i_strFunctionName,
+                               i_strReferenceModuleName));
+    } // CheckIntegerInArray
 
     //----------------------------------------------------------------------------------------------
     // private function _CheckBool
@@ -1617,7 +2197,8 @@
       if(GetType(i_varVariableToCheck) == "i")
         if(i_varVariableToCheck == ASWGLOBAL::BOOL::TRUE || i_varVariableToCheck == ASWGLOBAL::BOOL::FALSE)
           return (hslTrue);
-      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry +  "' is not of type boolean!");
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry +  "' is not of type boolean !");
+
       return (hslFalse);
     } // _CheckBool
 
@@ -1629,9 +2210,8 @@
                            variable i_strFunctionName,
                            variable i_strReferenceModuleName) variable
     {
-      if(GetType(i_varVariableToCheck) == "i")
-        return (hslTrue);
-      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type integer!");
+      if(GetType(i_varVariableToCheck) == "i") return (hslTrue);
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type integer !");
       return (hslFalse);
     } // _CheckInteger
 
@@ -1645,6 +2225,14 @@
                                         variable i_strFunctionName,
                                         variable i_strReferenceModuleName) variable
     {
+      if(i_intMin > i_intMax)
+      {
+        variable intTemp(0);
+
+        intTemp = i_intMin;
+        i_intMin = i_intMax;
+        i_intMax = intTemp;
+      }
       if(GetType(i_varVariableToCheck) == "i")
         if(i_varVariableToCheck >= i_intMin && i_varVariableToCheck <= i_intMax)
           return (hslTrue);
@@ -1652,7 +2240,7 @@
           FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "'  is out of range ("
                       + IStr(i_intMin) + ".." + IStr(i_intMax) + ") !");
       else
-        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type integer!");
+        FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type integer !");
       return (hslFalse);
     } // CheckIntegerRange
 
@@ -1664,9 +2252,8 @@
                                  variable i_strFunctionName,
                                  variable i_strReferenceModuleName) variable
     {
-      if(GetType(i_varVariableToCheck) == "f")
-        return (hslTrue);
-      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type float!");
+      if(GetType(i_varVariableToCheck) == "f") return (hslTrue);
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type float !");
       return (hslFalse);
     } // _CheckFloat
 
@@ -1678,11 +2265,43 @@
                                   variable i_strFunctionName,
                                   variable i_strReferenceModuleName) variable
     {
-      if(GetType(i_varVariableToCheck) == "s")
-        return (hslTrue);
-      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type string!");
+      if(GetType(i_varVariableToCheck) == "s") return (hslTrue);
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ", "Parameter '" + i_strTraceEntry + "' is not of type string !");
       return (hslFalse);
     } // _CheckString
+
+    //----------------------------------------------------------------------------------------------
+    // private function _CheckStringLength
+    //----------------------------------------------------------------------------------------------
+    private function _CheckStringLength(variable i_varVariableToCheck,
+                                        variable i_strTraceEntry,
+                                        variable i_intLengthMin,
+                                        variable i_intLengthMax,
+                                        variable i_strFunctionName,
+                                        variable i_strReferenceModuleName) variable
+    {
+      string strTemp("");
+      variable intLength(-1);
+
+      if(GetType(i_varVariableToCheck) == "s")
+      {
+        strTemp = i_varVariableToCheck;
+        intLength = strTemp.GetLength();
+        if(intLength >= i_intLengthMin && intLength <= i_intLengthMax)
+          return (hslTrue);
+        else
+        {
+          FormatTrace("LIBRARY: " + i_strReferenceModuleName,
+                      i_strFunctionName, ACTION::COMPLETE_WITH_ERROR,
+                      " ", "Parameter '" + i_strTraceEntry + "' = '" + i_varVariableToCheck +
+                      "': length (" + IStr(intLength) + ") is out of range (" + IStr(i_intLengthMin) + ".." + IStr(i_intLengthMin) + ") !");
+          return(hslFalse);
+        }
+      }
+      FormatTrace("LIBRARY: " + i_strReferenceModuleName, i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
+                  "Parameter '", i_strTraceEntry, "' is not of type string !");
+      return(hslFalse);
+    } // _CheckStringLength
 
     //----------------------------------------------------------------------------------------------
     // private function _ReverseFind
@@ -1690,9 +2309,7 @@
     private function _ReverseFind(string i_strStringToParse,
                                   string i_strSubstringToFind) variable
     {
-      variable intIndex;
-      variable intResult(-1);
-      variable intStringLength;
+      variable intResult(-1), intStringLength(0), intIndex(0);
       string strTempString("");
 
       strTempString = i_strStringToParse;
@@ -1717,13 +2334,13 @@
         if(GetType(i_strReferenceFunctionName) != "s")
         {
           FormatTrace("LIBRARY: Hamilton DriverTools", i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                      "Parameter 'i_strReferenceModuleName' and 'i_strReferenceFunctionName' are not of type string!");
+                      "Parameter 'i_strReferenceModuleName' and 'i_strReferenceFunctionName' are not of type string !");
           return(hslFalse);
         }
         else
         {
           FormatTrace("LIBRARY: Hamilton DriverTools", i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                      "Parameter 'i_strReferenceModuleName' is not of type string!");
+                      "Parameter 'i_strReferenceModuleName' is not of type string !");
           return(hslFalse);
         }
       }
@@ -1732,7 +2349,7 @@
         if(GetType(i_strReferenceFunctionName) != "s")
         {
           FormatTrace("LIBRARY: Hamilton DriverTools", i_strFunctionName, ACTION::COMPLETE_WITH_ERROR, " ",
-                      "Parameter 'i_strFunctionName' is not of type string!");
+                      "Parameter 'i_strFunctionName' is not of type string !");
           return(hslFalse);
         }
       }
@@ -1762,8 +2379,7 @@
                                 variable i_intLength) variable
     {
       variable strReturn("");
-      variable intLength(0);
-      variable intCount;
+      variable intLength(0), intCount(0);
 
       strReturn = i_strStringToFill;
       intLength = i_strStringToFill.GetLength();
@@ -1833,13 +2449,22 @@
         strTempFloat = FStr(i_varValue, hslTrue, 1000);
         if(strTempFloat.Find(strComma) == -1)
         {
-          strTempFloat = strTempFloat + strComma;
-          strTempFloat = strTempFloat + "0";
+          strTempFloat = strTempFloat + strComma + "0";
         }
         return(strTempFloat);
       }
       return("");
     } // _ToString
+
+    //----------------------------------------------------------------------------------------------
+    // private function _ToStringWithQuotes
+    //----------------------------------------------------------------------------------------------
+    private function _ToStringWithQuotes(variable i_varValue) variable
+    {
+      if(GetType(i_varValue) == "s") return("'" + i_varValue + "'");
+
+      return(_ToString(i_varValue));
+    } // _ToStringWithQuotes
 
     //----------------------------------------------------------------------------------------------
     // private function _GetComma
@@ -1855,18 +2480,20 @@
      //----------------------------------------------------------------------------------------------
     // private function _FindInArray
     //----------------------------------------------------------------------------------------------
-    private function _FindInArray(variable i_arrvarArrayToCheck[],
+    private function _FindInArray(variable i_arrVarArrayToCheck[],
                                   variable i_varValueToFind) variable
     {
       variable intPosInArray(0), intArraySize(0);
       variable varValueToCheck;
 
-      intArraySize = i_arrvarArrayToCheck.GetSize();
+      intArraySize = i_arrVarArrayToCheck.GetSize();
       for (intPosInArray = 0; intPosInArray <  intArraySize; intPosInArray++)
       {
-        varValueToCheck = i_arrvarArrayToCheck.GetAt(intPosInArray);
+        varValueToCheck = i_arrVarArrayToCheck.GetAt(intPosInArray);
         if((GetType(varValueToCheck) == GetType(i_varValueToFind)) && (varValueToCheck == i_varValueToFind))
+        {
           return(intPosInArray);
+        }
       }
       return(-1);
     } // _FindInArray
@@ -1893,32 +2520,121 @@
     // --------------------------------------------------------------------------------------
     // private function _LongestElementSize
     // --------------------------------------------------------------------------------------
-    private function _LongestElementSize(variable i_arrvarToCheck[]) variable
+    private function _LongestElementSize(variable i_arrVarToCheck[]) variable
     {
       variable intActualPosition, intArraySize, intMaxLength;
       string strTemp;
 
-      intArraySize = i_arrvarToCheck.GetSize();
+      intArraySize = i_arrVarToCheck.GetSize();
 
       for(intActualPosition = 0; intActualPosition < intArraySize; intActualPosition++)
       {
-        strTemp = _ToString(i_arrvarToCheck.GetAt(intActualPosition));
+        strTemp = _ToString(i_arrVarToCheck.GetAt(intActualPosition));
         if(strTemp.GetLength() > intMaxLength) intMaxLength = strTemp.GetLength();
       }
       return(intMaxLength);
     } // _LongestElementSize
-    // --------------------------------------------------------------------------------------
-    // private function _LongestElementSize
-    // --------------------------------------------------------------------------------------
-    function _ConvertToString(variable i_varVariableToConvert) variable
+
+    //----------------------------------------------------------------------------------------------
+    // private function _SplitString
+    //----------------------------------------------------------------------------------------------
+    private function _SplitString(variable i_strToSplit,
+                                  variable i_strSplitCharacter,
+                                  variable& o_arrStrSplitted[]) void
     {
-      if(GetType(i_varVariableToConvert) == "i")
-        return(IStr(i_varVariableToConvert));
-      if(GetType(i_varVariableToConvert) == "f")
-        return(FStr(i_varVariableToConvert));
-      if(GetType(i_varVariableToConvert) == "s")
-        return(i_varVariableToConvert);
-    }
+      variable intCutPos(0);
+      string strTemp("");
+
+      strTemp = i_strToSplit;
+
+      o_arrStrSplitted.SetSize(0);
+
+      if(strTemp.GetLength() == 0) return;
+
+      // split by split character
+      while(intCutPos != -1)
+      {
+        intCutPos = strTemp.Find(i_strSplitCharacter);
+
+        if(intCutPos > -1)
+        {
+          o_arrStrSplitted.AddAsLast(strTemp.Mid(0, intCutPos));
+          strTemp = strTemp.Mid(intCutPos + 1, strTemp.GetLength());
+        }
+        else
+        {
+           o_arrStrSplitted.AddAsLast(strTemp);
+        }
+      }
+    } // _SplitString
+
+    //----------------------------------------------------------------------------------------------
+    // private function _GetState
+    //----------------------------------------------------------------------------------------------
+    private function _GetState(i_intState) variable
+    {
+      if(i_intState == 1) return("Start");
+      if(i_intState == 2) return("Complete");
+      if(i_intState == 3) return("Error");
+      if(i_intState == 4) return("Progress");
+      if(i_intState == 5) return("Complete with error");
+    } // _GetState
+
+    //----------------------------------------------------------------------------------------------
+    // private function _ArrayToString
+    //----------------------------------------------------------------------------------------------
+    private function _ArrayToString(variable i_arrVarArray[]) variable
+    {
+      variable varSingleEntry;
+      variable intActualElement(0);
+      variable strElementType(""), strArrayString("");
+
+      for(intActualElement = 0; intActualElement < i_arrVarArray.GetSize(); intActualElement++)
+      {
+        varSingleEntry = i_arrVarArray.GetAt(intActualElement);
+        strElementType = GetType(varSingleEntry);
+        if(strElementType == "i") strArrayString = strArrayString + "\020" + IStr(varSingleEntry);
+        if(strElementType == "f") strArrayString = strArrayString + "\021" + FStr(varSingleEntry);
+        if(strElementType == "s") strArrayString = strArrayString + "\022" + varSingleEntry;
+        strArrayString = strArrayString + "\025";
+      }
+      return(strArrayString);
+    } // _ArrayToString
+
+    //----------------------------------------------------------------------------------------------
+    // private function _StringToArray
+    //----------------------------------------------------------------------------------------------
+    private function _StringToArray(variable i_strArrayString,
+                                    variable& o_arrVarArray[]) void
+    {
+      string strTemp(""), strSingleValue("");
+      variable intCutPos(0);
+
+      o_arrVarArray.SetSize(0);
+
+      strTemp = i_strArrayString;
+
+      while(hslTrue)
+      {
+        intCutPos = strTemp.Find("\025");
+        if(intCutPos == -1) break;
+        strSingleValue = strTemp.Mid(0, intCutPos);
+        strTemp = strTemp.Mid(intCutPos + 1, strTemp.GetLength());
+        if(strSingleValue.Mid(0, 1) == "\020") o_arrVarArray.AddAsLast(IVal(strSingleValue.Mid(1, strSingleValue.GetLength())));
+        if(strSingleValue.Mid(0, 1) == "\021") o_arrVarArray.AddAsLast(FVal(strSingleValue.Mid(1, strSingleValue.GetLength())));
+        if(strSingleValue.Mid(0, 1) == "\022") o_arrVarArray.AddAsLast(strSingleValue.Mid(1, strSingleValue.GetLength()));
+      }
+    } // _StringToArray
+
+    //----------------------------------------------------------------------------------------------
+    // private function _InitializeLibrary
+    //----------------------------------------------------------------------------------------------
+    private function _InitializeLibrary() void
+    {
+      if(gHamilton_DriverTools_blnInitialized) return;
+      gHamilton_DriverTools_hdlSemaphore.SetEvent();
+      gHamilton_DriverTools_blnInitialized = hslTrue;
+    } // _InitializeLibrary
   }
 #endif
-// $$author=Daniel$$valid=1$$time=2016-02-26 10:13$$checksum=ac101b09$$length=085$$
+// $$author=BHuf$$valid=1$$time=2022-11-07 10:11$$checksum=95d44023$$length=083$$
