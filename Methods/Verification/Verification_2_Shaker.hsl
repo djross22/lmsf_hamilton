@@ -15,6 +15,14 @@
 * ==================================================================================================
 *  Modification History:
 * ----------------------
+* Rev 1.3  2021-10-09 Erich Caflisch  / Module Version : 04/ ECO11007671
+*                 General change of verification interval: either200 dasy or 400 days
+*                 Executable only from sofware version 4.2 (due to pdf file creator limitation)
+* --------------------------------------------------------------------------------------------------
+* Rev 1.2 2018-04-09 Erich Caflisch / Module Version : 03 /ECO14650
+*                 Stop shaker excluded during initialisation
+*                 If installed include also library "HSLInhecoTEC\\HSLInhecoTECLib.hsl"
+* --------------------------------------------------------------------------------------------------
 * Rev 1.1 2012-11-20 Erich Caflisch / Module Version : 02 /ECO13197
 *                 Selection of pipetting channel, to perform shaker measurement 
 *                 Include 5ml pipetting channels
@@ -60,7 +68,7 @@
 
 namespace S_VER
 {
-	variable moduleVersion("02");				// verification subversion of this library	
+	variable moduleVersion("04");				// verification subversion of this library	
 
 	const variable yStepsPerMiliMeter(21.597300492938946180887801527201); // y-movement step motor resolution 
 	const variable zStepsPerMiliMeter(93.217060586428528149221870586755); // Z-movement step motor resolution 
@@ -112,9 +120,9 @@ namespace S_VER
 
       cmd = StrConcat2(channelAddress, fwCommand);
 
-//      	function FwCommand( variable &fwCommand, variable &fwParameter, variable errCheck, device ML_STAR )
+      //	function FwCommand( variable &fwCommand, variable &fwParameter, variable errCheck, device ML_STAR )
 	   returnValue = VerTool::FwCommand(cmd, fwParameter, hslFalse, ML_STAR );
-Trace("Test: pipChannelFWCommand =>", cmd, fwParameter,"<  response ==>",returnValue,"<==");
+      //Trace("Test: pipChannelFWCommand =>", cmd, fwParameter,"<  response ==>",returnValue,"<==");
       return(returnValue);
 
 	}  // -- end of function "pipChannelFWCommand"
@@ -136,13 +144,13 @@ Trace("Test: pipChannelFWCommand =>", cmd, fwParameter,"<  response ==>",returnV
 		// eject tips back into rack
 		if(tipType ==TipType::_300ulStandardVolumeTip) 
 		{
-			Trace("Test: Run abort: 1000ul Teaching Needle will be eject into tip rack");
+			//Trace("Test: Run abort: 1000ul Teaching Needle will be eject into tip rack");
 			ML_STAR.TipEject( "60f867f7_eb5b_4027_89b7d6e2042e6664" );
 		}
 
 		if(tipType ==TipType::_5mlTip) 
 		{
-			Trace("Test: Run abort: 5ml Teaching Needle will be eject into tip rack");
+			//Trace("Test: Run abort: 5ml Teaching Needle will be eject into tip rack");
 			ML_STAR.XLTipEject( "bce45401_fd61_4fc1_88ad33178b1b8cff" );
 		}
 
@@ -382,7 +390,7 @@ Trace("Test: pipChannelFWCommand =>", cmd, fwParameter,"<  response ==>",returnV
          if(returnValue == hslCancel) return(hslFalse);
          StrMakeUpper(inputValue);
          channelNo = IVal(StrMid(inputValue, 1,2));
-//Trace("Test: showShakingToolMounting_Dialog: inputValue =>",inputValue,"<   Pip Type =>",StrLeft(inputValue,1),"<  channelNo =>",channelNo,"<==");
+         //Trace("Test: showShakingToolMounting_Dialog: inputValue =>",inputValue,"<   Pip Type =>",StrLeft(inputValue,1),"<  channelNo =>",channelNo,"<==");
          if(channelNo > 0)
          {                                                
             if((StrLeft(inputValue,1) == "P") && (IVal(StrMid(inputValue, 1,2)) <= VerDef::InstrumentNumberOfChannels))
@@ -425,7 +433,7 @@ Trace("Test: pipChannelFWCommand =>", cmd, fwParameter,"<  response ==>",returnV
 		if (fso.IsNull()) fso.CreateObject("Scripting.FileSystemObject");
 
 		labDeviceType = DevGetLabwareData(ML_STAR, S_VAR::arrLabwareID.GetAt(labIndex), VerDef::PropVerDevice);
-      Trace("Test: ----  Requested labDeviceType: \"", labDeviceType, "\" try to included library....");
+      //Trace("Test: Shaker Verification ----  Requested labDeviceType: \"", labDeviceType, "\" try to included library....");
 
 		if(labDeviceType  == VerDef::MFX_Cooling_Module) return(hslTrue); //"MFX Cooling Module": no library needed/available
 		if(labDeviceType  == VerDef::MFX_Heating_Module) return(hslTrue); //"MFX Heating Module": no library needed/available
@@ -449,7 +457,7 @@ Trace("Test: pipChannelFWCommand =>", cmd, fwParameter,"<  response ==>",returnV
 
 		if(labDeviceType  == VerDef::HHS)
 		{	//"HHS"
-			if(HHS_LibraryIncluded) return(hslTrue); //"HHS" library allready included
+			if(HHS_LibraryIncluded) return(hslTrue); //"HHS" library already included
 			libraryName = "HslHamHeaterShakerLib.hs_";
 		}
 
@@ -469,9 +477,13 @@ Trace("Test: pipChannelFWCommand =>", cmd, fwParameter,"<  response ==>",returnV
 			HSLMTecLibType = hslFalse;
 			libraryName = "HSLInhecoTEC\\HSLInhecoTECLib.hs_";	
 			if(! fso.FileExists(GetLibraryPath() + "\\" + libraryName))
-			{ 	//  Library\InhecoMTEC\HSLMTecLib.hs_"
-				libraryName = "InhecoMTEC\\HSLMTecLib.hs_";
-				HSLMTecLibType = hslTrue;
+			{ 
+   			libraryName = "HSLInhecoTEC\\HSLInhecoTECLib.hsl";	
+   			if(! fso.FileExists(GetLibraryPath() + "\\" + libraryName))
+   			{ //  Library\InhecoMTEC\HSLMTecLib.hs_"
+   				libraryName = "InhecoMTEC\\HSLMTecLib.hs_";
+   				HSLMTecLibType = hslTrue;
+            }
 			}		
 		}  
 	   onerror goto IncludeError;
@@ -534,11 +546,11 @@ Trace("Test: pipChannelFWCommand =>", cmd, fwParameter,"<  response ==>",returnV
 			comAddress = IVal(DevGetLabwareData(ML_STAR, labwareID, VerDef::PropVER_SerialPort) );	
 			modAddress = IVal(DevGetLabwareData(ML_STAR, labwareID, VerDef::PropVER_ModuleAddress) );
 			deviceTypeFound = hslTrue;
-//Trace("Test: --- Teleshaker---  initialisation -----------", "Module Address =>", modAddress,"<==");
+         //Trace("Test: --- Teleshaker---  initialisation -----------", "Module Address =>", modAddress,"<==");
 			if(!VerDef::SimulationMode) 
 			{
 				if(HSLShakerVariomag::Init(comAddress) != 1) 		executionError++;
-				HSLShakerVariomag::StopShaking(modAddress);
+				//HSLShakerVariomag::StopShaking(modAddress);  // stop shaker excluded in ECO14650
 			}
 			S_VAR::arrDeviceID.SetAt(labIndex, modAddress);
 		}
@@ -546,7 +558,7 @@ Trace("Test: pipChannelFWCommand =>", cmd, fwParameter,"<  response ==>",returnV
 		//-------------- "Shaker Heater CAT"  -----------------------
 		if(labDeviceType  == VerDef::Shaker_Heater_CAT)
 		{	
-//Trace("Test: --- Shaker Heater CAT ---  initialisation -----------", " Type IVD =>", isCAT_IVD,"<==");
+         //Trace("Test: --- Shaker Heater CAT ---  initialisation -----------", " Type IVD =>", isCAT_IVD,"<==");
 
 			comAddress = IVal(DevGetLabwareData(ML_STAR, labwareID, VerDef::PropVER_SerialPort) );
 			modAddress = IVal(DevGetLabwareData(ML_STAR, labwareID, VerDef::PropVER_ModuleAddress) );
@@ -587,7 +599,7 @@ Trace("Test: pipChannelFWCommand =>", cmd, fwParameter,"<  response ==>",returnV
 				if(( modAddress >= 1 ) && ( modAddress <= 8 ))
 				{  
 					if(HSLHamHeaterShaker::CreateUsbDevice(modAddress, deviceID)!= 0) executionError++;			
-Trace("Test: HHS on external CAN: start Shaker Control at modAddress =>",modAddress,"< device ID ==>",deviceID,"<==");
+               //Trace("Test: HHS on external CAN: start Shaker Control at modAddress =>",modAddress,"< device ID ==>",deviceID,"<==");
 				}
 				else 
 				{ // execution error
@@ -602,7 +614,7 @@ Trace("Test: HHS on external CAN: start Shaker Control at modAddress =>",modAddr
 				S_VAR::arrDeviceID.SetAt(labIndex, deviceID);	
 				S_VAR::arrSerialNumber.SetAt(labIndex, serialNumber);	
 			}
-      Trace("Test: initialiseShakerControl:   labDeviceType =>",labDeviceType,"< deviceID =>",deviceID,"<==");			
+            //      Trace("Test: initialiseShakerControl:   labDeviceType =>",labDeviceType,"< deviceID =>",deviceID,"<==");			
 		}	
 
 		//-------------- "Inheco Multi/Single TEC controller"  -----------------------
@@ -621,7 +633,7 @@ Trace("Test: HHS on external CAN: start Shaker Control at modAddress =>",modAddr
 				modAddress	 = IVal(tempText);
 			}
 			S_VAR::arrDeviceID.SetAt(labIndex, StrConcat4(controllerID,".",modAddress,""));
-//Trace("Test: Inheco Multi/Single TEC controller  start Shaker Control at controllerID =>",controllerID,"<  modAddress =>",modAddress,"<==");			
+         //Trace("Test: Inheco Multi/Single TEC controller  start Shaker Control at controllerID =>",controllerID,"<  modAddress =>",modAddress,"<==");			
 
 			if(HSLInhecoTECLib_Inculded)
 			{
@@ -698,7 +710,7 @@ Trace("Test: HHS on external CAN: start Shaker Control at modAddress =>",modAddr
 		revolution		= Ceiling(revolution);
 		onerror goto executionFailed;
 		err.Clear();
-//Trace("Test: executedShaking:   labDeviceType =>",labDeviceType,"< deviceID =>",deviceID,"<==");			
+      //Trace("Test: executedShaking:   labDeviceType =>",labDeviceType,"< deviceID =>",deviceID,"<==");			
 		//-------------- "Teleshaker"  -----------------------
 		if(labDeviceType  == VerDef::Teleshaker)
 		{ 
@@ -775,7 +787,7 @@ Trace("Test: HHS on external CAN: start Shaker Control at modAddress =>",modAddr
 				controllerID = IVal(StrLeft(deviceID,StrFind(deviceID,".")));
 				deviceID 	 = IVal(StrRight(deviceID,StrGetLength(deviceID)-StrFind(deviceID,".") -1));
 
-//Trace("Test: Inheco Multi/Single TEC controller  start Shaker Control at controllerID =>",controllerID,"<  deviceID =>",deviceID,"<==");			
+            //Trace("Test: Inheco Multi/Single TEC controller  start Shaker Control at controllerID =>",controllerID,"<  deviceID =>",deviceID,"<==");			
 				if(revolution >= 200)
 				{
                HSLInhecoTECLib::SetShakerRevolutions(controllerID, deviceID, revolution, tempText);
@@ -923,7 +935,7 @@ Trace("Test: HHS on external CAN: start Shaker Control at modAddress =>",modAddr
 		variable returnValue(0);
 		string 	returnData;
 
-//Trace("Test: moveChannelToPosition: => z0Pos =>",z0Pos,"<  zPos ==>", zPos,"< yPos =>",yPos,"<==");
+      //Trace("Test: moveChannelToPosition: => z0Pos =>",z0Pos,"<  zPos ==>", zPos,"< yPos =>",yPos,"<==");
 		if(z0Pos >0)
 		{ // move to Z-start position 
 			z0Pos = Ceiling(z0Pos * zStepsPerMiliMeter);
@@ -1293,22 +1305,22 @@ Trace("Test: HHS on external CAN: start Shaker Control at modAddress =>",modAddr
 				if (frequencyNominalValue > 0) 
 				{ 
 					frequencyMeasuredValue = frequencyNominalValue;
-//Trace("Shaker_Verification: S_VAR::arrLabwareID.GetAt(",index,") ==>",S_VAR::arrLabwareID.GetAt(index),
-//			"<  ==> labDeviceType  =>", labDeviceType,"<  target frequency  is =>", frequencyNominalValue ,"<==");
+               //Trace("Shaker_Verification: S_VAR::arrLabwareID.GetAt(",index,") ==>",S_VAR::arrLabwareID.GetAt(index),
+               //			"<  ==> labDeviceType  =>", labDeviceType,"<  target frequency  is =>", frequencyNominalValue ,"<==");
 		
 					if(!showShakingToolMounting_Dialog(ML_STAR, index, channelAddress)) break;//, measured orbit and frequency);
-Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddress =>",oldChannelAddress,"<   channelAddress =>",channelAddress,"<=="); 
+               //Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddress =>",oldChannelAddress,"<   channelAddress =>",channelAddress,"<=="); 
 
                if(oldChannelAddress != channelAddress)
                { // eject teaching needle first
                   if(tipType ==TipType::_300ulStandardVolumeTip) 
             		{
-            			Trace("Test: 1000ul Teaching Needle will be eject into tip rack");
+            			//Trace("Test: 1000ul Teaching Needle will be eject into tip rack");
             			ML_STAR.TipEject( "6404ae35_534f_497e_b0467ac3b02caef3" );
             		}
             		if(tipType ==TipType::_5mlTip) 
             		{
-            			Trace("Test: 5ml Teaching Needle will be eject into tip rack");
+            			//Trace("Test: 5ml Teaching Needle will be eject into tip rack");
             			ML_STAR.XLTipEject( "d30b4d8f_07d5_4b51_a32b2153e17a3c5f" );
             		}
                   // --- pick up needle with new channel
@@ -1318,7 +1330,7 @@ Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddres
 		               if (VerDef::isIVD) PS::seq_TeachingNeedles.SetCurrentPosition( PS::seq_TeachingNeedles.GetTotal());
                      else               PS::seq_TeachingNeedles.SetCurrentPosition( PS::seq_TeachingNeedles.GetTotal()-1);
                		tipType = TipType::_5mlTip;
-             Trace("Test: Channel pattern of 5ml Pipetting Channels =>",channelPattern,"<==");
+                     //Trace("Test: Channel pattern of 5ml Pipetting Channels =>",channelPattern,"<==");
                      ML_STAR.XLTipPickUp( "e7a2a7c4_5e18_41e2_89cc8a35cfb741f6" );
                		cmd 		= "C0LQ"; 
                      prm      = "pm" + IStr(channelNo);
@@ -1328,7 +1340,7 @@ Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddres
                   {
                		tipType = TipType::_300ulStandardVolumeTip;
                      channelPattern = VerTool::ChannelPattern(channelNo , 1, VerDef::InstrumentNumberOfChannels);
-               Trace("Test: Channel pattern of 1000ul Pipetting Channels =>",channelPattern,"<==");
+                     //Trace("Test: Channel pattern of 1000ul Pipetting Channels =>",channelPattern,"<==");
                      if (VerDef::isIVD) PS::seq_TeachingNeedles.SetCurrentPosition( 8 );
                      else               PS::seq_TeachingNeedles.SetCurrentPosition( 4 );
                		ML_STAR.TipPickUp( "15cd62e6_1f16_4a60_af4033b6263ba568" );
@@ -1365,12 +1377,12 @@ Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddres
 		// eject teaching needle back into rack
      if(tipType == TipType::_300ulStandardVolumeTip) 
 		{
-			Trace("Test: Run at end: 1000ul Teaching Needle will be eject into tip rack");
+			//Trace("Test: Run at end: 1000ul Teaching Needle will be eject into tip rack");
 			ML_STAR.TipEject( "0a1f7e43_772f_45cb_ab16b7f9b00b6bbd" );
 		}
 		if(tipType ==TipType::_5mlTip) 
 		{
-			Trace("Test: Run at end: 5ml Teaching Needle will be eject into tip rack");
+			//Trace("Test: Run at end: 5ml Teaching Needle will be eject into tip rack");
 			ML_STAR.XLTipEject( "0966131e_3b41_4f04_b684397b68ff577d" );
 		}
 
@@ -1385,12 +1397,12 @@ Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddres
 			// eject teaching needle back into rack
         if(tipType == TipType::_300ulStandardVolumeTip) 
    		{
-   			Trace("Test: Errorhandling during run: 1000ul Teaching Needle will be eject into tip rack");
+   			//Trace("Test: Errorhandling during run: 1000ul Teaching Needle will be eject into tip rack");
    			ML_STAR.TipEject( "f4116eb5_fbc7_4e5c_87d812d51b371eeb" );
    		}
    		if(tipType ==TipType::_5mlTip) 
    		{
-   			Trace("Test: Errorhandling during run: 5ml Teaching Needle will be eject into tip rack");
+   			//Trace("Test: Errorhandling during run: 5ml Teaching Needle will be eject into tip rack");
    			ML_STAR.XLTipEject( "4ebfb07e_6ddd_4aa0_8633b415745464db" );
    		}
 			return;
@@ -1449,7 +1461,8 @@ Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddres
 			processID 				= PID::Shaker + labwareID ;
 			if(serialNo == "")	VerTool::GetVerificationInformation(processID,prop1,prop2,prop3,serialNo, date,lcd,lcb);
 			VerTool::GetProcessDataFromFile(processID, processedState, processedDate , processedTime, verificationInterval);
-//Trace("Test: ----  processID =>",processID,"< processedDate ==>",processedDate,"<==");
+         //Trace("Test: Evaluate Shaker Summary ----  processID =>",processID,"< processedDate ==>",processedDate,"< verificationInterval ==>",verificationInterval,"<==");
+         verificationInterval = VerDef::setVerifyInterval;
 			if(S_VAR::arrAction.GetAt(deviceNo) != 0)
 			{			
 				processedDate	= GetDate("%Y-%m-%d");
@@ -1510,7 +1523,7 @@ Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddres
 					frequenceDeviation 	= targetFrequence - measuredFrequence;
 					VerTool::FormatNumber_PointAsDecimal(frequenceDeviation ,digitsFreq); 
 					if (frequenceDeviation < 0) frequenceDeviation = -1.0 * frequenceDeviation;
-	//Trace(" ----  processID =>",processID,"< deviation ==>",deviation,"< deviationSpec ==>",deviationSpec,"<==");
+            	//Trace(" ----  processID =>",processID,"< deviation ==>",deviation,"< deviationSpec ==>",deviationSpec,"<==");
 					if((orbitDeviation > orbitDeviationSpec) || (frequenceDeviation > frequenceDeviationSpec) )
 					{
 							singleDeviceStatus 	= PS::failed;
@@ -1543,6 +1556,7 @@ Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddres
 			// store device data in config file
 			if(S_VAR::arrAction.GetAt(deviceNo) != 0)
 			{			
+            //Trace("Test: Evaluate Shaker Summary ----  processID =>",processID,"< processedDate ==>",processedDate,"< verificationInterval ==>",verificationInterval,"<==");
 				VerTool::UpdateVerificationInformation(0, processID, singleDeviceStatus, verificationInterval , processedTime, serialNo, processedDate);
 				// store evaluated data for set Orbit
 				processID = PID::Shaker_Ampl + labwareID ;
@@ -1606,8 +1620,8 @@ Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddres
 		variable labIndex; 
 		variable targetFrequency;
 
-//Trace("Test:  Initialize_Shaker_Devices: 	S_VAR::arrLabwareID.GetSize() =>",S_VAR::arrLabwareID.GetSize(),"<  VerDef::numberOfShakerSites==>",VerDef::numberOfShakerSites,"<==");	
-//VerTool::TraceArray(" --- Shaker_Verification Initialisation: S_VAR::arrAction ----", S_VAR::arrAction);
+      //Trace("Test:  Initialize_Shaker_Devices: 	S_VAR::arrLabwareID.GetSize() =>",S_VAR::arrLabwareID.GetSize(),"<  VerDef::numberOfShakerSites==>",VerDef::numberOfShakerSites,"<==");	
+      //VerTool::TraceArray(" --- Shaker_Verification Initialisation: S_VAR::arrAction ----", S_VAR::arrAction);
 		if(( S_VAR::arrLabwareID.GetSize() == 0) || (VerDef::numberOfShakerSites == 0)) return;
 		
 		for( labIndex = 0; labIndex < S_VAR::arrLabwareID.GetSize(); labIndex++)
@@ -1635,7 +1649,7 @@ Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddres
 		if(VerDef::isIVD )	RPD::reportTemplateFileName ="Report_Shaker_IVD_Ver";	// Report_Shaker_IVD_VerEnu.xls
 		else						RPD::reportTemplateFileName ="Report_Shaker_Ver";		// Report_Shaker_VerEnu.xls
 
-//VerTool::TraceArray(" --- Shaker_Verification Activation: S_VAR::arrAction ----", S_VAR::arrAction);
+      //VerTool::TraceArray(" --- Shaker_Verification Activation: S_VAR::arrAction ----", S_VAR::arrAction);
 
 		if ((VerDef::InstrumentNumberOfChannels == 0) &&(VerDef::InstrumentNumberOf_5mlChannels == 0))
       {
@@ -1648,9 +1662,9 @@ Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddres
 		
 		// check amount of verified sites
 		amountOfDevices = 0;
-//VerTool::TraceArray(" --- Shaker_Verification: S_VAR::arrAction ----", S_VAR::arrAction);
+      //VerTool::TraceArray(" --- Shaker_Verification: S_VAR::arrAction ----", S_VAR::arrAction);
 		for( index = 0; index < S_VAR::arrAction.GetSize(); index++) if(S_VAR::arrAction.GetAt(index) != 0 ) amountOfDevices++;
-//Trace("Test:     Shaker_Verification:   -----  amount of devices =>",amountOfDevices,"<  PID::doShaker_Verification  =>",PID::doShaker_Verification ,"<==");
+      //Trace("Test:     Shaker_Verification:   -----  amount of devices =>",amountOfDevices,"<  PID::doShaker_Verification  =>",PID::doShaker_Verification ,"<==");
 		if (amountOfDevices == 0)return;
 
 		// evaluate data of all heating phases
@@ -1676,4 +1690,4 @@ Trace("Test: tipType ==>",TipType::_300ulStandardVolumeTip,"<   ld channelAddres
 } // end of namespace S_VER
 //==============================================================================
 
-// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=86e5277c$$length=088$$
+// $$author=ECaflisch$$valid=1$$time=2021-10-11 16:56$$checksum=0bd2b406$$length=086$$

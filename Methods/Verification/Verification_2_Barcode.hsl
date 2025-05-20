@@ -11,6 +11,9 @@
 * ==================================================================================================
 *  Modification History:
 * ----------------------
+* Rev 1.1 2016-03-08 Erich Caflisch  /  ECO 14650 / Module Version : 02
+*                If 2D coder reader is installed verify also 2D codes
+* --------------------------------------------------------------------------------------------------
 * Rev 1.0 2010-07-19 Erich Caflisch  /  Module Version : 01
 *                First released version for software version >=3.2.0
 * --------------------------------------------------------------------------------------------------
@@ -18,8 +21,6 @@
 *
 *****************************************************************************************************/ 
 
-
-//device ML_STAR("TestDeck_1.lay");
 //device ML_STAR("Verification_Starlet.lay");
 	// -----------------------------------------------------------------------------
 	// Debug switch for this file
@@ -46,6 +47,9 @@
 	#include "HSLMlStarCfgKeys.hs_"
 	#endif
 
+	#ifndef __HSLMthLib_hsl__
+	#include "HSLMthLib.hsl"
+	#endif
 	//==============================================================================
 	// local functions
 	//==============================================================================
@@ -56,7 +60,9 @@ namespace BC_1
 	variable moduleVersion("01");				// verification subversion of this library	
 
 	static const variable horizontalCarrierLabID("horizontalBarcodeCarrier");
+	static const variable horizontalCarrier2LabID("horizontalBarcode2Carrier");
 	static const variable verticalCarrierLabID("verticalBarcodeCarrier");
+	static const variable _2DcodeCarrierLabID("2DcodeCarrier");
 
 	// expected barcodes, added to array BC1::reportBarcode
 	static const string bcCheck11("Check11");
@@ -69,10 +75,16 @@ namespace BC_1
 	static const string bcCheck18("Check18");
 	static const string bcCheck19("Check19");
 	static const string bcCheck21("Check21");
-	static const variable countOfBcToCheck(10);
+	static const string bcCheck22("Check22");
+	static const string bcCheck23("Check23");
+	static const string bcCheck24("CHECK24");
+	static const string bcCheck25("Check25");
+	static const string bcCheck26("Check26");
+	static const string bcCheck27("Check27");
+	static variable countOfBcToCheck(16);
 
 	// expected barcode positions, added to array barcodePosArray
-	// -> horizontal
+	// -> horizontal 1st set
 	static variable indexFirstH;
 	static const variable posBcH11(4);
 	static const variable posBcH12(3);
@@ -80,6 +92,10 @@ namespace BC_1
 	static const variable posBcH14(1);
 	static variable indexLastH;
 	static const variable posMaxH(4);
+	// -> horizontal 2nd set
+	static const variable posBcH26(1);
+	static const variable posMaxH2(1);
+	static variable indexLastH2;
 	// -> vertical
 	static variable indexFirstV;
 	static const variable posBcV15(32);
@@ -88,14 +104,24 @@ namespace BC_1
 	static const variable posBcV18(17);
 	static const variable posBcV19(9);
 	static const variable posBcV21(16);
+	static const variable posBcV23(20);
+	static const variable posBcV27(24);
 	static variable indexLastV;
 	static const variable posMaxV(32);
+	// -> 2D codes
+	static variable indexFirstD;
+	static const variable posBcD22(1);
+	static const variable posBcD24(2);
+	static const variable posBcD25(3);
+	static variable indexLastD;
+	static const variable posMaxD(3);
+
 	static variable scannedBarcodeArray[];
 	static variable barcodePosArray[];
 
 	static const variable posBcVlabelSetNo(1);	// Position of the barcode labeling set ID (YYYY-MM-DD)
 
-//	static string BC_CarrierSerial("");
+	static variable presettedCodeTypes("");
 	static variable carrierNo("");			// The carrier barcode, added to the report.
 	static variable reportBarcode[](10);	// Missing barcodes (failed to read) as string. Empty barcode interpreted as OK.
 
@@ -120,33 +146,53 @@ namespace BC_1
 		variable trackNo;
 		sequence seq_DummyDef;  			// place holder sequence definition
 
-		dialogTitle 		= LdT("Start of the Autoload Barcode Verification:");
+		dialogTitle 		= LdT("Start of the Autoload Code Verification:");
 		pictureFile 		= "StartBarcodeVer.jpg";
 
 		// init process variables 
 		VerTool::InitializeDataVariables();		
-		BC_1::reportBarcode.SetSize(countOfBcToCheck);
-		barcodePosArray.SetSize(countOfBcToCheck);
+		BC_1::reportBarcode.SetSize(0);
+		barcodePosArray.SetSize(0);
+
+		BC_1::reportBarcode.AddAsLast("");			 barcodePosArray.AddAsLast(posBcVlabelSetNo); // vert.BC seriela no at 1
+		indexFirstH = BC_1::reportBarcode.GetSize();
+		BC_1::reportBarcode.AddAsLast( bcCheck11); barcodePosArray.AddAsLast(posBcH11); // horiz.BC "Check11" at pos 1
+		BC_1::reportBarcode.AddAsLast( bcCheck12); barcodePosArray.AddAsLast(posBcH12); // horiz.BC "Check12" at pos 2
+		BC_1::reportBarcode.AddAsLast( bcCheck13); barcodePosArray.AddAsLast(posBcH13); // horiz.BC "Check13" at pos 3
+		BC_1::reportBarcode.AddAsLast( bcCheck14); barcodePosArray.AddAsLast(posBcH14); // horiz.BC "Check14" at pos 4
+		indexLastH = BC_1::reportBarcode.GetSize() -1 ;
+		indexLastH2 = 0;
+		if(VerDef::AutoLoad == 2)
+		{ 
+			BC_1::reportBarcode.AddAsLast( bcCheck26); barcodePosArray.AddAsLast(posBcH26); // horiz.BC "Check26" at pos 1
+			indexLastH2 = BC_1::reportBarcode.GetSize() -1 ;
+		}
+
+		indexFirstV = BC_1::reportBarcode.GetSize();
+		BC_1::reportBarcode.AddAsLast( bcCheck15); barcodePosArray.AddAsLast(posBcV15); // vert.BC "Check15" at pos 32
+		BC_1::reportBarcode.AddAsLast( bcCheck16); barcodePosArray.AddAsLast(posBcV16); // vert.BC "Check16" at pos 31
+		BC_1::reportBarcode.AddAsLast( bcCheck17); barcodePosArray.AddAsLast(posBcV17); // vert.BC "Check17" at pos 30
+		BC_1::reportBarcode.AddAsLast( bcCheck18); barcodePosArray.AddAsLast(posBcV18); // vert.BC "Check18" at pos 17
+		BC_1::reportBarcode.AddAsLast( bcCheck19); barcodePosArray.AddAsLast(posBcV19); // vert.BC "Check19" at pos 16
+		BC_1::reportBarcode.AddAsLast( bcCheck21); barcodePosArray.AddAsLast(posBcV21); // vert.BC "Check21" at pos 9
+		if(VerDef::AutoLoad == 2)
+		{
+			BC_1::reportBarcode.AddAsLast( bcCheck23); barcodePosArray.AddAsLast(posBcV23); // vert.BC "Check23" at pos 20
+			BC_1::reportBarcode.AddAsLast( bcCheck27); barcodePosArray.AddAsLast(posBcV27); // vert.BC "Check27" at pos 24
+		}
+		indexLastV = BC_1::reportBarcode.GetSize() -1 ;
+		// If requested assign'2D codes'
+		indexFirstD = indexLastD = 0;
+		if(VerDef::AutoLoad == 2)
+		{
+			indexFirstD = BC_1::reportBarcode.GetSize();
+			BC_1::reportBarcode.AddAsLast( bcCheck22); barcodePosArray.AddAsLast(posBcD22); // 2D Code "Check22" at pos 1
+			BC_1::reportBarcode.AddAsLast( bcCheck24); barcodePosArray.AddAsLast(posBcD24); // 2D Code "CHECK24" at pos 3
+			BC_1::reportBarcode.AddAsLast( bcCheck25); barcodePosArray.AddAsLast(posBcD25); // 2D Code "Check25" at pos 4
+			indexLastD = BC_1::reportBarcode.GetSize() -1 ;
+		}
+      countOfBcToCheck = BC_1::reportBarcode.GetSize() - 1;
 		scannedBarcodeArray.SetSize(0);
-
-		BC_1::reportBarcode.SetAt(0, bcCheck11);		barcodePosArray.SetAt(0, posBcH11); // horiz.BC "Check11" at pos 1
-		BC_1::reportBarcode.SetAt(1, bcCheck12);		barcodePosArray.SetAt(1, posBcH12); // horiz.BC "Check12" at pos 1
-		BC_1::reportBarcode.SetAt(2, bcCheck13);		barcodePosArray.SetAt(2, posBcH13); // horiz.BC "Check13" at pos 1
-		BC_1::reportBarcode.SetAt(3, bcCheck14);		barcodePosArray.SetAt(3, posBcH14); // horiz.BC "Check14" at pos 4
-		indexFirstH = 0;
-		indexLastH  = 3;
-
-		BC_1::reportBarcode.SetAt(4, bcCheck15);		barcodePosArray.SetAt(4, posBcV15); // vert.BC "Check15" at pos 32
-		BC_1::reportBarcode.SetAt(5, bcCheck16);		barcodePosArray.SetAt(5, posBcV16); // vert.BC "Check16" at pos 31
-		BC_1::reportBarcode.SetAt(6, bcCheck17);		barcodePosArray.SetAt(6, posBcV17); // vert.BC "Check17" at pos 30
-		BC_1::reportBarcode.SetAt(7, bcCheck18);		barcodePosArray.SetAt(7, posBcV18); // vert.BC "Check18" at pos 17
-		BC_1::reportBarcode.SetAt(8, bcCheck19);		barcodePosArray.SetAt(8, posBcV19); // vert.BC "Check19" at pos 16
-		BC_1::reportBarcode.SetAt(9, bcCheck21);		barcodePosArray.SetAt(9, posBcV21); // vert.BC "Check21" at pos 9
-
-		BC_1::reportBarcode.AddAsLast("");				barcodePosArray.AddAsLast(posBcVlabelSetNo); // vert.BC seriela no at 1
-
-		indexFirstV = 4;
-		indexLastV  = 9;
 		loop(countOfBcToCheck+1) scannedBarcodeArray.AddAsLast("");
 
 		Trace(" ");
@@ -158,18 +204,24 @@ namespace BC_1
 		Trace(" ");
 
 		VerTool::NewTextLine(1, LdT("Next processing steps to be performed:"));
-		VerTool::NewTextLine(0," ");
-		VerTool::NewTextLine(0," ");
-		VerTool::NewTextLine(0,"    - " + LdT("Autoload Barcode Verification"));
 		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, "    - " + LdT("Autoload Code Verification"));
 		VerTool::NewTextLine(0, " ");
 		VerTool::NewTextLine(0, " ");
 		VerTool::NewTextLine(0, " ");
 		VerTool::NewTextLine(0, LdT("Load the Verification Barcode Carrier:"));
 		VerTool::NewTextLine(0, " ");
-		VerTool::NewTextLine(0, LdT("Part Number: 185270"));
-		VerTool::NewTextLine(0,StrConcat4(LdT("Serial Number :"), " ","", RPBARC::BC_CarrierSerial) );
-		
+		VerTool::NewTextLine(0, "          " + LdT("Part Number: 185270"));
+		VerTool::NewTextLine(0, StrConcat4("          ",LdT("Serial Number :"), " ", RPBARC::BC_CarrierSerial) );
+		if(VerDef::AutoLoad == 2)
+		{
+			pictureFile 		= "StartCodeVer.jpg";
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, "   " + LdT("including 2D code insert between position 18 and 25"));
+			VerTool::NewTextLine(0, " ");
+			VerTool::NewTextLine(0, "          " + LdT("Part Number: 811600"));
+		}		
 		warning 	= LdT("ATTENTION:") + " " + LdT("Only define a reachable position!");
 
 		VerTool::GetVerificationInformation(VerDef::KeyBarCode_CarTrack, trackNo, prop2 , prop3 ,sn, date,lcd,lcb);
@@ -189,7 +241,98 @@ namespace BC_1
 		VerDef::barcodeCarrierTrackPos = intTrackNo;//IVal(trackNo);
 
 	}  // -- end of function "Load_BarcodeCarrierDialog"
-	
+
+	//--------------------------------------------------------------------------------------------------
+	function GetLabwarePropertyData( device ML_STAR, variable labwareID, variable propertyID, variable& notFound )variable
+	//--------------------------------------------------------------------------------------------------
+	{
+      variable result, propertyValue, propertyValueMinor;
+
+
+//		FormatTrace( GetFunctionName(), "()", VerDef::CMD_START, "labwareID =>", labwareID,"< propertyName =>",propertyID,"<==");
+		#ifdef HSL_RUNTIME
+			propertyValue = DevGetLabwareData(ML_STAR, labwareID, propertyID);
+		#endif	// HSL_RUNTIME
+		if(StrGetLength(propertyValue) == 0)
+		{	
+			notFound = hslTrue;
+			FormatTrace( GetFunctionName(), "()", VerDef::CMD_ERROR, "labwareID =>", labwareID,"< propertyName =>",propertyID,"<  NOT found");
+		}
+
+//Trace("Test: ", GetFunctionName(), ": "," labwareID =>", labwareID,"< propertyName =>",propertyID,"<  propertyValue =>", result, "<==" );
+		return( propertyValue);
+	} 
+		
+	//------------------------------------------------------------------------------
+	function Set_2DReader_Features(device ML_STAR, 
+											variable labwareID)  
+	//------------------------------------------------------------------------------
+	{
+		variable ROI_YCenterOffset("MlStar2DReaderRoiYCenterOffset");
+		variable ROI_YWidth("MlStar2DReaderRoiYWidth");
+		variable ROI_ZCenterOffset("MlStar2DReaderRoiZCenterOffset");
+		variable ROI_ZHeight("MlStar2DReaderRoiZHeight");
+		variable propertyNotFound(hslFalse); 
+		variable cmd, prm;
+		variable yCenterOffset(0);
+
+		Trace("Test: ", GetFunctionName(), ": "," labwareID =>", labwareID,"<==" );
+		if((labwareID == _2DcodeCarrierLabID) || (labwareID == horizontalCarrier2LabID))
+      {
+   		ROI_YCenterOffset =  GetLabwarePropertyData(ML_STAR, labwareID,  ROI_YCenterOffset, propertyNotFound);
+   		ROI_YWidth = 			GetLabwarePropertyData(ML_STAR, labwareID,  ROI_YWidth, propertyNotFound);
+   		ROI_ZCenterOffset =  GetLabwarePropertyData(ML_STAR, labwareID,  ROI_ZCenterOffset, propertyNotFound);
+   		ROI_ZHeight = 			GetLabwarePropertyData(ML_STAR, labwareID,  ROI_ZHeight, propertyNotFound);
+   		if(propertyNotFound)
+   		{
+   			//Send default parmaeter for 2D codes: C0AAid4444bd0bp2875cn03co0300cf300ma0000 1880 0140 0240mr0;	
+   			prm = "ma0000 1881 0141 0241mr0";		
+   		}
+   		else
+   		{  // Send ROI parameter
+   			yCenterOffset = IVal(ROI_YCenterOffset);
+   			if( yCenterOffset< 0) 	
+   			{
+   				prm = "mr1";
+   				ROI_YCenterOffset = StrConcat2(-1*yCenterOffset,"");
+   			}
+   			else 								   	prm = "mr0";
+   			StrFillLeft(ROI_YCenterOffset, "0", 4); 
+   			StrFillLeft(ROI_YWidth, "0", 4);
+   			StrFillLeft(ROI_ZCenterOffset, "0", 4);
+   			StrFillLeft(ROI_ZHeight, "0", 4);
+   			prm = "ma" + ROI_YCenterOffset + " " + ROI_ZCenterOffset + " " + ROI_YWidth+ " " + ROI_ZHeight + prm;
+   		}
+   		//Trace("Test: ", GetFunctionName(), ": "," labwareID =>", labwareID,"< ROI_YCenterOffset =>",ROI_YCenterOffset,"<  ROI_YWidth  =>", ROI_YWidth, "<==" );
+   		//Trace("Test: ", GetFunctionName(), ": "," labwareID =>", labwareID,"< ROI_ZCenterOffset =>",ROI_ZCenterOffset,"<  ROI_ZHeight =>", ROI_ZHeight, "<==" );
+		
+         if(labwareID == _2DcodeCarrierLabID)
+         { //activate 2D code types "DM" & "QR"  only
+   		   prm = "bt00mq03" + prm; 
+         }
+         else
+         {
+            prm = presettedCodeTypes + prm;
+         }
+
+   		VerTool::FwCommand( "C0CB", prm, hslFalse, ML_STAR );	
+      }
+	}
+		
+	//------------------------------------------------------------------------------
+	function Reset_2DReader_Features(device ML_STAR, 
+											variable labwareID)  
+	//------------------------------------------------------------------------------
+	{
+		variable prm;
+
+		if((labwareID == _2DcodeCarrierLabID) || (labwareID == horizontalCarrier2LabID))
+      {
+      	prm = presettedCodeTypes + "ma0000 0000 0000 0000mr0";		
+		   VerTool::FwCommand( "C0CB", prm, hslFalse, ML_STAR );	
+      }
+	}
+
 	//------------------------------------------------------------------------------
 	function GetBarcodeForTubeOrDeckSitePos(variable position,				// i:
 														 string& loadPosData,			// i:
@@ -279,10 +422,8 @@ namespace BC_1
 
 		barcode = StepReturn::GetBarcode(blockPos2, loadPosBlockData);
 
-
 		scannedBarcodeArray.SetAt(reportBarcodeIndex, barcode);
 //		Trace("Test: Read Barcode at position ",reportBarcodeIndex," is =>",barcode,"<==");
-
 	}
 
 	//------------------------------------------------------------------------------
@@ -292,41 +433,73 @@ namespace BC_1
 	//------------------------------------------------------------------------------
 	{
 		variable sizeOfRackDef, index, i;
-		variable carrierType, posWithBC("");
+		variable returnStr("");
+		variable carrierType(0), posWithBC("");
 		variable rc[];
 		variable labwareArr[];				
 		variable labwareAction[];
 		variable labwareDescription[];
 		variable wordDel;
 
+		if(StrGetLength(presettedCodeTypes) == 0)
+		{		
+		   returnStr = VerTool::FwCommand( "C0RA", "rabt", hslFalse, ML_STAR );	
+			if(StrFind(returnStr,"bt") > 0)
+			{
+				presettedCodeTypes = StrMid(returnStr, StrFind(returnStr,"bt"), 4);
+			}
+		   returnStr = VerTool::FwCommand( "C0RA", "ramq", hslFalse, ML_STAR );	
+			if(StrFind(returnStr,"mq") > 0)
+			{
+				presettedCodeTypes = presettedCodeTypes + StrMid(returnStr, StrFind(returnStr,"mq"), 4);
+			}
+			Trace("--------------------------------------------------------------------------------");
+			Trace("Predefined Code Types by configuration editor are ==>",presettedCodeTypes,"<==");
+			Trace("--------------------------------------------------------------------------------");
+		}
+
 		labwareArr.AddAsLast(carrierName);
 		labwareAction.AddAsLast(1);
 
+		//Trace("Test: Load_BC_Carrier:", carrierName," trackPosition => ", trackPosition);	
 		// lock front cover
 		VerTool::CoverLock(ML_STAR , VerDef::coverLock);
 
 		// add labware
 		VerTool::RemovePresentLabware(ML_STAR, carrierName);
-		
+	
 		wordDel = ML_STAR.GetCfgValueWithKey(MlStarCfgKey::wordSeparator);
-					
 		if (carrierName == horizontalCarrierLabID)
 		{
 		 	carrierType = VerDef::BarcodeCarHorizonalBC;
 			//	posWithBC	= "1, 2, 3, 4"; // Standard definition with default word delimiter ","
-			posWithBC	= StrConcat8("1", wordDel, "2", wordDel, "3", wordDel, "4", "");
 			posWithBC	= StrConcat8(1, wordDel, 2, wordDel, 3, wordDel, 4, "");
 		}
-		else
+		if (carrierName == horizontalCarrier2LabID)
+		{
+		 	carrierType = VerDef::BarcodeCarHorizonal2BC;
+			posWithBC	= "1"; 
+		}
+		if (carrierName == verticalCarrierLabID)
 		{
 			carrierType = VerDef::BarcodeCarVerticalBC;
 			//	posWithBC	= "1,9,16,17,30,31,32"; // Standard definition with default word delimiter ","
 			posWithBC	= StrConcat8(1, wordDel, 9, wordDel, 16, wordDel, 17, wordDel);
+         if(VerDef::AutoLoad == 2)
+         { // additinal position 20 and 24 with 2D code insert p7811600
+    			posWithBC	= StrConcat8(posWithBC, 20, wordDel, 24, wordDel, "", "", "");
+         }
 			posWithBC	= StrConcat8(posWithBC, 30, wordDel, 31, wordDel, 32, "", "");
+		}
+		if (carrierName == _2DcodeCarrierLabID)
+		{
+			carrierType = VerDef::BarcodeCar2D_Codes;
+			//	posWithBC	= "1, 2, 3, 4, 5, 6"; // Standard definition with default word delimiter ","	
+			posWithBC	= StrConcat8(1, wordDel, 2, wordDel, 3, "", "", "");
 		}
 
 		VerTool::AddTemplateOnDeck(ML_STAR,  carrierName, carrierType, trackPosition);
-
+	   Set_2DReader_Features(ML_STAR, carrierName); 
 		rc .SetSize(0);
 		// --------------------------------------------------------------------------
 		// Continue is disabled for 'Wrong Carrier / No Carrier Barcode'. Manually enter a BC is not available.
@@ -341,16 +514,14 @@ namespace BC_1
 		// Get the carrier barcode, used for report generation
 		BC_1::carrierNo = StepReturn::GetBarcode(1, rc[2]);
 //VerTool::TraceArray(" --- return string ---------", rc);
-
 		if (carrierName == horizontalCarrierLabID) 	
-		{ // Check 'barcode horizontal'
+		{ // Check 1st set of 'barcode horizontal'
 			// --------------------------------------------------------------------------
 			// error handling
 			if (		( rc.GetSize() >= 6 )
 					&& ( StepReturn::GetNumberOfPositions(rc[3]) >= posMaxH ) )
 			{
 				// check barcodes
-				variable index;
 				for (index=indexFirstH; index <= indexLastH ; index++)
 				{
 					GetBarcodeInfo(index, rc[5], rc[3]);
@@ -359,31 +530,66 @@ namespace BC_1
 			else
 			{
 				// Failed information is already added to BC1::reportBarcode during initialisation.
-				Trace("Test:  Error : horizontal Barcode reading failed");
+				Trace("Test:  Error : Horizontal Barcode reading failed");
 			}
 		}
-		else
+		if (carrierName == horizontalCarrier2LabID) 	
+		{ // Check 2nd set of 'barcode horizontal' with 2D reader
+			// --------------------------------------------------------------------------
+			// error handling
+			if (		( rc.GetSize() >= 6 )
+					&& ( StepReturn::GetNumberOfPositions(rc[3]) >= posMaxH2 ) )
+			{
+				// check barcodes
+				GetBarcodeInfo(indexLastH2, rc[5], rc[3]);
+			}
+			else
+			{
+				// Failed information is already added to BC1::reportBarcode during initialisation.
+				Trace("Test:  Error : 2nd set of horizontal Barcode reading failed");
+			}
+			Reset_2DReader_Features(ML_STAR, carrierName);
+		}
+		if (carrierName == verticalCarrierLabID) 	
 		{ 		// Get 'vertical barcode'
 		// --------------------------------------------------------------------------
 			if (		( rc.GetSize() >= 6 )
 					&& ( StepReturn::GetNumberOfPositions(rc[3]) >= posMaxV ) )
 			{
-				variable index;
 				for (index=indexFirstV; index <= indexLastV; index++)
 				{
 					GetBarcodeInfo(index, rc[5], rc[3]);
 				}
-				
-				GetBarcodeInfo(indexLastV + 1, rc[5], rc[3]); // serial no of BC label set
+				GetBarcodeInfo(0, rc[5], rc[3]); // serial no of BC label set
 			}
 			else
 			{
 				// Failed information is already added to BC1::reportBarcode during initialisation.
-				Trace("Test:  Error : vertical Barcode reading failed");
+				Trace("Test:  Error : Vertical Barcode reading failed");
 			}
 		}
+		if (carrierName == _2DcodeCarrierLabID) 	
+		{ 		// Get '2D codes'
+		// --------------------------------------------------------------------------
+			if (		( rc.GetSize() >= 6 )
+					&& ( StepReturn::GetNumberOfPositions(rc[3]) >= posMaxD ) )
+			{
+				for (index=indexFirstD; index <= indexLastD; index++)
+				{
+					GetBarcodeInfo(index, rc[5], rc[3]);
+				}
+			}
+			else
+			{
+				// Failed information is already added to BC1::reportBarcode during initialisation.
+				Trace("Test:  Error : 2D Code reading failed");
+			}
+			Reset_2DReader_Features(ML_STAR, carrierName);
+		}
 
+		//Trace("Test:  Load_BC_Carrier ------------------- end");
 	}  // -- end of function "Load_BC_Carrier"
+
 
 	//------------------------------------------------------------------------------
 	function TempUnloadBarcodeCarrier(device ML_STAR, variable carrierName, variable trackPosition)
@@ -450,8 +656,7 @@ namespace BC_1
 			VerTool::WriteCell(8, 4, 	GetDate("%Y-%m-%d"));					// cell H4: processed date
 			VerTool::WriteCell(8, 5, 	GetTime("%H:%M"));						// cell H5: processed time
 
-			index = sizeOfData;
-			VerTool::WriteCell(4, 12, 	scannedBarcodeArray.GetAt(index));		// cell D12: barcode label set
+			VerTool::WriteCell(4, 12, 	scannedBarcodeArray.GetAt(0));		// cell D12: barcode label set date
 
 //			VerTool::TraceArray(" --- barcode spec ---------", BC1::reportBarcode);
 //			VerTool::TraceArray(" --- readed barcode ---------", scannedBarcodeArray);			 
@@ -459,7 +664,7 @@ namespace BC_1
 		// evaluate barcode
 			row = 20;
 			processSummaryState = VerDef::passed;
-			for(index = 0; index < sizeOfData ; index ++)
+			for(index = 1; index <= sizeOfData ; index ++)
 			{ 
 				BCprocessState =  VerDef::passed;
 				if (BC_1::reportBarcode.GetAt(index) != scannedBarcodeArray.GetAt(index))
@@ -468,11 +673,19 @@ namespace BC_1
 					processSummaryState 	= VerDef::failed;
 				}
 				row++;
-				VerTool::WriteCell(3, row, BC_1::reportBarcode.GetAt(index));// cell C21..: expected barcode
-				VerTool::WriteCell(5, row, scannedBarcodeArray.GetAt(index));	// cell E21..: scanned barcode
-				VerTool::WriteCell(7, row, BCprocessState);							// cell G21..: status
+            if(index == indexFirstD) row++; 
+				VerTool::WriteCell(3, row, BC_1::reportBarcode.GetAt(index)); // cell C21..: expected barcode
+				VerTool::WriteCell(5, row, scannedBarcodeArray.GetAt(index)); // cell E21..: scanned barcode
+				VerTool::WriteCell(7, row, BCprocessState);						  // cell G21..: status
 			}
-	
+			for(index = sizeOfData; index < 17 ; index ++)
+			{ // empty rest of expected rows
+				row++;
+				VerTool::WriteCell(3, row, "");
+				VerTool::WriteCell(5, row, "");
+				VerTool::WriteCell(7, row, "");
+			}
+
 		// ---  report  summary state
 			VerTool::WriteCell( 4, 16, processSummaryState); 	// cell D16: overall process status 
 
@@ -503,7 +716,6 @@ namespace BC_1
 		variable arrRetValues[];
 		variable trackPosition;
 		variable processState;
-
 		
 		if(VerDef::isIVD )	RPD::reportTemplateFileName ="Report_Barcode_IVD_Ver";// Report_Barcode_IVD_Ver.xls
 		else						RPD::reportTemplateFileName ="Report_Barcode_Ver";		// Report_Barcode_VerEnu.xls
@@ -530,7 +742,21 @@ namespace BC_1
 			BC_1::TempUnloadBarcodeCarrier(ML_STAR, BC_1::horizontalCarrierLabID, trackPosition);
 
 		// --------------------------------------------------------------------------
+		// If 2D autoload is installed
+			if(VerDef::AutoLoad == 2)
+			{  // load carrier with '2D codes'
+				BC_1::Load_BC_Carrier(ML_STAR, BC_1::_2DcodeCarrierLabID, trackPosition );
+				// Partial unload carrier 
+				// --------------------------------------------------------------------------
+				BC_1::TempUnloadBarcodeCarrier(ML_STAR, BC_1::_2DcodeCarrierLabID, trackPosition);
+				// load carrier with '1D code' at other position  with 2D reader
+				BC_1::Load_BC_Carrier(ML_STAR, BC_1::horizontalCarrier2LabID, trackPosition );
+				// Partial unload carrier 
+				// --------------------------------------------------------------------------
+				BC_1::TempUnloadBarcodeCarrier(ML_STAR, BC_1::horizontalCarrier2LabID, trackPosition);
+			}
 		// Load carrier 'barcode vertical'
+		//------------------------------------------------------------------------------
 			 BC_1::Load_BC_Carrier(ML_STAR, BC_1::verticalCarrierLabID, trackPosition );
 
 		// Unload carrier
@@ -552,4 +778,4 @@ namespace BC_1
 	}  // -- end of function "Barcode_Verification"
 
 //==============================================================================
-// $$author=Administrator$$valid=1$$time=2010-07-19 16:22$$checksum=fcee9834$$length=090$$
+// $$author=Administrator$$valid=1$$time=2016-03-24 09:45$$checksum=30d79a15$$length=090$$

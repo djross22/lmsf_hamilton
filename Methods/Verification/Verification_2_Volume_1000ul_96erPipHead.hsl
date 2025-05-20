@@ -11,8 +11,10 @@
 * ==================================================================================================
 *  Modification History:
 * ----------------------
-* Rev 1.3 2013-09-13 Erich Caflisch / Module Version : 04 
-*           ECO13197: 
+* Rev 1.4 2016-02-29 Erich Caflisch / Module Version : 05 / ECO14650 :    
+*                 Move head after dispensing before weight measurement  
+* --------------------------------------------------------------------------------------------------
+* Rev 1.3 2013-09-13 Erich Caflisch / Module Version : 04  / ECO13197: 
 *						Balance status dialog included
 *						Option extended report included
 * --------------------------------------------------------------------------------------------------
@@ -31,7 +33,6 @@
 *
 ****************************************************************************************************/
 
-//device ML_STAR("TestDeck_1.lay");
 //device ML_STAR("Verification_Starlet.lay");
 
 	// -----------------------------------------------------------------------------
@@ -75,7 +76,7 @@
 
 namespace VOL_96_1	
 {	
-	variable moduleVersion("04");				// verification subversion of this library	
+	variable moduleVersion("05");				// verification subversion of this library	
 
 	variable processSummaryState;
 	variable accConfidenceFactor(1.0);
@@ -435,6 +436,41 @@ namespace VOL_96_1
 		VerTool::FwCommand("H0AN", "", hslFalse, ML_STAR );
 		return;
 	}  // -- end of function "ClearPressureData"
+
+	//-----------------------------------------------------------------------------------------------------
+	private function MoveHeadOverDarkSolution( device ML_STAR) variable
+	// Move pipettingHead over dark solution (solution 2, away from balance)
+	//-----------------------------------------------------------------------------------------------------
+	{
+		variable labID(""), posID("");
+		variable cmd(""), prm(""), prmYpos(""), prmZpos("");
+		variable FWresponse("");
+		variable arrLabPosition[];
+		timer    shortDelay;
+
+		labID = PS::seq_DarkSolution.GetLabwareId();
+		posID = PS::seq_DarkSolution.GetPositionId();
+		ML_STAR.GetLabwarePosition(labID, arrLabPosition,posID );
+		prmYpos = StrFillLeft(IStr(Ceiling(arrLabPosition.GetAt(1) * 10)),"0",4);
+
+		FWresponse = VerTool::FwCommand("C0RA", "razh", hslFalse, ML_STAR );
+		prmZpos = StrMid( FWresponse, StrFind( FWresponse, "zh" ) + 2, 4 );
+		if((StrFind( FWresponse, "zh") < 1) || (StrGetLength(prmZpos)!= 4)) prmZpos = "2450";
+	
+		// C0EMid3333xs05186xd0yh2375za2450zh2450; Move 96er multiProbe Head to save Y position
+		cmd = "C0EM";	
+		prm = "";
+		prm = prm + "yh" + prmYpos;
+	   prm = prm + "za" + prmZpos + "zh" + prmZpos;
+		//Trace("Test:  Move to position FW command =>", cmd,"< prm =>",prm,"<==");
+		VerTool::FwCommand( cmd, prm, hslFalse, ML_STAR );
+
+		// wait 1 second
+		shortDelay.SetTimer( 1 );
+		shortDelay.WaitTimer( hslFalse, hslFalse );
+
+		return(hslTrue);
+	} // -- end of function "MoveHeadOverDarkSolution"
 
 	//------------------------------------------------------------------------------
 	private function defineExtendedReportingVariable(device& ML_STAR) 
@@ -836,6 +872,9 @@ namespace VOL_96_1
 			{
 				ML_STAR.Head96Dispense( "1e36a7be_4eb0_4934_92a53d76b33688f2" );
 			}
+
+			MoveHeadOverDarkSolution(ML_STAR);
+
 		// --- measure weight with balance 
 			RPD::measured_Weight_1 = VerTool::MWPMeasure(Balance::MeasureMode_4, 1033.0) - weight; // simulated value is approx. 1000mg		
 			Trace(" Low volume pietting weight  ==>",RPD::measured_Weight_1,"<==");
@@ -945,13 +984,18 @@ namespace VOL_96_1
 				{
 						ML_STAR.Head96Dispense( "43e30290_d31b_4b20_8befee940efdc1b5" );
 				}
+
+
 				PS::seq_highVolume_Plates.Increment( 96 );
 			// --- measure weight with balance of last plate (on balance)
 				if	(pipettingLoop == 4)
 				{
+					MoveHeadOverDarkSolution(ML_STAR);
+
 					RPD::measured_Weight_2 = VerTool::MWPMeasure(Balance::MeasureMode_4, 24022.0) - weight; // simulated value is approx. 24g
-//Trace("Test: High volume pietting weight at pipetting loop ",pipettingLoop,"  ==>",RPD::measured_Weight_2,"<==");
+					Trace("Part of high volume pietting weight  ==>",RPD::measured_Weight_2,"<==");
 				}
+			// Trace("Test: High volume pietting weight at pipetting loop ",pipettingLoop,"  ==>",RPD::measured_Weight_2,"<==");
 			}
 		// HV tip eject back into rack
 			ML_STAR.Head96TipEject( "99dc3297_0615_48b4_8a40402d3a6846fd" );
@@ -1552,4 +1596,4 @@ namespace VOL_96_1
 	}  // -- end of function "VolumeVerification_1000ul96erPipHead"
 
 //==============================================================================
-// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=74d50494$$length=088$$
+// $$author=vmware$$valid=1$$time=2016-02-29 09:34$$checksum=f6a8b1cb$$length=083$$

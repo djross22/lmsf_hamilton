@@ -11,6 +11,13 @@
 * ==================================================================================================
 *  Modification History:
 * ----------------------
+* Rev 1.31 2016-09-05 Erich Caflisch / Module Version : 04 / ECO14650 :
+*					   De-Activate LLD with additional threshold before 
+*                  aspirating/dispensing from/into 384er plate (instead of preset values)
+* Rev 1.3 2016-02-26 Erich Caflisch / Module Version : 04 / ECO14650 :    
+*                 Move head after dispensing before weight measurement  
+*					   Activate LLD with additional threshold before aspiration
+* --------------------------------------------------------------------------------------------------
 * Rev 1.2 2012-11-12 Erich Caflisch / Module Version : 03 
 *                Balance status dialog included
 * --------------------------------------------------------------------------------------------------
@@ -26,7 +33,6 @@
 *
 ****************************************************************************************************/
 
-//device ML_STAR("TestDeck_1.lay");
 //device ML_STAR("Verification_Starlet.lay");
 
 	// -----------------------------------------------------------------------------
@@ -74,7 +80,7 @@
 
 namespace VOL_384	
 {	
-	variable moduleVersion("03");				// verification subversion of this library	
+	variable moduleVersion("04");				// verification subversion of this library	
 
 	variable processSummaryState;
 	variable accConfidenceFactor(1.0);
@@ -83,6 +89,7 @@ namespace VOL_384
 	variable doCheckPlatePositionOnBalance(1);
 	variable tipType(-1);	
 	variable liquidDensity_1(0.0),liquidDensity_2(0.0);
+	variable config384HeadPreset("au0 0 0 0 0 0 0 0 0 0"); // preset configuration of 384 head
 	//==============================================================================
 	// local functions
 	//==============================================================================
@@ -93,11 +100,13 @@ namespace VOL_384
 	{
 		device ML_STAR(VerDef::layoutFileName);		
 
+		VerTool::FwCommand( "D0AA", VOL_384::config384HeadPreset, hslFalse, ML_STAR ); //preset configuration of 384 head
+
 		// eject LV tips back into rack
 		if(tipType ==TipType::_50ul_384Tip) 
 		{
 			Trace("Run abort: 50ul Volume Tips will be eject into tip rack");
-			ML_STAR.Head384TipEject( "8704bb55_21ef_4680_8fded957b555051f" );
+			ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "8704bb55_21ef_4680_8fded957b555051f" ); // Head384TipEject
 		}
 	}  // -- end of function "OnRun_Abort"
 
@@ -419,7 +428,7 @@ namespace VOL_384
 		while(hslTrue)
 		{ 
 			tipType = TipType::_50ul_384Tip;
-			ML_STAR.Head384TipPickUp( "231182f9_bcb6_4724_ad0da43f519462db" );
+			ML_STAR._BAE15959_BFAF_451b_AEBC_25AE7E04EB82( "231182f9_bcb6_4724_ad0da43f519462db" ); // Head384TipPickUp
 
 			if (VerDef::multi384PipHead > 2) return;  // no tip pickup check for STP Head Type
 	
@@ -452,7 +461,7 @@ namespace VOL_384
 			if (returnValue == hslYes) return; 
 			
 			tipType = TipType::noTip;
-			ML_STAR.Head384TipEject( "18548710_166e_4776_990aacfcd9032496" );
+			ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "18548710_166e_4776_990aacfcd9032496" ); // Head384TipEject
 
 			if (returnValue == hslCancel) abort; // abort verificatio run
 		}
@@ -473,7 +482,7 @@ namespace VOL_384
 		if(!VerTool::MoveToPosition( ML_STAR, VerDef::multi384PipHead_50ul, "", PS::seq_lowVolume_Plate, checkHeight))
 		{ // not reachable position
 			VerTool::VerificationFailedDialog(LdT("Balance Position") , "m");
-			ML_STAR.Head384TipEject( "9fdecb29_ce89_4d46_b17e432b929c82ae" );
+			ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "9fdecb29_ce89_4d46_b17e432b929c82ae" ); // Head384TipEject
 			abort;
 		}
 		// unlock front cover
@@ -513,7 +522,7 @@ namespace VOL_384
 		returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,"", hslOKCancel, 1,"","","");
 		if (returnValue == hslCancel) 
 		{ // eject tips and abort run
-			ML_STAR.Head384TipEject( "b05d8c9b_6544_44ef_9ac94e52e71b4e08" );
+			ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "b05d8c9b_6544_44ef_9ac94e52e71b4e08" ); // Head384TipEject
 			abort;
 		}
 
@@ -557,7 +566,7 @@ namespace VOL_384
 			if(!VerTool::MoveToPosition( ML_STAR, VerDef::multi384PipHead_50ul, "", PS::seq_lowVolume_Plate , 7.5))
 			{ // not reachable position
 				VerTool::VerificationFailedDialog(LdT("Balance Position") , "m");
-				ML_STAR.Head384TipEject( "db74681b_9a58_4f69_aa7d6abbefdc0c82" );
+				ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "db74681b_9a58_4f69_aa7d6abbefdc0c82" ); // Head384TipEject
 				abort;
 			}			
 			weight= VerTool::MWPMeasure(Balance::MeasureMode_0, simulatedWeight * 1000.0)/1000000.0 - pre_weight;
@@ -624,7 +633,7 @@ namespace VOL_384
 				// reset defualt speed value
 				FWreturnValue = VerTool::FwCommand( "D0AA", defaultSpeedPar, hslFalse, ML_STAR );
 
-				ML_STAR.Head384TipEject( "d7429607_f81b_4531_9fe7645915fb1aca" );
+				ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "d7429607_f81b_4531_9fe7645915fb1aca" ); // Head384TipEject
 				abort;
 			}
 		}
@@ -674,7 +683,7 @@ namespace VOL_384
 		if(!VerTool::MoveToPosition( ML_STAR, VerDef::multi384PipHead_50ul, "", PS::seq_lowVolume_Plate , bottomPositionDev))
 		{ // not reachable position
 			VerTool::VerificationFailedDialog(LdT("Balance Position") , "m");
-			ML_STAR.Head384TipEject( "c748da13_d090_4374_acafd74a86dc3787" );
+			ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "c748da13_d090_4374_acafd74a86dc3787" ); // Head384TipEject
 			abort;
 		}			
 
@@ -702,10 +711,41 @@ namespace VOL_384
 
 		bottomPositionDev = 999.0;
 		VerTool::VerificationFailedDialog(LdT("Balance Position") , "m");
-		ML_STAR.Head384TipEject( "77587316_7d55_4cf4_a557d1b016246341" );
+		ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "77587316_7d55_4cf4_a557d1b016246341" ); // Head384TipEject
 		return(bottomPositionDev);
 
 	} // -- end of function "searchPlateBottomOnBalance"
+
+	//-----------------------------------------------------------------------------------------------------
+	private function MoveHeadOverDarkSolution( device ML_STAR) variable
+	// Move pipettingHead over dark solution (solution 2, away from balance)
+	//-----------------------------------------------------------------------------------------------------
+	{
+		variable labID(""), posID("");
+		variable cmd(""), prm(""), prmYpos("");
+		variable arrLabPosition[];
+		timer    shortDelay;
+
+//		TrcTraceSequence(PS::seq_DarkSolution);
+
+		labID = PS::seq_DarkSolution.GetLabwareId();
+		posID = PS::seq_DarkSolution.GetPositionId();
+		ML_STAR.GetLabwarePosition(labID, arrLabPosition,posID );
+		prmYpos = StrFillLeft(IStr(Ceiling(arrLabPosition.GetAt(1) * 10)),"0",4);
+		
+		// C0EYid3333yk2375 ; Move 384er multiProbe Head savely to defined Y position
+		cmd = "C0EY";	
+	   // yk####	1080..5600	5600		Y-Position in 0.1mm
+		prm = "yk" + prmYpos;
+		//Trace("Test:  Move to position FW command =>", cmd,"< prm =>",prm,"<==");
+		VerTool::FwCommand( cmd, prm, hslFalse, ML_STAR );
+
+		// wait 1 second
+		shortDelay.SetTimer( 1 );
+		shortDelay.WaitTimer( hslFalse, hslFalse );
+
+		return(hslTrue);
+	} // -- end of function "MoveHeadOverDarkSolution"
 
 	//------------------------------------------------------------------------------
 	private function Pipette_Low_Volume(device& ML_STAR) variable
@@ -723,7 +763,7 @@ namespace VOL_384
 		// 1st set of 50ul tip pick up	
 			PS::seq_50ulTips.SetCurrentPosition( 1 ); // 1st tip rack
 //			tipType = TipType::_50ul_384Tip;
-//			ML_STAR.Head384TipPickUp( "77df8db6_820f_496a_85d9a91983033cb6" );
+//			ML_STAR._BAE15959_BFAF_451b_AEBC_25AE7E04EB82( "77df8db6_820f_496a_85d9a91983033cb6" ); // Head384TipPickUp
 			Tip_PickUp(ML_STAR, PS::seq_50ulTips); 	
 		// Check balance position and plate positioning on balance
 		//------------------------------------------------------------------------------
@@ -744,47 +784,51 @@ namespace VOL_384
 
 		// aspirate 50ul buffer solution
 			aspirateVolume = 50.0;
-
+			VerTool::FwCommand( "D0AA", "au0 1 0 0 0 0 0 0 0 0", hslFalse, ML_STAR ); //activate additional LLD threshold
 			if (pipetteWithHamiltonTips  == 1) 
 			{
 				submergeHeight = 2.0;
-				ML_STAR.Head384Aspirate( "476d22d9_5dcc_4c3e_a3b6c90264282e2d" );
+				ML_STAR._149227F1_42F6_45d3_A8D9_5B97230BA8FF( "476d22d9_5dcc_4c3e_a3b6c90264282e2d" ); // Head384Aspirate
 			}	
 			else
 			{
 				pipetteHeight = 11.8;
- 				ML_STAR.Head384Aspirate( "fe5f1535_ad36_4c8d_af06fd3718448a37" );
+ 				ML_STAR._149227F1_42F6_45d3_A8D9_5B97230BA8FF( "fe5f1535_ad36_4c8d_af06fd3718448a37" ); // Head384Aspirate
 			}
-		 			
+			VerTool::FwCommand( "D0AA", "au0 0 0 0 0 0 0 0 0 0", hslFalse, ML_STAR ); //de-activate additional LLD threshold
+					 			
 		// pre-dispense 50ul 
 			dispenseVolume = 50.0;
 			pipetteHeight = 8;
-			ML_STAR.Head384Dispense( "5d6b4887_8a27_4ed4_949b0e4a1c07653a" );
+			ML_STAR._A755BA24_6FEB_4031_A672_BF3D7FC150C5( "5d6b4887_8a27_4ed4_949b0e4a1c07653a" ); // Head384Dispense
 			
 		// 1st set of 50ul tip eject back into rack
-			ML_STAR.Head384TipEject( "db49e971_248d_43b2_9d78098b60169aed" );
+			ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "db49e971_248d_43b2_9d78098b60169aed" ); // Head384TipEject
 
 			tipType = TipType::noTip;
 			
 		 // pipette 2ul dark solution in plates with pre-dispensed 50ul buffer solution
 		// 2nd set of 50ul tip pick up
 			PS::seq_50ulTips.SetCurrentPosition( 384 + 1 ); // 2nd tip rack
-//			ML_STAR.Head384TipPickUp( "cbf31491_d0b8_4dba_a5821e193f690f71" );
+//			ML_STAR._BAE15959_BFAF_451b_AEBC_25AE7E04EB82( "cbf31491_d0b8_4dba_a5821e193f690f71" ); // Head384TipPickUp
 //			tipType = TipType::_50ul_384Tip;
 			Tip_PickUp(ML_STAR, PS::seq_50ulTips); 	
 			
 		// aspirate 2ul 
+			VerTool::FwCommand( "D0AA", "au0 1 0 0 0 0 0 0 0 0", hslFalse, ML_STAR ); //activate additional LLD threshold
 			aspirateVolume = 2.0;
 			if (pipetteWithHamiltonTips  == 1) 
 			{
 				submergeHeight = 2.0;
-				ML_STAR.Head384Aspirate( "440479ce_95e9_43eb_8234ce31dfb6eda0" );
+				ML_STAR._149227F1_42F6_45d3_A8D9_5B97230BA8FF( "440479ce_95e9_43eb_8234ce31dfb6eda0" ); // Head384Aspirate
 			}
 			else
 			{
 				pipetteHeight = 11.8;	
-				ML_STAR.Head384Aspirate( "8593146e_1f4d_45fc_84b3dc0df783b91f" );
+				ML_STAR._149227F1_42F6_45d3_A8D9_5B97230BA8FF( "8593146e_1f4d_45fc_84b3dc0df783b91f" ); // Head384Aspirate
 			}
+			VerTool::FwCommand( "D0AA", "au0 0 0 0 0 0 0 0 0 0", hslFalse, ML_STAR ); //de-activate additional LLD threshold
+
 		// --- set balance to zero
 		// --- measure weight with balance before dispensing
 			weight = VerTool::MWPMeasure(Balance::MeasureMode_3, 12.0);
@@ -794,45 +838,50 @@ namespace VOL_384
 			if (pipetteWithHamiltonTips  == 1)
 			{
 				submergeHeight = 0.5;
-				ML_STAR.Head384Dispense( "6568155f_2371_4152_a3a0d693c6ef2c91" );
+				ML_STAR._A755BA24_6FEB_4031_A672_BF3D7FC150C5( "6568155f_2371_4152_a3a0d693c6ef2c91" ); // Head384Dispense
 			}
 			else
 			{
 				pipetteHeight = 3.9 + pipetteHeightDeviation;	// approx. 1 mm below surface
-				ML_STAR.Head384Dispense( "bae9e542_2bc9_4242_b4665bc2a107718a" );
+				ML_STAR._A755BA24_6FEB_4031_A672_BF3D7FC150C5( "bae9e542_2bc9_4242_b4665bc2a107718a" ); // Head384Dispense
 			}
+
+			MoveHeadOverDarkSolution(ML_STAR);
 		
 		// --- measure weight with balance 
 			RPD::measured_Weight_1 = VerTool::MWPMeasure(Balance::MeasureMode_6, 763.0) - weight; // simulated value is approx. 800mg		
 Trace("Test: Low volume pietting weight  ==>",RPD::measured_Weight_1,"<==");
 
 		// 2nd set of 50ul tip eject back into rack
-			ML_STAR.Head384TipEject( "6fc6d3cc_de86_416b_8eb03391243b0390" );
+			ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "6fc6d3cc_de86_416b_8eb03391243b0390" ); // Head384TipEject
 			tipType = TipType::noTip;
 						
 		// 1st set of 50ul tip pick up again	
 			PS::seq_50ulTips.SetCurrentPosition( 1 ); // 1st tip rack
 //			tipType = TipType::_50ul_384Tip;
-//			ML_STAR.Head384TipPickUp( "d13975d9_f1a4_45c1_a36afc27c01cd4b1" );
+//			ML_STAR._BAE15959_BFAF_451b_AEBC_25AE7E04EB82( "d13975d9_f1a4_45c1_a36afc27c01cd4b1" ); // Head384TipPickUp
 			Tip_PickUp(ML_STAR, PS::seq_50ulTips); 	
 
 		// mix 3 x 25ul fix at 1.5mm above bottom, i.e. no liquid following during mixing
+			VerTool::FwCommand( "D0AA", "au0 0 0 0 0 0 0 0 0 0", hslFalse, ML_STAR ); //de-activate additional LLD threshold
 			aspirateVolume = 0.0;
 			mixVolume		= 25.0;
 			mixCycles		= 3;
 			if (pipetteWithHamiltonTips  == 1)
 			{
 				submergeHeight = 3.5;
-				ML_STAR.Head384Aspirate( "52ab74c0_34b3_482d_9755e48d82f20be0" );
+				ML_STAR._149227F1_42F6_45d3_A8D9_5B97230BA8FF( "52ab74c0_34b3_482d_9755e48d82f20be0" ); // Head384Aspirate
 			}
 			else
 			{
 				pipetteHeight 	= 1.5 + pipetteHeightDeviation; //  1.5 mm above bottom 
-				ML_STAR.Head384Aspirate( "f0792f56_20ea_4f1a_b6aa078616a069b3" );
+				ML_STAR._149227F1_42F6_45d3_A8D9_5B97230BA8FF( "f0792f56_20ea_4f1a_b6aa078616a069b3" ); // Head384Aspirate
 			}
 
+
 		// 1st set of 50ul tip eject back into rack
-			ML_STAR.Head384TipEject( "055c3592_6180_44dd_bbc01c8014b4c451" );
+			VerTool::FwCommand( "D0AA", VOL_384::config384HeadPreset, hslFalse, ML_STAR ); //preset configuration of 384 head
+			ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "055c3592_6180_44dd_bbc01c8014b4c451" ); // Head384TipEject
 			tipType = TipType::noTip;
 
 			return(hslTrue);
@@ -842,7 +891,8 @@ Trace("Test: Low volume pietting weight  ==>",RPD::measured_Weight_1,"<==");
 		{
 			err.Clear( );
 			// eject teaching needle back into rack
-			ML_STAR.Head384TipEject( "621849da_4019_4fb5_82dbd478d60f006e" );
+			ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "621849da_4019_4fb5_82dbd478d60f006e" ); // Head384TipEject
+			VerTool::FwCommand( "D0AA", VOL_384::config384HeadPreset, hslFalse, ML_STAR ); //preset configuration of 384 head
 			return(hslFalse);
 		}
 
@@ -864,7 +914,7 @@ Trace("Test: Low volume pietting weight  ==>",RPD::measured_Weight_1,"<==");
 		// 3rd set of 50ul tip pick up
 			PS::seq_50ulTips.SetCurrentPosition( (2 * 384) + 1); // 3rd tip rack
 
-//			ML_STAR.Head384TipPickUp( "94eb25e2_1691_44fb_b8b9a80d71220267" );
+//			ML_STAR._BAE15959_BFAF_451b_AEBC_25AE7E04EB82( "94eb25e2_1691_44fb_b8b9a80d71220267" ); // Head384TipPickUp
 //			tipType = TipType::_50ul_384Tip;
 			Tip_PickUp(ML_STAR, PS::seq_50ulTips); 	
 
@@ -875,27 +925,33 @@ Trace("Test: Low volume pietting weight  ==>",RPD::measured_Weight_1,"<==");
 			CheckPlateLoadingOnBalance(ML_STAR);
 
 		// aspirate 50ul light dye solution
+			VerTool::FwCommand( "D0AA", "au0 1 0 0 0 0 0 0 0 0", hslFalse, ML_STAR ); //activate additional LLD threshold
 			aspirateVolume = 50.0;
-			if (pipetteWithHamiltonTips  == 1) ML_STAR.Head384Aspirate( "3c111208_8e14_4caf_89b9062d75db3b56" );
+			if (pipetteWithHamiltonTips  == 1) ML_STAR._149227F1_42F6_45d3_A8D9_5B97230BA8FF( "3c111208_8e14_4caf_89b9062d75db3b56" ); // Head384Aspirate
 			else
 			{
 				pipetteHeight = 25.3;
-				ML_STAR.Head384Aspirate( "a50e5ca8_eebf_458e_a8c22aa025765cb6" );
+				ML_STAR._149227F1_42F6_45d3_A8D9_5B97230BA8FF( "a50e5ca8_eebf_458e_a8c22aa025765cb6" ); // Head384Aspirate
 			}
+			VerTool::FwCommand( "D0AA", "au0 0 0 0 0 0 0 0 0 0", hslFalse, ML_STAR ); //de-activate additional LLD threshold
+
 		// --- measure weight with balance before dispensing
 			weight = VerTool::MWPMeasure(Balance::MeasureMode_3, 12.0);
 
 		// dispense 50ul  into plate
 			dispenseVolume = 50.0;
 			pipetteHeight 	= 8.0;		
-			ML_STAR.Head384Dispense( "98644c27_51b3_4003_b343316811a02dec" );
+			ML_STAR._A755BA24_6FEB_4031_A672_BF3D7FC150C5( "98644c27_51b3_4003_b343316811a02dec" ); // Head384Dispense
 			
+			MoveHeadOverDarkSolution(ML_STAR);
+
 		// --- measure weight with balance of last plate (on balance)
 			RPD::measured_Weight_2 = VerTool::MWPMeasure(Balance::MeasureMode_6, 19222.0) - weight; // simulated value is approx. 19,2g
 Trace("Test: High volume pietting weight  ==>",RPD::measured_Weight_2,"<==");
 			
 		// 3rd set of 50ul tip eject back into rack
-			ML_STAR.Head384TipEject( "c1115cf5_02b8_40da_9e2d3c771d7aa265" );
+			VerTool::FwCommand( "D0AA", VOL_384::config384HeadPreset, hslFalse, ML_STAR ); //preset configuration of 384 head
+         ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "c1115cf5_02b8_40da_9e2d3c771d7aa265" ); // Head384TipEject
 			tipType = TipType::noTip;
 
 			return(hslTrue);
@@ -905,7 +961,8 @@ Trace("Test: High volume pietting weight  ==>",RPD::measured_Weight_2,"<==");
 		{
 			err.Clear( );
 			// eject teaching needle back into rack
-			ML_STAR.Head384TipEject( "3bc49fb4_2352_446b_9f919ed14ad0ee22" );
+			VerTool::FwCommand( "D0AA", VOL_384::config384HeadPreset, hslFalse, ML_STAR ); //preset configuration of 384 head
+			ML_STAR._F80572BC_ED64_4dc5_8D51_2BB7EA308DCD( "3bc49fb4_2352_446b_9f919ed14ad0ee22" ); // Head384TipEject
 			return(hslFalse);
 		}
 
@@ -1281,6 +1338,7 @@ Trace("Test: High volume pietting weight  ==>",RPD::measured_Weight_2,"<==");
 		variable readerUsed(1);
 		variable dialogTitle("");			//	dialog titel information
 		variable solutionPartNo ("");
+		variable FWreturnValue("");
 		variable machineConfig("");
 
 		//--- general definitions 
@@ -1320,13 +1378,17 @@ Trace("Test: High volume pietting weight  ==>",RPD::measured_Weight_2,"<==");
 		// Initialization of ML_STAR
 		// --------------------------------------------------------------------------
 		//	Trace("Test: instrumentNo =>",instrumentNo,"<   layoutFileName =>",VerDef::layoutFileName,"<  ML-STAR instrument serial number =>", VerDef::InstrumentSerialNo);
-			arrRetValues = ML_STAR.Initialize( "ee203551_7715_4a4c_9b19021b02589833" );
+			arrRetValues = ML_STAR._1C0C0CB0_7C87_11D3_AD83_0004ACB1DCB2( "ee203551_7715_4a4c_9b19021b02589833" ); // Initialize
 			if(VerDef::iSWAP > 0)
 			{ // move iSWAP in Parkposition, gripper closed			
 				VerTool::FwCommand( "C0PG", "", hslFalse, ML_STAR ); // park iSWAP
 				VerTool::FwCommand( "R0GP", "gp0", hslFalse, ML_STAR ); // close grippe of iSWAP
 			}
 			VerTool::MoveToEndPositions(ML_STAR);
+			// get configuration infor
+			FWreturnValue = VerTool::FwCommand( "D0QU", "", hslFalse, ML_STAR );
+			VOL_384::config384HeadPreset = StrMid(FWreturnValue, StrFind(FWreturnValue,"au"), 21); // get configuration of 384 head	
+			if(StrGetLength(VOL_384::config384HeadPreset) < 21) VOL_384::config384HeadPreset = "au0 0 0 0 0 0 0 0 0 0";
 
 		// start dialog
 		//------------------------------------------------------------------------------	
@@ -1440,4 +1502,4 @@ Trace("Test: High volume pietting weight  ==>",RPD::measured_Weight_2,"<==");
 	}  // -- end of function "VolumeVerification_384erPipHead"
 
 //==============================================================================
-// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=adbc02eb$$length=088$$
+// $$author=ecaflisch$$valid=1$$time=2016-09-05 13:23$$checksum=66ad696d$$length=086$$

@@ -11,8 +11,21 @@
 * ==================================================================================================
 *  Modification History:
 * ----------------------
-* Rev 1.0 2012-xx-xx Erich Caflisch   / Module Version : 01
-*                First released version running on software version >=4.4
+* Rev 1.2 2019-07-09 Erich Caflisch   / ECO 14650 / Module Version : 03
+*                New punch height (punchZdistance) for corresponding plates 
+*                Switch on fan only during puncher process.Switch off fan during abort steps. 
+* --------------------------------------------------------------------------------------------------
+* Rev 1.1 2018-04-12 Erich Caflisch   / ECO 14650 / Module Version : 02
+*                New dialog for used plate selection.  
+*                New dialog for punch head configuration definition. 
+*                Optimized card and plate settings according configuration and used plates.
+*                Switch on deionizer during complete execution. 
+* --------------------------------------------------------------------------------------------------
+* Rev 1.0 2016-02-25 Erich Caflisch   / ECO 14650 / Module Version : 01
+*                Released version running on software version >=4.4
+*                Optimized card and plate settings (--> new "Verification_Card_C" settings)
+*                Optimized error handling in case no puch hole is found
+*                Stop execution if gripper alignment is out of specifications (stops before puch steps)
 * --------------------------------------------------------------------------------------------------
 * Rev 0.3 2013-01-16 Erich Caflisch   / ECO13197 /  Module Version : 00
 *                New specification for punch accuracy
@@ -23,14 +36,7 @@
 * Rev 0.1 2012-09-20 Erich Caflisch   / ECO13197 /  Module Version : 00
 *                First  version running on software version >=4.4
 ****************************************************************************************************/
-/* Open item:
-- Card grip mit Offset bei versch. Greifer => executePlateAlignment (25mm => mx2)
-- Card type --> labware property "MlStarPunchCardType" in rack Defnition : 1, 2, 3 wie gripper type
-      VerDef::paperCard_Magazine : 3 verschiedene definitionen mit entsprechendem propety
-- C0BC
------------------------------------------------------------------------------*/
 
-//device ML_STAR("TestDeck_1.lay");
 //device ML_STAR("Verification_Starlet.lay");
 
 	// -----------------------------------------------------------------------------
@@ -69,7 +75,7 @@ namespace easyP
 {	
 	// General variable definitions
 	//------------------------------------------------------------------------------
-   private variable moduleVersion("00");		      	// verification subversion of this library
+   private variable moduleVersion("02");		      	// verification subversion of this library
 
    const variable rack_ID("Cards_1"), plate_ID_1("DWP_1"), plate_ID_2("DWP_2");
    const variable gripHeight(15), gripWidth(81.5), gripOpenWidth(88);
@@ -83,10 +89,11 @@ namespace easyP
    // adjustment values
    private variable kq, mx0, mx1, mx2, my0,my1, mz0, mz1, pc0, pc1, pc2;
    // configurations
-//	variable puncherType(1);  // puncher  type: 1: PN 803022, D=1.2mm / 2: PN803023, D=2mm / 3: PN803024, D=3mm / 4: PN803025, D=6mm 
+	//variable puncherType(0);  // puncher  type: 1: PN 803022, D=1.2mm / 2: PN803023, D=2mm / 3: PN803024, D=3mm / 4: PN803025, D=6mm 
+	variable largePunchHead(hslFalse);  // puncher  type: hslFalse: small (<6mm) / hslTrue: large >=6mm
 	private variable puncherGripperType(0);         // puncher card gripper type: 
          // CHQG  Card Handler type: qg00 : no Handler, qg01 : Plastic PN 803054 , qg02 : EC Paper PN 803053 ,qg03 : DMPK PN 803520
-
+	variable hamiltonPlate(hslTrue); // hslFalse: Costar (KitRev 00) / hslTrue: Hamilton (KitRev 01) 
 
    // process status   
    private variable focusVerificationState(VerDef::passed);    // Verification state of focus feature
@@ -104,7 +111,7 @@ namespace easyP
 
    private variable punchDiameter(6);
    private variable punchDistance(0.5);
-   private variable punchZdistance(2.0);
+   private variable punchZdistance(1.0); // former 2.0
 
    private variable processStepDescription("");
    private variable magazineCarrierLabID("");
@@ -114,29 +121,6 @@ namespace easyP
    private sequence seqPlatePositions;
    private sequence seqCardPositions;
 
-/*private function TracePresentLabware(device ML_STAR)
-// for testing only-------------------------------------------------------------------------------------------------------
-{
-		variable array_of_templateNames[], array_of_labwareNames[];
-		variable i;
-
-		ML_STAR.GetTemplateLabwareNames( array_of_templateNames, array_of_labwareNames );
-
-      Trace("");
-		for (i = 0; i < array_of_templateNames.GetSize();i++ )
-		{
-         Trace("Test: At index ",i,"  TemplateName =>", array_of_templateNames.ElementAt(i), "<== ");
-		}
-      Trace("");
-
-		ML_STAR.GetTemplateLabwareNames( array_of_templateNames, array_of_labwareNames );
-		for (i = 0; i < array_of_labwareNames.GetSize();i++ )
-		{
-         Trace("Test: At index ",i,"  LabwareName =>", array_of_labwareNames.ElementAt(i), "<== ");
-		}
-      Trace("");
-}
-*/
 	//------------------------------------------------------------------------------
 	private function OnRun_Abort() //variable
 	//------------------------------------------------------------------------------
@@ -144,7 +128,13 @@ namespace easyP
 		device ML_STAR(VerDef::layoutFileName);	
 
       Trace("Test: OnRun_Abort will be executed. card in puncher head is =>",cardInPuncherHead,"<===");
-			
+
+      // Switch OFF fan
+      //FW_Command( ML_STAR, "CPHR","hr00000",hslTrue, response); 
+      ML_STAR._1FB5DA01_3ACB_11d4_AE1F_0004ACB1DCB2( "85dfa284_099d_4cda_83004f4183291cde" ); // FirmwareCommand
+      // Switch OFF deionizer
+      //FW_Command( ML_STAR, "CPIF","if0",hslTrue, response);   
+		ML_STAR._1FB5DA01_3ACB_11d4_AE1F_0004ACB1DCB2( "883560d3_9a11_449b_87d5b0c34ca4c787" ); // FirmwareCommand
       if(cardInPuncherHead)
       { // Move card gripper out of puncher (+50mm )
          // C0BXbc500xd0
@@ -273,12 +263,12 @@ namespace easyP
    	variable response, returnValue;
    	variable moduleName("");
       variable labwarePosition(0.0);
-
+     
       // copy easyPunch settings for imaging evaluation
       copyEasyPunchSettings("camera");    // camera specific settings for verification
       copyEasyPunchSettings("card");      // verification card specific settings   
       copyEasyPunchSettings("plate");     // Deep well plate specific settings
-       
+
       // CHQG  Card Handler type: qg00 : no Handler, qg01 : Plastic PN 803054 , qg02 : EC Paper PN 803053 ,qg03 : DMPK PN 803520
 		FW_Command( ML_STAR, "CHQG","",hslFalse , response);
 		puncherGripperType = IVal(StrMid(response, StrReverseFind(response,"qg")+2, 2) );
@@ -344,7 +334,7 @@ Trace("Test: ",GetFunctionName() ," : Get stored puncher head data: pc0 =>",pc0,
       
       return(hslTrue); 
    }// -- end of function "InitializeEasyPunch"
-  
+     
 	//------------------------------------------------------------------------------
 	private function displayErrorDialog(variable errorText, variable buttonsTypes) variable
 	//------------------------------------------------------------------------------
@@ -355,7 +345,7 @@ Trace("Test: ",GetFunctionName() ," : Get stored puncher head data: pc0 =>",pc0,
 		variable defaultButton(1);
 		variable response(hslCancel);
 
-		dialogTitle 		= LdT("Userdialog for'easyPunch' Verification:");
+		dialogTitle 		= LdT("Userdialog for 'easyPunch' Verification:");
 		pictureFile 		= "EasyPunchError.jpg";
 
 		VerTool::NewTextLine(1,"===  " + LdT("'easyPunch' PROCCESSING ERROR!") +  "====");
@@ -422,14 +412,14 @@ Trace("Test: ",GetFunctionName() ," : Get stored puncher head data: pc0 =>",pc0,
 	   VerTool::NewTextLine(0, "      - " + LdT("Carrier(s) on track 7 to 12."));
 		VerTool::NewTextLine(0, " ");
 		VerTool::NewTextLine(0, " ");
-		VerTool::NewTextLine(0, LdT("Open tool box below transport position (2.5mm Allen screw )"));
-		VerTool::NewTextLine(0, "       " + LdT(" and remove:"));
+		VerTool::NewTextLine(0, LdT("Dismount the Toolbox Cover ( using 2.5mm Allen key )"));
+		VerTool::NewTextLine(0, "    " + LdT(" and remove:"));
 		VerTool::NewTextLine(0, " ");
 	   VerTool::NewTextLine(0, "      - " + LdT("Camera Adjustment Tool"));
 		VerTool::NewTextLine(0, " ");
 	   VerTool::NewTextLine(0, "      - " + LdT("Verification Magazine"));
 		VerTool::NewTextLine(0, " ");
-      VerTool::NewTextLine(0, LdT("Note:") + " " + LdT("Close and screw tool box afterwards.") );
+      VerTool::NewTextLine(0, LdT("Note:") + " " + LdT("Re-assemble the Toolbox Cover.") );
 //		VerTool::NewTextLine(0, LdT("Define installed 'Puncher Head' type:"));
 //		VerTool::NewTextLine(0, " ");
 //      VerTool::NewTextLine(0, "      1 : PN 803022 ( " + LdT("puncher diameter") + " = 1.2 mm )");
@@ -437,7 +427,7 @@ Trace("Test: ",GetFunctionName() ," : Get stored puncher head data: pc0 =>",pc0,
 //	   VerTool::NewTextLine(0, "      3 : PN 803024 ( " + LdT("puncher diameter") + " = 3 mm )");
 //	   VerTool::NewTextLine(0, "      4 : PN 803025 ( " + LdT("puncher diameter") + " = 6 mm )");
 
-//      inputDescription 	= LdT("Define installed 'easyPuncher' type:");
+//      inputDescription 	= LdT("Define installed 'easyPunch' type:");
       warning =  LdT("Attention:") + " " + LdT("Loaded labware could crash with card gripper!");
 
 
@@ -457,8 +447,90 @@ Trace("Test: ",GetFunctionName() ," : Get stored puncher head data: pc0 =>",pc0,
 		// Lock front cover 
 		VerTool::CoverLock(ML_STAR , VerDef::coverLock);
 
-	}  // -- end of function "CheckFrontCoverLockedStatus"
+	}  // -- end of function "StartDialogEasyPunch"
 
+	//------------------------------------------------------------------------------
+	private function SelectPlateTypeDialog() variable
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information
+		variable warning("");
+		variable defaultButton(1);
+		variable response(hslCancel);
+
+		dialogTitle 		= LdT("Select used ´Deepwell Plate´ type for 'easyPunch' Verification.");
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");
+		Trace(" ");
+		Trace("           ",dialogTitle);
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");	
+		pictureFile 		= "SelectPlateType_EasyPunch.jpg";
+
+		VerTool::NewTextLine(1," ");
+		VerTool::NewTextLine(0, LdT("Is the plate a Hamilton Plate with round wells from Kit Rev. 01 ?"));
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, LdT("Press ´Yes´ for plate type no 1 (picture on the left side)"));
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, LdT("Press ´No´ for plate type no 2 (picture on the right side)"));
+		VerTool::NewTextLine(0, "       " + LdT("Costar Plate with square wells , Kit Rev. 00"));
+      VerTool::NewTextLine(0, " ");
+    	VerTool::NewTextLine(0, LdT("Press 'Cancel' to skip this Verification."));
+
+		response = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText, warning, hslYesNoCancel, 1, "","","");
+      if(response == hslYes) hamiltonPlate = hslTrue; // Hamilton Plate , round wells
+      else                   hamiltonPlate = hslFalse; // Costar Plate  , square wells
+
+      return(response);
+
+	}  // -- end of function "SelectPlateTypeDialog"	
+
+	//------------------------------------------------------------------------------
+	private function SelectPunchHeadTypeDialog() 
+	//------------------------------------------------------------------------------
+	{ // response hslYes for large punch head else hslNo
+
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information
+		variable warning("");
+		variable defaultButton(1);
+		variable response(hslCancel);
+
+		dialogTitle 		= LdT("Define  used punch head type for 'easyPunch' Verification.");
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");
+		Trace(" ");
+		Trace("           ",dialogTitle);
+		Trace(" ");
+		Trace("------------------------------------------------------------------------------");	
+		pictureFile 		= "SelectPunchHeadSize_EasyPunch.jpg";
+
+		VerTool::NewTextLine(1," ");
+		VerTool::NewTextLine(0, LdT("The label on bottom of the ´Punch Head´ shows the type:"));
+		VerTool::NewTextLine(0," ");
+      VerTool::NewTextLine(0, "      - " + LdT("PN 803022: ´Punch Head´ 1.2 mm"));
+      VerTool::NewTextLine(0, "      - " + LdT("PN 803023: ´Punch Head´ 2 mm"));
+      VerTool::NewTextLine(0, "      - " + LdT("PN 803024: ´Punch Head´ 3 mm"));
+		VerTool::NewTextLine(0," ");
+      VerTool::NewTextLine(0, "      - " + LdT("PN 803025: ´Punch Head´ 6 mm"));
+	
+      VerTool::NewTextLine(0," ");
+      VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0, LdT("Is it a large ´Punch Head´ ?"));
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, "    " + LdT("Press ´Yes´ for ´Punch Head´ 6 mm "));
+		VerTool::NewTextLine(0, " ");
+		VerTool::NewTextLine(0, "    " + LdT("Press ´No´ for the other ´Punch Head´ types"));
+
+		response = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText, warning, hslYesNo, 1, "","","");
+
+      if(response == hslYes) largePunchHead = hslTrue; // 6mm, large
+      else                   largePunchHead = hslFalse; // small 
+      return;
+
+	}  // -- end of function "SelectPunchHeadTypeDialog"
 
 	//------------------------------------------------------------------------------
 	private function LoadDialogEasyPunch(device ML_STAR, variable loadPhase) //variable
@@ -474,13 +546,24 @@ Trace("Test: ",GetFunctionName() ," : Get stored puncher head data: pc0 =>",pc0,
       variable magazineType;
       sequence seq_DummyDef;  // place holder sequence definition
 
-		dialogTitle 		= LdT("Userdialog for'easyPunch' Verification:");
+		dialogTitle 		= LdT("User loading dialog for 'easyPunch' Verification:");
 
-      // move frame to park position
-      if( !FW_Command(ML_STAR, "C0CF","di4du0000dy0000",hslTrue, response) ) return(hslFalse);
+      // Park puncher
+      FW_Command(ML_STAR, "C0BV","",hslFalse , response)  ;
+
+      //   ----------	Move xy Frame to the front position (end of processing)
+Trace("Test: ",GetFunctionName() ," : Move plate transport to front position");
+      ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "cafb182f_fb73_4957_a227e2e9b42dc764" ); // PuncherPositionPlate
+    
+      // Move STAR to idle positions
+		VerTool::MoveToEndPositions(ML_STAR);
 
 		// unlock front cover 
 		VerTool::CoverLock(ML_STAR , VerDef::coverUnlock);
+
+      // spot light on
+      FW_Command(ML_STAR, "C0CK","lr1cz100",hslFalse, response);
+
 
 		Trace(" ");
 		Trace("------------------------------------------------------------------------------");
@@ -490,23 +573,35 @@ Trace("Test: ",GetFunctionName() ," : Get stored puncher head data: pc0 =>",pc0,
 		Trace("------------------------------------------------------------------------------");	
 		Trace(loadPhase);
 
-		VerTool::NewTextLine(1, LdT("Load following labware on 'easyPuncher X/Y Frame':"));
-		VerTool::NewTextLine(0," ");
-		VerTool::NewTextLine(0," ");
+      if(loadPhase == 0)
+      {
+   		pictureFile 		= "LoadAdjustmentTool.jpg";
+   		VerTool::NewTextLine(1, LdT("Load the following labware onto 'Plate Transport Frame':"));
+   		VerTool::NewTextLine(0," ");
+   		VerTool::NewTextLine(0," ");
+		   VerTool::NewTextLine(0, "- " + LdT("'Camera Adjustment Tool' onto the front position."));
+         warning =  LdT("Attention:") + LdT("'Camera Adjustment Tool' must be readable.");
+      }
       if(loadPhase == 1)
       {
-//   		pictureFile 		= "LoadDWPonEasyPuncher.jpg";
-   		pictureFile 		= "LoadEasyPuncher.jpg";
-//		   VerTool::NewTextLine(0, "      - " + LdT("'Deepwell Plate' on rear position of the 'easyPuncher Module'."));
+   		pictureFile 		= "LoadDWPonEasyPuncher.jpg";
+//   		pictureFile 		= "LoadEasyPuncher.jpg";
+   		VerTool::NewTextLine(1, LdT("Unload the following labware from 'Plate Transport Frame':"));
+   		VerTool::NewTextLine(0," ");
+		   VerTool::NewTextLine(0, "- " + LdT("'Camera Adjustment Tool' from the front position."));
+	   	VerTool::NewTextLine(0," ");
+  	   	VerTool::NewTextLine(0," ");
+         VerTool::NewTextLine(0, LdT("Load the following labware onto 'Plate Transport Frame':"));
+	   	VerTool::NewTextLine(0," ");
 		   VerTool::NewTextLine(0, "- " + LdT("'Deepwell Plate'  onto the rear position."));
-		   VerTool::NewTextLine(0," ");
-		   VerTool::NewTextLine(0, "- " + LdT("'Camera Adjustment Tool' onto the front position."));
-         warning =  LdT("Attention:") + " " + LdT("'Deepwell Plate' must be empty") + VerDef::CRLF
-                    + "                 " + LdT("'Camera Adjustment Tool' must be readable.");
+         warning =  LdT("Attention:") + " " + LdT("'Deepwell Plate' must be empty");
       }
 
       if(loadPhase == 2)
       {
+         VerTool::NewTextLine(1, LdT("Load the following labware on 'easyPunch' deck:"));
+   		VerTool::NewTextLine(0," ");
+   		VerTool::NewTextLine(0," ");
          if(puncherGripperType == 3)         // : DMPK PN 803520
          {  		   
             pictureFile 	      = "LoadCardMagazine_1.jpg";
@@ -547,23 +642,34 @@ Trace("Test: ",GetFunctionName() ," : Get stored puncher head data: pc0 =>",pc0,
 		
 		VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,warning, hslOKOnly, 1, "","","");
 
+      // spot light off
+      FW_Command(ML_STAR, "C0CK","lr1cz000",hslFalse, response);
+
       if(loadPhase == 1)
       {
 		   VerTool::AddRackOnCarrier(VerDef::site_ResetAll,"","",seq_DummyDef); 
-		   VerTool::AddRackOnCarrier(VerDef::site_2, VerDef::_DWP_2ml,	plate_ID_2,	seqPlatePositions);
-		   VerTool::AddRackOnCarrier(VerDef::site_1, VerDef::_DWP_2ml,	plate_ID_1,	seqPlatePositions);
+         if (hamiltonPlate == hslTrue)
+         {
+		      VerTool::AddRackOnCarrier(VerDef::site_2, VerDef::_Ham_DWP,	plate_ID_2,	seqPlatePositions);
+		      VerTool::AddRackOnCarrier(VerDef::site_1, VerDef::_Ham_DWP,	plate_ID_1,	seqPlatePositions);
+         }
+         else
+         {
+		      VerTool::AddRackOnCarrier(VerDef::site_2, VerDef::_DWP_2ml,	plate_ID_2,	seqPlatePositions);
+		      VerTool::AddRackOnCarrier(VerDef::site_1, VerDef::_DWP_2ml,	plate_ID_1,	seqPlatePositions);
+         }
    		seqPlatePositions.SetCurrentPosition( 1 );
 //	   	TrcTraceSequence(seqPlatePositions);
 //         moduleName  = "VER_PuncherModule";
 //         labwarePosition   = (-107.2 -77.5)/22.5;
-//Trace("Test: Deck: New rack added ->",rack_ID,"< at site =>",VerDef::site_1,"<  of template =>",moduleName, "<=");
+//       Trace("Test: Deck: New rack added ->",rack_ID,"< at site =>",VerDef::site_1,"<  of template =>",moduleName, "<=");
 
          labwarePosition   = (-107.2 -77.5)/22.5;
          moduleName        = "VER_PuncherModule";
    		ML_STAR.RemoveLabware( moduleName);
    		VerTool::AddTemplateOnDeck(ML_STAR, moduleName , VerDef::easyPuncherModule, labwarePosition);
     		VerTool::Load_Carrier(ML_STAR, moduleName, labwarePosition, hslFalse);
-//      TracePresentLabware(ML_STAR);
+         //TracePresentLabware(ML_STAR);
      }
 
       if(loadPhase == 2)
@@ -573,12 +679,12 @@ Trace("Test: ",GetFunctionName() ," : Get stored puncher head data: pc0 =>",pc0,
    		seqCardPositions.SetCurrentPosition( 1 );
 //	   	TrcTraceSequence(seqCardPositions);
 
-   		// load above pre-defined rack on "easyPuncher module"
-Trace("Test: ",GetFunctionName() ," : Load_Carrier  carrierName_Magazine =>",magazineCarrierLabID,"<=="); 
+   		// load above pre-defined rack on "easyPunch module"
+//       Trace("Test: ",GetFunctionName() ," : Load_Carrier  carrierName_Magazine =>",magazineCarrierLabID,"<=="); 
 		   VerTool::Load_Carrier(ML_STAR, magazineCarrierLabID, 7 , hslFalse); // no barcode identification, fix at track 7
       }
 	}  // -- end of function "LoadDialogEasyPunch"
-	
+
 	//------------------------------------------------------------------------------
 	private function UnloadDialogEasyPunch(device ML_STAR, variable processState) //variable
 	//------------------------------------------------------------------------------
@@ -590,7 +696,7 @@ Trace("Test: ",GetFunctionName() ," : Load_Carrier  carrierName_Magazine =>",mag
 		variable response;
       variable carrierName(magazineCarrierLabID);
 
-		dialogTitle 		= LdT("Userdialog for'easyPunch' Verification:");
+		dialogTitle 		= LdT("Userdialog for 'easyPunch' Verification:");
 		Trace(" ");
 		Trace("------------------------------------------------------------------------------");
 		Trace(" ");
@@ -604,10 +710,10 @@ Trace("Test: ",GetFunctionName() ," : Load_Carrier  carrierName_Magazine =>",mag
 
       //   ----------	Move xy Frame to the front position (end of processing)
 Trace("Test: ",GetFunctionName() ," : Move plate transport to front position");
-      ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "fde0f3ba_58d9_469b_9f128c4a0ab88fef" ); // PuncherPositionPlate
+      ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "4ef6d862_dac5_44e4_8d9e23cf6f59d868" ); // PuncherPositionPlate
 
       // unload magazine carrier
-      ML_STAR._54114400_7FA2_11D3_AD85_0004ACB1DCB2( "1f15abc2_c700_40b9_a0253d69122508cf" ); // UnloadCarrier
+      ML_STAR._54114400_7FA2_11D3_AD85_0004ACB1DCB2( "7c3fd276_a6ce_408a_88819ef4f8f660b7" ); // UnloadCarrier
       
       // Move STAR to idle positions
 		VerTool::MoveToEndPositions(ML_STAR);
@@ -634,20 +740,21 @@ Trace("Test: ",GetFunctionName() ," : Move plate transport to front position");
   		VerTool::NewTextLine(0, " ");
       VerTool::NewTextLine(0, " - " + LdT("'Card Magazine Carrier' from the Autoload Tray") );
   		VerTool::NewTextLine(0, " ");
-	   VerTool::NewTextLine(0, " -  " + LdT("Deepwell plate from rear position of easyPuncher module."));
+	   VerTool::NewTextLine(0, " -  " + LdT("Deepwell plate from rear position of easyPunch module."));
   		VerTool::NewTextLine(0, " ");
-	   VerTool::NewTextLine(0, " - " + LdT("'Camera Adjustment Tool from easyPuncher X/Y Frame."));
+      VerTool::NewTextLine(0, " - " + LdT("If still present:"));
+      VerTool::NewTextLine(0, "    " + LdT("'Camera Adjustment Tool' from ´Plate Transport Frame´."));
 
   		VerTool::NewTextLine(0, " ");
   		VerTool::NewTextLine(0, " ");
-		VerTool::NewTextLine(0, LdT("Open tool box below transport position (2.5mm Allen screw )"));
-		VerTool::NewTextLine(0, "       " + LdT(" and put back :"));
+		VerTool::NewTextLine(0, LdT("Dismount the Toolbox Cover (using 2.5mm Allen key) "));
+		VerTool::NewTextLine(0, "   " + LdT(" and put back :"));
 		VerTool::NewTextLine(0, " ");
 	   VerTool::NewTextLine(0, "      - " + LdT("Camera Adjustment Tool"));
 		VerTool::NewTextLine(0, " ");
 	   VerTool::NewTextLine(0, "      - " + LdT("Verification Magazine"));
 		VerTool::NewTextLine(0, " ");
-      VerTool::NewTextLine(0, LdT("Note:") + " " + LdT("Close and screw tool box afterwards.") );
+      VerTool::NewTextLine(0, LdT("Note:") + " " + LdT("Re-assemble the Toolbox Cover.") );
 		
 		returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText,warning, hslOKOnly, 1, "","","");
 
@@ -700,7 +807,7 @@ Trace("Test: ",GetFunctionName() ," : Move plate transport to front position");
       prm = "bk"+ StrFillLeft(IStr(Ceiling(YstepResGripper*my1/2.0 -30)), "0", 3) + yd;
     	if( !FW_Command(ML_STAR, "C0BY",prm, hslTrue, response) ) return(hslFalse);
 
-FW_Command(ML_STAR, "X0RX","",hslFalse , response);
+      FW_Command(ML_STAR, "X0RX","",hslFalse , response);
 
 
       cardInPuncherHead = hslTrue;
@@ -802,7 +909,12 @@ Trace("Test: X-position below matrix prm =>",prm,"<===");
       const variable ZStartPos(2975); // [0.1mm]  
       const variable frontFinger(1); 
       const variable rearFinger(-1); 
-        
+
+      variable processState(VerDef::passed);	
+      variable criteria(8.0);
+      variable deviation(""), devCriteria("");
+              
+      variable messageText("");
    	variable response("");
       variable prm("");
       variable delta(0.0);
@@ -906,6 +1018,50 @@ Trace("Test: Gripper Alignment finger X deviation  =>",  arrGripperAlignmentDevi
 Trace("Test: Gripper Alignment finger Z deviation  =>",  arrGripperAlignmentDeviations.GetAt(4));
 Trace("");
 
+      if(!VerDef::SimulationMode) 
+      {  // ---------------------------------------------------------------------------------
+         // Check gripper alignment deviations and abort execution if one criteria failed
+      	// ---------------------------------------------------------------------------------
+         processState = VerDef::passed;	
+         // X deviation: criteria <= +/- 0.4mm
+         criteria = 0.4;
+         devCriteria = StrConcat2("<= +/- ", VerTool::FormatNumber_PointAsDecimal(criteria, 1));
+   		deviation = VerTool::FormatNumber_PointAsDecimal(arrGripperAlignmentDeviations.GetAt(0),1);
+         if( Util::Abs(FVal(deviation)) > criteria )
+         {
+            processState = VerDef::failed;	
+            Trace("Test: Gripper alignment in X-direction failed. Deviation is -->", deviation,"<   specification : ",devCriteria);
+         }   
+         // Y deviation: criteria <= +/- 0.4mm
+         criteria = 0.4;
+         devCriteria = StrConcat2("<= +/- ", VerTool::FormatNumber_PointAsDecimal(criteria, 1));
+   		deviation = VerTool::FormatNumber_PointAsDecimal(arrGripperAlignmentDeviations.GetAt(1),1);
+         if( Util::Abs(FVal(deviation)) > criteria )
+         {
+            processState = VerDef::failed;	
+            Trace("Test: Gripper alignment in Y-direction failed. Deviation is -->", deviation,"<   specification : ",devCriteria);
+         }   
+
+         // Z deviation: criteria <= +/- 0.4mm
+         criteria = 0.4;
+         devCriteria = StrConcat2("<= +/- ", VerTool::FormatNumber_PointAsDecimal(criteria, 1));
+   		deviation = VerTool::FormatNumber_PointAsDecimal(arrGripperAlignmentDeviations.GetAt(2),1);
+         if( Util::Abs(FVal(deviation)) > criteria )
+         {
+            processState = VerDef::failed;	
+            Trace("Test: Gripper alignment in Z-direction failed. Deviation is -->", deviation,"<   specification : ",devCriteria);
+         }   
+         if (processState == VerDef::failed) 
+         {  // Move plate transport to safety position   
+            Trace("Test: ",GetFunctionName() ," : Move plate transport to load position");
+            ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "deb6cb81_81d5_4bc0_af757b59944712cc" ); // PuncherPositionPlate
+            // error message
+            messageText = LdT("Gripper alignment check failed.") + VerDef::CRLF +  VerDef::CRLF 
+                          + LdT("Note:") + "  " + LdT("Details see trace file.");
+            displayErrorDialog(messageText, hslOKOnly) ;
+            return(hslFalse);
+         }
+      }
       return(hslTrue);
 		///////////////////////////////////////////////////
 		errorHandling : 
@@ -1261,9 +1417,13 @@ Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
 Trace("Test: ",GetFunctionName() ," : ",processStepDescription);
       if(!VerDef::SimulationMode)
       {
-         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Plate_GetWellResult(PunchPlateID, arrayWellState,  oArrayParticleArea, oArrayParticleCount, arrayWellErrorCode); 
-                  
+         returnValue = EASYPUNCHIMAGING_HELPER::easyStep_Plate_GetWellResult(PunchPlateID, arrayWellState,  oArrayParticleArea, oArrayParticleCount, arrayWellErrorCode);
    	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
+         if (arrayWellState.GetSize() < 1)
+         {           
+            Trace("Test: ",GetFunctionName() ," : Analyse plate failed (No data found) .");
+            return(hslFalse);
+         }
 VerTool::TraceArray("Test: analysePlate: --- arrayWellState ----",arrayWellState);
          wellState =(arrayWellState.GetAt(0) == EASYPUNCHIMAGING::EASYPUNCH_HELPER::PLATE::WELL::WELLSTATE::_PUNCH_FOUND);
          Trace("Test: ",GetFunctionName() ," : Analyse plate was successful","  wellState =>",wellState);
@@ -1395,6 +1555,11 @@ VerTool::TraceArray("Test: analyseCard: --- arrayOfPunches ----",arrayOfPunches)
          }
          if(!VerDef::SimulationMode)
          {
+            if (arrayEasyPunchID.GetSize() < 1)
+            {           
+               Trace("Test: ",GetFunctionName() ," : Analyse  punch-hole positions failed (No data found) .");
+               return(hslFalse);
+            }
             easyPunchID=arrayEasyPunchID.GetAt(0);
             returnValue = EASYPUNCHIMAGING::DATABASE::CARD::GetEasyPunchHole(easyPunchID, gripPosX, gripPosY, centerPosX, centerPosY, easyPunch_HoleDiameter, easyPunch_ErrorCode, easyPunch_Description);
             if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
@@ -1411,6 +1576,11 @@ VerTool::TraceArray("Test: analyseCard: --- arrayOfPunches ----",arrayOfPunches)
          }
          if(!VerDef::SimulationMode)
          {
+            if (arrayEasyPunchID.GetSize() < 1)
+            {           
+               Trace("Test: ",GetFunctionName() ," : Analyse  punch-hole positions failed (No data found) .");
+               return(hslFalse);
+            }
             easyPunchID=arrayEasyPunchID.GetAt(0);
             returnValue = EASYPUNCHIMAGING::DATABASE::CARD::GetEasyPunchPunch(easyPunchID, gripPosX, gripPosY, centerPosX, centerPosY, easyPunch_HoleDiameter,PunchSampleOverlap, easyPunch_PunchState, easyPunch_ErrorCode, easyPunch_Description);
       	   if(errorDetectedInEasyPunchStep(returnValue)) return(hslFalse);
@@ -1455,7 +1625,12 @@ VerTool::TraceArray("Test: analyseCard: --- arrayOfPunches ----",arrayOfPunches)
       arrWellCheckPositions.AddAsLast(89 ); // A12
       arrWellCheckPositions.AddAsLast(96 ); // H12
       
-      SettingNamePlate = "Verification_DWP_Settings";
+      if (hamiltonPlate == hslTrue)
+      {
+         if (largePunchHead == hslTrue) SettingNamePlate = "Verification_HAM_DWP_Settings_largePunches"; //"HAM-DWP_12ml_96Well_V08_NoLiquid_6.0mm";
+         else                           SettingNamePlate = "Verification_HAM_DWP_Settings_smallPunches"; //"HAM-DWP_12ml_96Well_STAR2_V04_NoLiquid_1.2mm";
+      }
+      else                              SettingNamePlate = "Verification_DWP_Settings";
 
       for(loopCounter = 0; loopCounter < executionLoops; loopCounter++)
       {
@@ -1525,8 +1700,15 @@ Trace("Test: ",GetFunctionName() ," : analysePlate : wellStatus =>",wellStatus);
 
       punchDiameter = 6.0;
       punchDistance = 0.5;
-      SettingNamePlate = "Verification_DWP_Settings";
-      SettingNameCard = "Verification_Card_A";
+      
+      if (hamiltonPlate == hslTrue)
+      {
+         if (largePunchHead == hslTrue) SettingNamePlate = "Verification_HAM_DWP_Settings_largePunches"; //"HAM-DWP_12ml_96Well_V08_NoLiquid_6.0mm";
+         else                           SettingNamePlate = "Verification_HAM_DWP_Settings_smallPunches"; //"HAM-DWP_12ml_96Well_STAR2_V04_NoLiquid_1.2mm";
+      }
+      else                              SettingNamePlate = "Verification_DWP_Settings";
+
+      SettingNameCard = "Verification_Card_C";
 
       // Move plate transport to safety position   
 Trace("Test: ",GetFunctionName() ," : Move plate transport to safety position");
@@ -1535,6 +1717,9 @@ Trace("Test: ",GetFunctionName() ," : Move plate transport to safety position");
       // move puncher head to z distance
       seqCardPositions.SetCurrentPosition( cardNumber );
       ML_STAR._A64873DF_C5B1_40d4_A58E_ED74499B1394( "9710c54a_ea85_4a4d_8f3040c2683418df" ); // PuncherMove
+
+      // Switch ON deionizer
+      FW_Command( ML_STAR, "CPIF","if1",hslTrue, response);         
 
       // Execute followings steps 8 times
       cardNumber = 0;
@@ -1563,6 +1748,11 @@ Trace("Test:  Center position in loop ", loopCounter, "  X pos =>", punchPosX,"<
             // Transport card back to magazine 
             ML_STAR._356B202E_2016_4457_89D6_BECF5F07C83E( "95d8b303_ccc1_4923_8db9e83d466bd012" ); // PunchCardGripPlace
 
+            // Switch OFF fan
+            FW_Command( ML_STAR, "CPHR","hr00000",hslFalse , response); 
+            // Switch OFF deionizer
+            FW_Command( ML_STAR, "CPIF","if0",hslFalse, response);
+
             messageText = LdT("No proper punch position found on the card!") + VerDef::CRLF +  VerDef::CRLF 
                           + LdT("Note:") + "  " + LdT("Load correct Verification Card without any punches."); 
             displayErrorDialog(messageText, hslOKOnly) ;
@@ -1580,18 +1770,21 @@ Trace("Test: Transport plate below puncher : LabwareID =>", seqPlatePositions.Ge
          ML_STAR._05A32BB0_D735_4903_879B_951CE1335B06( "08f5e606_b7df_49a4_9a376ae077194e1a" ); // PuncherPositionPlate
 
       // ----------	Punch card and measure punch/card alignment 
-         // Switch ON fan
-         if(!FW_Command( ML_STAR, "CPHR","hr55000",hslTrue, response) )return(hslFalse) ;         
          cardInPuncherHead = hslTrue;
          // Card transport to puncher position ( x/y position)
          ML_STAR._762AECC3_41AB_4549_B89E_6DCD29D61F4F( "6066d915_4f29_4d5d_89f57401cfd4d9d2" ); // PunchCardGripMove
          Trace("Test: Punch into well of : LabwareID =>", seqPlatePositions.GetLabwareId(), "  PosID =>",seqPlatePositions.GetPositionId());
          ML_STAR._DAC4826B_C3DF_44f2_ADD1_4C1D84498BA7( "0542e8da_6c1e_40d8_9cf26d5b44fe20c5" ); // PuncherPunch
-         // Card transport to safety position
+
+         // Switch ON fan
+         FW_Command( ML_STAR, "CPHR","hr55000",hslTrue, response); 
+
+        // Card transport to safety position
          ML_STAR._762AECC3_41AB_4549_B89E_6DCD29D61F4F( "1b50e1b7_7bb0_483f_8f11db71f84531f1" ); // PunchCardGripMove
          cardInPuncherHead = hslFalse;
-         // Switch OFF fan
-         if(!FW_Command( ML_STAR, "CPHR","hr00000",hslTrue, response) )return(hslFalse) ; 
+
+         // Switch OFF fan (after approx. 2 s = card movement time)
+         FW_Command( ML_STAR, "CPHR","hr00000",hslTrue, response); 
 
          // ----------	Check punch in well of DWP
          // check well position : must be filled with punched paper
@@ -1621,6 +1814,11 @@ Trace("Test: Loop =>",loopCounter + 1,"     Punch Y deviation  =>",  arrPunchPos
          // Transport card back to magazine 
          ML_STAR._356B202E_2016_4457_89D6_BECF5F07C83E( "3f7b5dfc_fcc4_49e5_9d94ae6148c9df03" ); // PunchCardGripPlace
       }// end of loop
+
+      // Switch OFF fan
+      FW_Command( ML_STAR, "CPHR","hr00000",hslFalse, response); 
+      // Switch OFF deionizer
+      FW_Command( ML_STAR, "CPIF","if0",hslFalse, response);   
 
       // Park card handler
       if( !FW_Command(ML_STAR, "C0BW","",hslTrue, response) ) return(hslFalse);
@@ -1865,7 +2063,7 @@ Trace("Test: Loop =>",loopCounter + 1,"     Punch Y deviation  =>",  arrPunchPos
 		if (processSummaryState == VerDef::passed) return(PS::successful);
 		else	
 		{ 
-//			VerTool::VerificationFailedDialog(LdT("'easyPunch' Verification."), "x");
+//			VerTool::VerificationFailedDialog(LdT(" 'easyPunch' Verification."), "x");
 			return(PS::failed);
 		}
 
@@ -1909,33 +2107,48 @@ Trace("Test: Loop =>",loopCounter + 1,"     Punch Y deviation  =>",  arrPunchPos
 		//------------------------------------------------------------------------------
 			StartDialogEasyPunch(ML_STAR);
 
+		// Select plate type
+		//------------------------------------------------------------------------------
+         if(SelectPlateTypeDialog() == hslCancel)break;
+
+		// Select punch head type (in case of Hamilton plate)
+		//------------------------------------------------------------------------------
+         if(hamiltonPlate == hslTrue) SelectPunchHeadTypeDialog();
+
 		// Verify Punch Gripper Alignment 
 		//------------------------------------------------------------------------------
         if(!executePunchGripperAlignment(ML_STAR) ) break;
 
-		// Load dialogs and load labware
+		// Load dialog and load labware
 		//------------------------------------------------------------------------------
-			LoadDialogEasyPunch(ML_STAR, 1); // load deepwell plate & load camera adjustment tool
+			LoadDialogEasyPunch(ML_STAR, 0); // load camera adjustment tool
+		// Check camera setting
+		//------------------------------------------------------------------------------
+         if(!executeCameraSetting(ML_STAR) ) break;
+
+		// Load dialogs and load labware
+			LoadDialogEasyPunch(ML_STAR, 1); // unload camera adjustment tool & load deepwell plate
 			LoadDialogEasyPunch(ML_STAR, 2); // load card magazine
 
 		// Check if DWP is empty
 		//------------------------------------------------------------------------------
          if(!CheckEmptyPlate(ML_STAR)) break;
-   
-		// Check camera setting
-		//------------------------------------------------------------------------------
-         if(!executeCameraSetting(ML_STAR) ) break;
-			
-
-		// Verify Plate Alignment 
+   			
+      // Verify Plate Alignment 
 		//------------------------------------------------------------------------------
          if(!executePlateAlignment(ML_STAR) ) break;
 
 
 		// Execute Punch processing incl. Verify Punch Accuracy
 		//------------------------------------------------------------------------------
-         if(!executePunchProcessing(ML_STAR) ) break;
-			
+         if(!executePunchProcessing(ML_STAR) ) 
+         {
+            // Switch OFF fan
+            FW_Command( ML_STAR, "CPHR","hr00000",hslFalse , response); 
+            // Switch OFF deionizer
+            FW_Command( ML_STAR, "CPIF","if0",hslFalse, response);
+            break;
+			}
 
 		// Evaluate data and generate report file
 		//------------------------------------------------------------------------------
@@ -1981,12 +2194,14 @@ Trace("Test: Loop =>",loopCounter + 1,"     Punch Y deviation  =>",  arrPunchPos
 			// Error trace and message
 			FormatTrace(GetFunctionName(),"()",VerDef::CMD_ERRCOMPL," Processing error occured during => ", processStepDescription);
 
-			VerTool::VerificationFailedDialog(LdT("'easyPunch Verification"), "s");
+			VerTool::VerificationFailedDialog(LdT("'easyPunch' Verification"), "s");
       }
-      	
+      
+      // de-activate abort handler
+			UnregisterAbortHandler("easyP::OnRun_Abort");	
 	}  // -- end of function "easyPunch_Verification"
 
 } // end of namespace easyP
 //==============================================================================
 
-// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=3cd27201$$length=088$$
+// $$author=wbarmettler$$valid=1$$time=2019-08-07 15:12$$checksum=d5bc5e66$$length=088$$

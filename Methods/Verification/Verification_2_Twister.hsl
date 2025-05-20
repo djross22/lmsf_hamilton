@@ -11,6 +11,12 @@
 * ==================================================================================================
 *  Modification History:
 * ----------------------
+* Rev 1.2 2020-11-27 Erich Caflisch / Module Version : 03 / ECO11006154  :    
+*                 Calculation correction for "right" channel type: 180° different rotation position 
+* --------------------------------------------------------------------------------------------------
+* Rev 1.1 2016-02-29 Erich Caflisch / Module Version : 02 / ECO14650 :    
+*                 Reset pickup tolerence at end of execution
+* --------------------------------------------------------------------------------------------------
 * Rev 1.0 2013-09-18 Erich Caflisch  /  Module Version : 00, Part of Build 1020, ECO 13197
 *                First released version for software version >=4.4.0
 *                Optimized barcode border position measurements (5 times)
@@ -19,8 +25,6 @@
 *
 *****************************************************************************************************/ 
 
-
-//device ML_STAR("TestDeck_1.lay");
 //device ML_STAR("Verification_Starlet.lay");
 
 	// -----------------------------------------------------------------------------
@@ -51,7 +55,7 @@ namespace TwBC_1
 {	
 	// General variable definitions
 	//------------------------------------------------------------------------------
-	variable moduleVersion("01");				// verification subversion of this library	
+	variable moduleVersion("03");				// verification subversion of this library	
 	static sequence seqTwisterTool; 
 
 	// specifications / expected barcodes
@@ -67,6 +71,14 @@ namespace TwBC_1
 	static variable arrScannedBarcode_2[];
 	static variable arrBarcodePositions[];
 
+   // preset parameter values  
+   variable presetGripperTolerance_ot (20);     // preset gripper tolerance "ot" of master FW
+   variable presetGripperTolerance_dp (3000);   // preset gripper tolerance "dp" of slave FW
+   variable presetReadDistance_sg     (702);    // preset gripper read distance "sg" of slave FW
+
+   //channel features
+   variable channelOrientation(0);           // 0 = right channel orientation;  1 = left channel orientation (scanning in +X direction)
+
 	//------------------------------------------------------------------------------
 	private function OnRun_Abort() //variable
 	//------------------------------------------------------------------------------
@@ -76,6 +88,33 @@ namespace TwBC_1
 
 	}  // -- end of function "OnRun_Abort"
 
+
+	//------------------------------------------------------------------------------
+   function twisterFwCommand(device& ML_STAR, variable channelNo, variable  command,variable prm, variable errorCheck,variable& response) variable
+	//------------------------------------------------------------------------------
+   {
+     variable cmd("");
+
+//Trace("Test: twisterFwCommand for channelNo =>",channelNo,"<  command=>",command,"<  prm =>",prm,"<==");
+     cmd = StrConcat4("O", channelNo , command,"");
+
+     response = cmd + "id1234er00"+ response;
+
+//Trace("Test 3 : twisterFwCommand : response =>",response ,"<==");
+     	if(VerDef::SimulationMode) 
+	  	{
+			Trace("Test : twisterFwCommand or channelNo =>",channelNo,"<  command=>",command,"<  prm =>",prm,"<  simulated response =>",response ,"<==");
+	  		return(hslTrue);
+		}
+     response = VerTool::FwCommand( cmd, prm , hslFalse , ML_STAR ); 
+//Trace("Test 4 : twisterFwCommand  : response =>",response ,"<==");
+     if(errorCheck)
+     {
+         if(StrFind(response,"er00") < 0) return(hslFalse);
+     }
+     return(hslTrue);
+   }
+
 	//------------------------------------------------------------------------------
 	private function Load_VerificationToolDialog(device& ML_STAR) //variable
 	//------------------------------------------------------------------------------
@@ -84,7 +123,8 @@ namespace TwBC_1
 		variable dialogTitle("");			//	dialog titel information			
 		variable prop2, prop3, sn, date(""),lcd(""),lcb(""); // dummy place holder 
 		variable returnValue;
-		variable inputDescription(""), remarks(""), warning("");
+		variable response,tmpValue;
+      variable inputDescription(""), remarks(""), warning("");
 		variable rackConfigFile("");
       variable arrLabwarPos[];
       const variable rackID("Twister_Tool"), teachingNeedleID("TeachingNeedle5ml");
@@ -104,6 +144,23 @@ namespace TwBC_1
     	   arrScannedBarcode_2.AddAsLast(VerDef::notDefined);
      	   arrBarcodePositions.AddAsLast(-9999);
       }
+		// get actually set parameter values
+         // preset gripper tolerance "ot" of master FW
+         response = VerTool::FwCommand("C0RA","raot", hslFalse , ML_STAR );
+         tmpValue = IVal( StrMid( response, StrFind( response, "ot" ) + 2, 2 ));
+         if(tmpValue < 10) tmpValue = 20;
+         presetGripperTolerance_ot = 	"ot" + StrFillLeft(IStr(tmpValue), "0", 2);
+         // preset gripper tolerance "dp" of slave FW
+         twisterFwCommand(ML_STAR, 1, "RA","radp", hslFalse ,response); 
+         tmpValue = IVal( StrMid( response, StrFind( response, "dp" ) + 2, 5 ));
+         if(tmpValue < 1000) tmpValue = 3000;
+		   presetGripperTolerance_dp = 	"dp" + StrFillLeft(IStr(tmpValue), "0", 5);
+         // preset gripper read distance "sg" of slave FW
+         twisterFwCommand(ML_STAR, 1, "RA","rasg", hslFalse ,response); 
+         tmpValue = IVal( StrMid( response, StrFind( response, "sg" ) + 2, 5 ));
+         if(tmpValue < 1000) tmpValue = 702;  // = 360°
+		   presetReadDistance_sg =	"sg" + StrFillLeft(IStr(tmpValue), "0", 5);
+
 
 		// unlock front cover 
 		VerTool::MoveToEndPositions(ML_STAR);
@@ -196,31 +253,6 @@ namespace TwBC_1
 		
 	}  // -- end of function "endTwisterVerification"		
 
-	//------------------------------------------------------------------------------
-   function twisterFwCommand(device& ML_STAR, variable channelNo, variable  command,variable prm, variable errorCheck,variable& response) variable
-	//------------------------------------------------------------------------------
-   {
-     variable cmd("");
-
-//Trace("Test: twisterFwCommand for channelNo =>",channelNo,"<  command=>",command,"<  prm =>",prm,"<==");
-     cmd = StrConcat4("O", channelNo , command,"");
-
-     response = cmd + "id1234er00"+ response;
-
-//Trace("Test 3 : twisterFwCommand : response =>",response ,"<==");
-     	if(VerDef::SimulationMode) 
-	  	{
-			Trace("Test : twisterFwCommand or channelNo =>",channelNo,"<  command=>",command,"<  prm =>",prm,"<  simulated response =>",response ,"<==");
-	  		return(hslTrue);
-		}
-     response = VerTool::FwCommand( cmd, prm , hslFalse , ML_STAR ); 
-//Trace("Test 4 : twisterFwCommand  : response =>",response ,"<==");
-     if(errorCheck)
-     {
-         if(StrFind(response,"er00") < 0) return(hslFalse);
-     }
-     return(hslTrue);
-   }
 
    //------------------------------------------------------------------------------
    function calculateMeanValue(variable arrValues[]) variable
@@ -262,7 +294,6 @@ Trace("Test: calculateMeanValue:  out of =>",arrValues.GetSize(),"< values:   me
       variable channelNo;
       variable prm(""), response;
       variable rotResolution(76.0/39.0);  // rotation resolution [Inc/°]
-      variable channelOrientation(0);           // 0 = right channel orientation;  1 = left channel orientation (scanning in +X direction)
       variable scannedBarcodePosition(0);       // [Inc]
       variable scannedBarcode("");              //  scanned barcode
       variable measurementNo(0);
@@ -391,8 +422,8 @@ Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   rotResolut
          // Close Gripper (Init Position) : O4DAda35000su01000
          twisterFwCommand(ML_STAR, channelNo, "DA","da35000su01000", hslFalse ,response); 
 
-         // Initialize Z drive
-         twisterFwCommand(ML_STAR, channelNo, "ZI","", hslFalse ,response); 
+         // Initialize Z drive & reset gripper tolerance on channel
+         twisterFwCommand(ML_STAR, channelNo, "ZI",presetGripperTolerance_dp + presetReadDistance_sg, hslFalse ,response); 
 
          // Calculate mean  measurement data [in °]
          scannedBarcodePosition = calculateMeanValue(arrUpperBarcodePositions)/ rotResolution;
@@ -403,6 +434,10 @@ Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   rotResolut
          Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   Mean value of lower Barcode Label centerline position =>",scannedBarcodePosition ,"°< ==");
 
       }
+      // reset parameter   
+      VerTool::FwCommand("C0AA",presetGripperTolerance_ot, hslFalse , ML_STAR );
+      VerTool::FwCommand("OXAA",presetGripperTolerance_dp+presetReadDistance_sg, hslFalse , ML_STAR );
+
    }   // -- end of function "Execute_TwisterVerification"
 
 	//------------------------------------------------------------------------------
@@ -472,6 +507,8 @@ Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   rotResolut
             // evaluate barcode position: deviation of barcode label middle line (= measured value minus nominal value )
             deviation = arrBarcodePositions.GetAt(index) - nominalBarcodeReadPosition;		
 		      if((deviation > -0.1) && (deviation < 0.1)) deviation = 0.0;
+            if(deviation >90)    deviation = deviation - 180;   // channel rotation origin -180° different (right channel)
+            if(deviation <-90)   deviation = deviation + 180;   // channel rotation origin +180° different (right channel)
       		if(deviation < -9000) 
       		{ // no measured position values
       			devString 	= VerDef::notDefined;
@@ -484,6 +521,7 @@ Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   rotResolut
       		}
 
       		if(devValue < 0) devValue = -1.0 * devValue; 
+
 		      if(devValue > bcAlignmentDevLimit) channelProcessState 	= VerDef::failed;
 				VerTool::WriteCell(6, row, devString + " °");						   // cell G21..: barcode position
 
@@ -559,8 +597,11 @@ Trace("Test: Execute_TwisterVerification:  channel =>",channelNo,"<   rotResolut
 		// End dialog
 		//------------------------------------------------------------------------------
          TwBC_1::endTwisterVerification(ML_STAR, processState );
+
+       // de-activate abort handler
+			UnregisterAbortHandler("TwBC_1::OnRun_Abort");
 	
 	}  // -- end of function "Barcode_Verification"
 
 //==============================================================================
-// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=acf52842$$length=088$$
+// $$author=ECaflisch$$valid=1$$time=2020-11-28 15:17$$checksum=a0179602$$length=086$$

@@ -5,6 +5,7 @@
 *
 *  Description : Method for Verification of following "Temperature Devices":
 *						
+*						-	Cooling Carrier Module CCM (p/n xxxxxx) (Sensor Verification)
 *						-	Multiflex Cooling Module (p/n 188046)
 *						-	Multiflex Heating Module (p/n 188045) 
 *						-	Shaker Heater CAT SH10: (p/n 185440; p/n 281760)
@@ -15,11 +16,31 @@
 *						-	Definition for any Heater or Cooler Device, which are not controlled from ML-STAR
 *						
 * ==================================================================================================
-*  ATTENTION: Change this HSL only with HSL Editor of SW Version 3.2!
-*              (Note: This library must run from SW-version 3.2 on)
+*  ATTENTION: Change this HSL only with HSL Editor of SW Version 4.2!
+*              (Note: This library must run from SW-version 4.2 on)
 * ==================================================================================================
 *  Modification History:
 * ----------------------
+* Rev 1.6  2021-10-11 Erich Caflisch  / Module Version : 07 / ECO11007671
+*                 General change of verification interval: either200 dasy or 400 days
+*                 Executable only from sofware version 4.2 (due to pdf file creator limitation)
+* --------------------------------------------------------------------------------------------------
+* Rev 1.51 2021-08-03 Erich Caflisch / Module Version : 06 / ECO11006154  :
+*                	Device "Cooling Carrier Module CCM" temperature calculation corrected 
+*                 Terminate device control and communication after request of internal temperature values
+* --------------------------------------------------------------------------------------------------
+* Rev 1.5 2021-02-01 Erich Caflisch / Module Version : 05 / ECO11006154  :
+*                	New device "Cooling Carrier Module CCM" included, 
+*                   inclusive corresponding library "..\\Library\\Hamilton MeasurementBox\\Hamilton MeasurementBox.hsl" 
+*                	Only temperature sensor verification, i.e. check if internal sensor(s) are similar to reference (IR-) 
+*                 New report for sensor verification
+*                 Optimized reading of IR Sensor serial number (8 HEX instead of 6 HEX)
+* --------------------------------------------------------------------------------------------------
+* Rev 1.4 2018-04-12 Erich Caflisch / Module Version : 04 / ECO 14'650 :
+*                	New device "MFX Cooling Heating Module" included 
+*                	  Cooling down to 15°C in 20 minutes, heating up to 95°C needs at least 30 minutes
+*                 If installed include also library "HSLInhecoTEC\\HSLInhecoTECLib.hsl"
+* --------------------------------------------------------------------------------------------------
 * Rev 1.3 2013-09-27 Erich Caflisch / Module Version : 03 / ECO 13'197 :
 *                	New device "Gel Card Incubator" included 
 *                	New device "Tube Heater" included (processor Adress "FD")
@@ -49,6 +70,7 @@
 // deactivate for release version
 //---------------------
 //device ML_STAR("C:\\Program Files\\Hamilton\\Methods\\Verification\\Verification_Star.lay");
+//device ML_STAR("C:\\Program Files (x86)\\HAMILTON\Methods\\Verification\\Verification_Star.lay");
 
 // -----------------------------------------------------------------------------
 // Included libraries
@@ -80,7 +102,7 @@
 
 namespace T_VER
 {
-	private variable moduleVersion("03");				// verification subversion of this library
+	private variable moduleVersion("07");				// verification subversion of this library
 
 	private variable processSummaryState;
 	private variable cmdReadTarget		("01"); 		// Hex value  for read target temperature
@@ -93,9 +115,12 @@ namespace T_VER
 	private variable KeyTempDevice("Temp_Device");
 	private variable CAT_LibraryIncluded(hslFalse);
 	private variable isCAT_IVD(hslFalse);				// CAT shaker IVD library installed
+   private variable CCM_LibraryIncluded(hslFalse);  // only measurement box library "Hamilton MeasurementBox.hsl"
 	private variable HHS_LibraryIncluded(hslFalse);
+   private variable MFX_CoolingHeatingLibraryIncluded(hslFalse);
 	private variable HSLMTecLib_Included(hslFalse);	  // Inheco TEC controller library "HSLMTecLib.lib" installed
 	private variable HSLInhecoTECLib_Inculded(hslFalse);// Inheco TEC controller library "HSLInhecoTECLib.lib" installed
+   private variable CCM_ChillerDialogDisplayed(hslFalse); 
 	private variable arrRecordedValueStatus[];
 	private variable arrRecordedValueStatus_2[];
 	const   variable noMoreHeatingUp(999);
@@ -253,6 +278,40 @@ namespace T_VER
 		}		
 		VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText, warning, hslOKOnly, 1, "","","");
 	}  // -- end of function "showSetTemperature_Dialog"	
+
+	//------------------------------------------------------------------------------
+	private function showPrepareChiller_Dialog (device ML_STAR, variable labIndex, variable temperature) 
+	//------------------------------------------------------------------------------
+	{
+		variable pictureFile("");			// picture file name (in subdirectory "..\\Methods\Verification\Pictures\""
+		variable dialogTitle("");			//	dialog titel information
+		variable labDeviceType (""), labDeviceDesciption("");
+		variable warning(""), response("");			
+      	//	
+		labDeviceType = DevGetLabwareData(ML_STAR, T_VAR::arrLabwareID.GetAt(labIndex), VerDef::PropVerDevice);
+      if(labDeviceType  != VerDef::CCM)   return;
+      if(CCM_ChillerDialogDisplayed)      return;
+      
+      pictureFile = "PrepareChillerForCCM.jpg";      
+		dialogTitle 		= LdT("Set Chiller device manually:");
+		labDeviceDesciption = T_VAR::arrDescription.GetAt(labIndex);
+
+		VerTool::NewTextLine(1, LdT("Activate the chiller device(s) "));
+		VerTool::NewTextLine(0," -------------------------------------------");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,"     for all '" +  labDeviceDesciption + "'");
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0, StrConcat4("     ",LdT("to maintain carrier temperature of approximatly "),Floor(temperature + 0.5)," °C."));
+		VerTool::NewTextLine(0," ");			
+		VerTool::NewTextLine(0," ");
+		VerTool::NewTextLine(0,LdT("Note:"));
+		VerTool::NewTextLine(0,LdT("The chiller device type depends on the instrument installation."));
+		warning = LdT("Best to activate chiller prior verification to allow enough cooling-down time.");
+		
+		VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText, warning, hslOKOnly, 1, "","","");
+      CCM_ChillerDialogDisplayed = hslTrue;
+	}  // -- end of function "showPrepareChiller_Dialog"	
 
 	//------------------------------------------------------------------------------
 	private function showSetBlackStrip(device ML_STAR, variable labIndex) 
@@ -442,6 +501,10 @@ namespace T_VER
 		if(labDeviceType  == VerDef::TCC){ pictureFile = "Load_IRSensorOnTCC.jpg";}
 		//-------------- "HHS: Hamilton Heater Shaker"  -----------------------
 		if(labDeviceType  == VerDef::HHS){ pictureFile = "Load_IRSensorOnHHS.jpg";}	
+		//-------------- "VerDef::MFX_Cooling_Heating_Module"  -----------------------
+		if(labDeviceType  == VerDef::MFX_Cooling_Heating_Module){ pictureFile = "Load_IRSensorOnCooling_HeatingModule.jpg";}	
+		//-------------- "VerDef::Cooling Carrier Module"  -----------------------
+		if(labDeviceType  == VerDef::CCM){ pictureFile = "Load_IRSensorOnCCM.jpg";}	
 		//-------------- ""Inheco Multi/Single TEC controller"  -----------------------
 		if(labDeviceType  == VerDef::Inheco_TEC){ pictureFile = "Load_IRSensorOnInhecoTEC.jpg";}	
 		//-------------- "Gel Card Incubator"  -----------------------
@@ -479,28 +542,38 @@ namespace T_VER
 		VerTool::NewTextLine(0," -------------------------------------------");
 		VerTool::NewTextLine(0," ");
 		VerTool::NewTextLine(0, LdT("Place the IR Temperature Sensor:"));
-		VerTool::NewTextLine(0," ");
+		//VerTool::NewTextLine(0," ");
 		VerTool::NewTextLine(0," ");
 		VerTool::NewTextLine(0,"      '" +  labDeviceDesciption + "'");
 		VerTool::NewTextLine(0," ");
 		VerTool::NewTextLine(0," ");
 		VerTool::NewTextLine(0,LdT("located on deck position:") + " " + VerTool::convertXYcoordToTrackSite(T_VAR::arrDeckPosition.GetAt(labIndex)));
-		VerTool::NewTextLine(0," ");			
+		//VerTool::NewTextLine(0," ");			
 		VerTool::NewTextLine(0,LdT("respectively in X- / Y- coordinate [mm]:") + "  " + T_VAR::arrDeckPosition.GetAt(labIndex) );
 		VerTool::NewTextLine(0," ");
 		VerTool::NewTextLine(0," ");
-		VerTool::NewTextLine(0,LdT("Hint:") + " " + LdT("Remove the Protection Cap from the IR Sensor."));
+		VerTool::NewTextLine(0,LdT("Hints:") + " " + LdT("Remove the Protection Cap from the IR Sensor."));
 		if(labDeviceType  == VerDef::TubeHeater)
 		{
 			VerTool::NewTextLine(0,"          " +  LdT("Place sensor frame on marked position."));
 		}
-		VerTool::NewTextLine(0," ");
+		if(labDeviceType  == VerDef::MFX_Cooling_Heating_Module)
+		{
+			VerTool::NewTextLine(0,"          " +  LdT("Place sensor diagonally on top of module."));
+		}
+		if(labDeviceType  == VerDef::CCM)
+		{
+      	VerTool::NewTextLine(0,"          " +  LdT("Use the 2 bars from bottom of the device "));
+			VerTool::NewTextLine(0,"            " +  LdT("and place the sensor above the carrier slot."));
+		}      
+      VerTool::NewTextLine(0," ");
 		VerTool::NewTextLine(0,StrConcat4(LdT("Note:") + " " + LdT("Set temperature  is")," ", targetTemperature ," °C"));
 		VerTool::NewTextLine(0, " ");
 		VerTool::NewTextLine(0, " ");
-	 	VerTool::NewTextLine(0, LdT("Press 'OK' button immediately after placing sensor on site."));
-	 	VerTool::NewTextLine(0, LdT("Press 'Cancel' to stop the temperature measurement."));
-		
+	 	//VerTool::NewTextLine(0, LdT("Press 'OK' button immediately after placing sensor on site."));
+		VerTool::NewTextLine(0, " ");
+      VerTool::NewTextLine(0, LdT("Press 'Cancel' to stop the temperature measurement."));
+		warning = LdT("Press 'OK' button immediately after placing sensor on site.");
 		returnValue = VerTool::DialogInfoData(dialogTitle, pictureFile, VerDef::dialogText, warning, hslOKCancel, 1, 
 																			inputDescription, inputRemarks, inputValue);
 		if (returnValue == hslCancel) 
@@ -509,7 +582,7 @@ namespace T_VER
 	      if(T_VAR::arrAction.GetAt(labIndex) > 0 ) T_VAR::arrAction.SetAt(labIndex, 0);
 			return(hslFalse);
 		}
-		// measure temperature
+		// --- measure (external) temperature with IR sensor
 		setIR_SensorEmissivity(labIndex,heatingUpPhase);
 		delay.SetTimer( 5 );
 		delay.WaitTimer( hslFalse, hslFalse );
@@ -517,7 +590,7 @@ namespace T_VER
 		cmd = cmdReadTarget; // Hex value "01" for target temperature
 		measuredTemperature  = 0;
 		loopNo					= 0;
-//		Trace("Test: ---- Measure temperature 10 times ");
+      //		Trace("Test: ---- Measure temperature 10 times ");
 		loop(measuredValues)
 		{
 			loopNo++;
@@ -527,16 +600,17 @@ namespace T_VER
 		FormatTrace( LdT("Temperature Verification"),"()", VerDef::CMD_COMPLET, 
 																			LdT("Measure Temperature") , " ==> ", temperature, "°C");
 
+      
 		if(VerDef::SimulationMode)			
 		{
 			userDlg.SetInputSize( 1 );
-			userDlg.SetInputField( 0, "Define temperature ==>:", hslFloat, IVal(targetTemperature));
-			userDlg.ShowInput( "Define simulated temperature:", 5);
+			userDlg.SetInputField( 0, "Define IR Sensor temperature ==>:", hslFloat, IVal(targetTemperature));
+			userDlg.ShowInput( "Define simulated IR Sensor temperature:", 5);
 			temperature = userDlg.GetInputField( 0 );
-			Trace ("Test:showMeasureTemperature_Dialog:  simulated  Temperature ==>", measuredTemperature,"<=="); 
+			Trace ("Test:showMeasureTemperature_Dialog:  simulated  IR Sensor temperature ==>", temperature,"<=="); 
 		}
 
-		// stop temperature control of devices
+		// stop temperature control of corresponding device
 		stopTemperatureControl(ML_STAR, labIndex ); 
 		
 		return(hslTrue );	
@@ -555,7 +629,7 @@ namespace T_VER
 		if (fso.IsNull()) fso.CreateObject("Scripting.FileSystemObject");
 
 		labDeviceType = DevGetLabwareData(ML_STAR, T_VAR::arrLabwareID.GetAt(labIndex), VerDef::PropVerDevice);
-//      Trace("Test: ----  Requested labDeviceType: \"", labDeviceType, "\" try to included library....");
+      //Trace("Test: Temperature Verification ----  Requested labDeviceType: \"", labDeviceType, "\" try to included library....");
 
 		if(labDeviceType  == VerDef::MFX_Cooling_Module) return(hslTrue); //"MFX Cooling Module": no library needed/available
 		if(labDeviceType  == VerDef::MFX_Heating_Module) return(hslTrue); //"MFX Heating Module": no library needed/available	
@@ -584,7 +658,7 @@ namespace T_VER
 		{	//"HHS"
 			if(HHS_LibraryIncluded) return(hslTrue); //"HHS" library already included
 			libraryName = "HslHamHeaterShakerLib.hs_";
-		}
+   	}
 
 		if(labDeviceType  == VerDef::Inheco_TEC)
 		{	// "Inheco Multi/Single TEC controller"
@@ -596,25 +670,44 @@ namespace T_VER
 			HSLMTecLibType = hslFalse;
 			libraryName = "HSLInhecoTEC\\HSLInhecoTECLib.hs_";	
 			if(! fso.FileExists(GetLibraryPath() + "\\" + libraryName))
-			{ 	//  Library\InhecoMTEC\HSLMTecLib.hs_"
-				libraryName = "InhecoMTEC\\HSLMTecLib.hs_";
-				HSLMTecLibType = hslTrue;
+			{ 	
+   			libraryName = "HSLInhecoTEC\\HSLInhecoTECLib.hsl";	
+   			if(! fso.FileExists(GetLibraryPath() + "\\" + libraryName))
+   			{ //  Library\InhecoMTEC\HSLMTecLib.hs_"
+   				libraryName = "InhecoMTEC\\HSLMTecLib.hs_";
+   				HSLMTecLibType = hslTrue;
+            }
 			}		
 		}  
+
+      if(labDeviceType  == VerDef::MFX_Cooling_Heating_Module) 
+		{	//"MFX Cooling Heating Module"
+			if(MFX_CoolingHeatingLibraryIncluded) return(hslTrue); //""MFX Cooling Heating Module"" library already included
+         libraryName = "Hamilton CoolingHeating Module\\Hamilton CoolingHeating Module.hsl";
+		}
+
+      if(labDeviceType  == VerDef::CCM) 
+		{	//" Cooling Carrier Module"
+			if(CCM_LibraryIncluded) return(hslTrue); //"Cooling Carrier Module"" library already included
+         libraryName = "Hamilton MeasurementBox\\Hamilton MeasurementBox.hsl";
+		}
+
 	   onerror goto IncludeError;
 		// include corresponding library, if installed
       fileToInclude = libraryName;      // used in the error-handler below
 
 
-//		fileToInclude = GetLibraryPath() + "\\" + libraryName;
-      Trace("Test: ----  Requested HSL Library: \"", fileToInclude, "\" try to included....");
+		fileToInclude = GetLibraryPath() + "\\" + libraryName;
+      //Trace("Test: ----  Requested HSL Library: \"", fileToInclude, "\" try to included....");
       << fileToInclude;
 
 	   onerror goto 0;
 
-		if(labDeviceType  == VerDef::Shaker_Heater_CAT) CAT_LibraryIncluded = hslTrue;
-		if(labDeviceType  == VerDef::HHS) 					HHS_LibraryIncluded = hslTrue;
-		if(labDeviceType  == VerDef::Inheco_TEC)
+		if(labDeviceType  == VerDef::Shaker_Heater_CAT)          CAT_LibraryIncluded = hslTrue;
+		if(labDeviceType  == VerDef::HHS) 					         HHS_LibraryIncluded = hslTrue;
+      if(labDeviceType  == VerDef::MFX_Cooling_Heating_Module) MFX_CoolingHeatingLibraryIncluded = hslTrue;
+      if(labDeviceType  == VerDef::CCM)                        CCM_LibraryIncluded = hslTrue;
+   	if(labDeviceType  == VerDef::Inheco_TEC)
 		{
 			if(HSLMTecLibType) 	HSLMTecLib_Included			= hslTrue;
 			else 						HSLInhecoTECLib_Inculded 	= hslTrue;
@@ -660,11 +753,11 @@ namespace T_VER
 		decEmissivity = Floor(decEmissivity * 1000 + 0.5);
 		hexEmissivity = StrRight(StrHexIStr(decEmissivity),4);
 		hexEmissivity = StrMakeUpper(hexEmissivity);
-//Trace("Test:  Set Emissivity: decEmissivity ==>",decEmissivity,"<  hexEmissivity ==>",hexEmissivity,"<==");
+      //Trace("Test:  Set Emissivity: decEmissivity ==>",decEmissivity,"<  hexEmissivity ==>",hexEmissivity,"<==");
 
 		cmd = cmdSetEmissivity + hexEmissivity;
 
-//Trace("Test:  command Set Emissivity ==>",cmd,"<===");
+      //Trace("Test:  command Set Emissivity ==>",cmd,"<===");
 
 
 		if(!sendIR_SensorCommand(cmd) ) return(hslFalse);		
@@ -687,38 +780,43 @@ namespace T_VER
 		if(VerDef::SimulationMode)
 		{ 
 			measuredValue = "8A05A4";
-//			Trace("--------------- Simulated  Response of command ==>",cmd	,"<    is ==>", measuredValue,"<===");
+      //			Trace("--------------- Simulated  Response of command ==>",cmd	,"<    is ==>", measuredValue,"<===");
 		}
 		else
 		{	measuredValue = tempSensor.IR_SensorGetValue(cmd); // internal timeout
-//			Trace("---------------   Response of command ==>",cmd	,"<    is ==>", measuredValue,"<===");
+         //			Trace("---------------   Response of command ==>",cmd	,"<    is ==>", measuredValue,"<===");
 		}
 
-		if (cmd == cmdReadSerialNo)	measuredValue = StrRight(measuredValue,6);
-		else									measuredValue = StrRight(measuredValue,4);
+		if (cmd == cmdReadSerialNo)	
+      {
+         StrReplace(measuredValue, " ","0");
+         StrFillLeft(measuredValue,"0",8);
+         measuredValue = StrRight(measuredValue,8);  // 2021-02-01: new 8 HEX instad of 6 HEX )
+      }
+		else measuredValue = StrRight(measuredValue,4);
  
 		if ((cmd == cmdReadTarget) || (cmd == cmdReadHead) || (cmd == cmdReadActTarget))
 		{
 			calcReturnValue = 1.0*(IVal("0x" + measuredValue) - 1000) / 10.0;
-//			Trace(" --- command ==>",cmd,"<   ------> measuredValue ==>",measuredValue,"<   calcTemperatureValue ==>", calcReturnValue,"<===");
+         //			Trace(" --- command ==>",cmd,"<   ------> measuredValue ==>",measuredValue,"<   calcTemperatureValue ==>", calcReturnValue,"<===");
 		}
-		else 	if (cmd == cmdReadEmissivity)
+		else if (cmd == cmdReadEmissivity)
 		{
 			calcReturnValue = 1.0* IVal("0x" + measuredValue) / 1000.0;
-//			Trace(" --- command ==>",cmd,"< ---------> measured Target Value ==>",measuredValue,"<   calc emmision degree==>", calcReturnValue,"<===");		
+      //			Trace(" --- command ==>",cmd,"< ---------> measured Target Value ==>",measuredValue,"<   calc emmision degree==>", calcReturnValue,"<===");		
 		}
 		else if (cmd == cmdReadSerialNo)
 		{
 			calcReturnValue = IVal("0x" + measuredValue);  // e.g 9060020
-//			Trace(" --- command ==>",cmd,"< ---------> measured Target Value ==>",measuredValue,"<   calc serial no ==>", calcReturnValue,"<===");		
+         //			Trace(" --- command ==>",cmd,"< ---------> measured Target Value ==>",measuredValue,"<   calc serial no ==>", calcReturnValue,"<===");		
 		}
 		else if (cmd == cmdReadFWVersion)
 		{
 			calcReturnValue = 1.0* IVal("0x" + measuredValue);  // e.g 1008
-//			Trace(" --- command ==>",cmd,"< ---------> measured Target Value ==>",measuredValue,"<   calc FW version no ==>", calcReturnValue,"<===");		
+         //			Trace(" --- command ==>",cmd,"< ---------> measured Target Value ==>",measuredValue,"<   calc FW version no ==>", calcReturnValue,"<===");		
 		}
-		else
-//			Trace(" --- unknown command ==>",cmd,"<   with returen Value ==>", measuredValue,"<===");		
+		//else
+      //			Trace(" --- unknown command ==>",cmd,"<   with returen Value ==>", measuredValue,"<===");		
 
 		Trace(" IR sensor command ==>",cmd,"<   with return value =>", measuredValue,"< --> calculated value =>", calcReturnValue,"<===");
 		return(calcReturnValue);
@@ -862,6 +960,13 @@ namespace T_VER
 			showSetTemperature_Dialog(ML_STAR, labIndex, temperature);
 			deviceTypeFound = hslTrue;
 		}
+
+     	//-------------- "Cooling Carrier Module"  -----------------------
+		if(labDeviceType  == VerDef::CCM)
+		{ 
+			showPrepareChiller_Dialog(ML_STAR, labIndex, temperature);
+			deviceTypeFound = hslTrue;
+		}
 		//-------------- "Any Heater or Cooler Device"  -----------------------
 		if(labDeviceType  == VerDef::AnyHeaterCooler)
 		{ 
@@ -953,7 +1058,7 @@ namespace T_VER
 				if(( modAddress == 1 ) || ( modAddress == 2 ))
 				{
 					if(HSLHamHeaterShaker::CreateStarDevice(ML_STAR, modAddress, deviceID)!= 0) 	executionError++;
-//Trace("Test: HHS on TCC plug : startTemperatureControl at modAddress =>",modAddress,"< device ID ==>",deviceID,"<==");
+               //Trace("Test: HHS on TCC plug : startTemperatureControl at modAddress =>",modAddress,"< device ID ==>",deviceID,"<  executionError ==>",executionError,"<==");
 				}
 				else 
 				{ // execution error
@@ -965,7 +1070,7 @@ namespace T_VER
 				if(( modAddress >= 1 ) && ( modAddress <= 8 ))
 				{  
 					if(HSLHamHeaterShaker::CreateUsbDevice(modAddress, deviceID)!= 0) 	executionError++;			
-//Trace("Test: HHS on external CAN: startTemperatureControl at modAddress =>",modAddress,"< device ID ==>",deviceID,"<==");
+               //Trace("Test: HHS on external CAN: startTemperatureControl at modAddress =>",modAddress,"< device ID ==>",deviceID,"<  executionError ==>",executionError,"<==");
 				}
 				else 
 				{ // execution error
@@ -979,9 +1084,61 @@ namespace T_VER
 				T_VAR::arrDeviceID.SetAt(labIndex, deviceID);	
 				T_VAR::arrSerialNumber.SetAt(labIndex, serialNumber);	
 			}
+         //else  Trace("Test: HHS executionError ==>",executionError, "<  Library error code =>",HSLHamHeaterShaker::CreateStarDevice(ML_STAR, modAddress, deviceID),"<==");
 		}	
 
-		//-------------- "Inheco Multi/Single TEC controller"  -----------------------
+		//-------------- "MFX Cooling Heating Module"  -----------------------
+      if(labDeviceType  == VerDef::MFX_Cooling_Heating_Module) 
+		{	
+			comAddress = IVal(DevGetLabwareData(ML_STAR, labwareID, VerDef::PropVER_SerialPort) );
+         if ((comAddress < 1) || ( comAddress > 255 )) executionError++;
+         modAddress = StrConcat2("",DevGetLabwareData(ML_STAR, labwareID, VerDef::PropVER_ModuleAddress) );
+         // mode address should be 2 character string, typically "CM, "99", "C1", "C2",...
+         if (StrGetLength(modAddress) != 2) executionError++; 
+			deviceTypeFound = hslTrue;
+         //Trace("Test: MFX Cooling Heating Module : startTemperatureControl at comAddress ==>",comAddress,"< modAddress =>",modAddress,"< device ID ==>",deviceID,"<==");
+			if(executionError == 0 )
+			{ // Initialize module
+            if (Hamilton_CoolingHeating_Module::Initialize(modAddress, comAddress, VerDef::SimulationMode, deviceID) == hslFalse)	
+            {  
+               executionError++;
+               //Trace("Test: MFX Cooling Heating Module : error at initialise at comAddress ==>",comAddress,"< modAddress =>",modAddress,"< device ID ==>",deviceID,"<  error counter =>",executionError,"<==");
+            }
+            else
+            {
+               //Trace("Test: MFX Cooling Heating Module : initialise TemperatureControl at comAddress ==>",comAddress,"< modAddress =>",modAddress,"< device ID ==>",deviceID,"<==");
+				   T_VAR::arrDeviceID.SetAt(labIndex, deviceID);	
+            }
+			}
+         //Trace("Test: MFX Cooling Heating Module : error counter =>",executionError,"<==");
+		}	
+		//-------------- "Cooling Carrier Module"  -----------------------
+      if(labDeviceType  == VerDef::CCM) 
+		{	
+			comAddress = IVal(DevGetLabwareData(ML_STAR, labwareID, VerDef::PropVER_SerialPort) );
+         if ((comAddress < 1) || ( comAddress > 255 )) executionError++;
+			deviceTypeFound = hslTrue;
+         //Trace("Test: Cooling Carrier Module : start measurement box communication at comAddress ==>",comAddress,"< modAddress =>",modAddress,"< device ID ==>",deviceID,"<==");
+			if(executionError == 0 )
+			{ // Initialize module
+            if (Hamilton_MeasurementBox::Initialize(comAddress, VerDef::SimulationMode, deviceID) == hslFalse)	
+            {  
+               executionError++;
+               //Trace("Test: Cooling Carrier Module : error at initialise at comAddress ==>",comAddress,"< device ID ==>",deviceID,"<  error counter =>",executionError,"<==");
+            }
+            else
+            {
+               //Trace("Test: Cooling Heating Module : initialise measurement box at com Address ==>",comAddress,"< device ID ==>",deviceID,"<==");
+				   T_VAR::arrDeviceID.SetAt(labIndex, deviceID);	
+               // Request serial number 
+               Hamilton_MeasurementBox::GetSerialNumber(deviceID,serialNumber);
+			      T_VAR::arrSerialNumber.SetAt(labIndex, serialNumber);	
+            }
+			}
+         //Trace("Test: Cooling Carrier Module : error counter =>",executionError,"<==");
+		}	
+  
+  		//-------------- "Inheco Multi/Single TEC controller"  -----------------------
 		if(labDeviceType  == VerDef::Inheco_TEC)
 		{	
 			deviceTypeFound = hslTrue;
@@ -997,7 +1154,7 @@ namespace T_VER
 				modAddress	 = IVal(tempText);
 			}
 			T_VAR::arrDeviceID.SetAt(labIndex, StrConcat4(controllerID,".",modAddress,""));
-//Trace("Test: Inheco Multi/Single TEC controller  startTemperatureControl at controllerID =>",controllerID,"<  modAddress =>",modAddress,"< at temperature ==>",temperature,"<==");			
+         //Trace("Test: Inheco Multi/Single TEC controller  startTemperatureControl at controllerID =>",controllerID,"<  modAddress =>",modAddress,"< at temperature ==>",temperature,"<==");			
 
 			if(HSLInhecoTECLib_Inculded)
 			{
@@ -1043,8 +1200,8 @@ namespace T_VER
 		// ------------------------------------------------------			
 		executionFailed:
 		{
-//			err.GetData( );
-//			Trace(" Error: =>", err.GetDescription( ),"<  Error ID==>",err.GetId( ), "<==");
+         //			err.GetData( );
+         //			Trace(" Error: =>", err.GetDescription( ),"<  Error ID==>",err.GetId( ), "<==");
 			err.Clear();
 
 			tempText = LdT("Command execution of %s1 ( Lab ID: '%s2') failed!");
@@ -1108,6 +1265,12 @@ namespace T_VER
 			// no temperature control commands requested (heating up after switch on power)
 		}
 
+		//-------------- "Cooler Carrier Module"  -----------------------
+		if(labDeviceType  == VerDef::CCM)
+		{ 
+			// no temperature control commands available
+		}
+
 		//-------------- "Shaker Heater CAT"  -----------------------
 		if(labDeviceType  == VerDef::Shaker_Heater_CAT)
 		{	
@@ -1138,7 +1301,7 @@ namespace T_VER
 			else											cmd = "T1QT";
 			modAddress 	= T_VAR::arrDeviceID.GetAt(labIndex);
 			heatUpTime	= 3600; // temperature monitoring activated after 1 h, e.g not relevant for verification
-//Trace("Test: TCC: startTemperatureControl at modAddress =>",modAddress,"<==");
+         //Trace("Test: TCC: startTemperatureControl at modAddress =>",modAddress,"<==");
 			ML_STAR.SetCarrierTemperature( "ad5c7282_7eb6_456e_8ec8e807fb3bb9b0" );
 		}
 
@@ -1152,7 +1315,7 @@ namespace T_VER
 				if(( modAddress == 1 ) || ( modAddress == 2 ))
 				{
 					if(HSLHamHeaterShaker::CreateStarDevice(ML_STAR, modAddress, deviceID)!= 0) 	executionError++;
-//Trace("Test: HHS on TCC plug : startTemperatureControl at modAddress =>",modAddress,"< device ID ==>",deviceID,"<==");
+               //Trace("Test: HHS on TCC plug : startTemperatureControl at modAddress =>",modAddress,"< device ID ==>",deviceID,"<==");
 				}
 				else 
 				{ // execution error
@@ -1164,7 +1327,7 @@ namespace T_VER
 				if(( modAddress >= 1 ) && ( modAddress <= 8 ))
 				{  
 					if(HSLHamHeaterShaker::CreateUsbDevice(modAddress, deviceID)!= 0) 	executionError++;			
-//Trace("Test: HHS on external CAN: startTemperatureControl at modAddress =>",modAddress,"< device ID ==>",deviceID,"<==");
+               //Trace("Test: HHS on external CAN: startTemperatureControl at modAddress =>",modAddress,"< device ID ==>",deviceID,"<==");
 				}
 				else 
 				{ // execution error
@@ -1175,10 +1338,19 @@ namespace T_VER
 			{ // start heating up	
 				HSLHamHeaterShaker::SetPlateLock(deviceID, 0); // 0: unlock plate							
 				HSLHamHeaterShaker::StartTempCtrl(deviceID, temperature, 0);
-//Trace("Test: start temperature control HHS: startTemperatureControl at device ID ==>",deviceID,"< temperature ==>",temperature,"<==");
+            //Trace("Test: start temperature control HHS: startTemperatureControl at device ID ==>",deviceID,"< temperature ==>",temperature,"<==");
 			}
 		}	
 
+		//-------------- "MFX Cooling Heating Module"  -----------------------
+      if(labDeviceType  == VerDef::MFX_Cooling_Heating_Module) 
+		{	
+         deviceID 	= IVal(StrConcat2("",T_VAR::arrDeviceID.GetAt(labIndex)));
+         setTemperatureValue = IVal(StrConcat2("",temperature));
+         if (Hamilton_CoolingHeating_Module::SetTemperature(deviceID,setTemperatureValue) == hslFalse) executionError++;
+         if (Hamilton_CoolingHeating_Module::Run(deviceID) == hslFalse) executionError++;
+         //Trace("Test: start temperature control MFX Cooling Heating Module: startTemperatureControl at device ID ==>",deviceID,"< temperature ==>",setTemperatureValue,"<==");
+		}
 		//-------------- "Inheco Multi/Single TEC controller"  -----------------------
 		if(labDeviceType  == VerDef::Inheco_TEC)
 		{	
@@ -1194,7 +1366,7 @@ namespace T_VER
 				modAddress	 = IVal(tempText);
 			}
 			T_VAR::arrDeviceID.SetAt(labIndex, StrConcat4(controllerID,".",modAddress,""));
-//Trace("Test: Inheco Multi/Single TEC controller  startTemperatureControl at controllerID =>",controllerID,"<  modAddress =>",modAddress,"< at temperature ==>",temperature,"<==");			
+         //Trace("Test: Inheco Multi/Single TEC controller  startTemperatureControl at controllerID =>",controllerID,"<  modAddress =>",modAddress,"< at temperature ==>",temperature,"<==");			
 
 			if(HSLInhecoTECLib_Inculded)
 			{
@@ -1228,8 +1400,8 @@ namespace T_VER
 		// ------------------------------------------------------			
 		executionFailed:
 		{
-//			err.GetData( );
-//			Trace(" Error: =>", err.GetDescription( ),"<  Error ID==>",err.GetId( ), "<==");
+         //			err.GetData( );
+         //			Trace(" Error: =>", err.GetDescription( ),"<  Error ID==>",err.GetId( ), "<==");
 			err.Clear();
 
 			tempText = LdT("Command execution of %s1 ( Lab ID: '%s2') failed!");
@@ -1251,7 +1423,7 @@ namespace T_VER
 		variable labDeviceType (""), labDeviceID, labwareID("");
 		variable comAddress, modAddress, controllerID, deviceID, serialNumber;
 		variable tempText(""), cmd("");
-		variable temperature(0.0);
+		variable temperature(0.0), temperature2(0.0), temperature3(0.0);
 		variable retValue;
 		variable arrRetValues[];
 
@@ -1303,6 +1475,20 @@ namespace T_VER
 		{	
 			HSLHamHeaterShaker::GetTemperature(labDeviceID, temperature);
 		}	
+
+		//-------------- "MFX Cooling Heating Module"  -----------------------
+      if(labDeviceType  == VerDef::MFX_Cooling_Heating_Module) 
+		{	
+         Hamilton_CoolingHeating_Module::GetTemperatures(labDeviceID,temperature,temperature2);
+         temperature = (temperature + temperature2)/2.0;
+      }
+
+		//-------------- " Cooling Carrier Module"  -----------------------
+      if(labDeviceType  == VerDef::CCM) 
+		{	
+         Hamilton_MeasurementBox::GetTemperatures(labDeviceID, temperature, temperature2, temperature3);
+         temperature = (temperature + temperature2 + temperature3)/3.0;
+      }
 
 		//-------------- "Inheco Multi/Single TEC controller"  -----------------------
 		if(labDeviceType  == VerDef::Inheco_TEC)
@@ -1357,15 +1543,25 @@ namespace T_VER
 		//-------------- "TCC: ML-STAR functions standard installation"  -----------------------
 		if(labDeviceType  == VerDef::TCC)
 		{ 				
-			ML_STAR.SetCarrierTemperature( "acc5cd1e_6d09_4d3e_a33bd7b4069dd426" );
+         ML_STAR.SetCarrierTemperature( "4924840b_39c0_47d9_8e4b7d89d384abb0" );
 		}
 		//-------------- "HHS: Hamilton Heater Shaker"  -----------------------
 		if(labDeviceType  == VerDef::HHS)
 		{	
 			HSLHamHeaterShaker::StopTempCtrl(labDeviceID);
 		}	
-
-		//-------------- "Inheco Multi/Single TEC controller"  -----------------------
+		//-------------- "MFX Cooling Heating Module"  -----------------------
+      if(labDeviceType  == VerDef::MFX_Cooling_Heating_Module) 
+		{
+         Hamilton_CoolingHeating_Module::Standby(labDeviceID);
+         Hamilton_CoolingHeating_Module::Terminate(labDeviceID);
+      }
+		//-------------- " Cooling Carrier Module"  -----------------------
+      if(labDeviceType  == VerDef::CCM) 
+		{
+         Hamilton_MeasurementBox::Terminate(labDeviceID);
+      }
+  		//-------------- "Inheco Multi/Single TEC controller"  -----------------------
 		if(labDeviceType  == VerDef::Inheco_TEC)
 		{	
 			
@@ -1531,6 +1727,7 @@ namespace T_VER
 			VerTool::NewTextLine(0," -------------------------------------------");
 			VerTool::NewTextLine(0," ");
 			VerTool::NewTextLine(0,LdT("Following devices are 'heating up'") + ":");
+			VerTool::NewTextLine(0," ");
 
 			for(labIndex = 0; labIndex < T_VAR::arrDeviceID.GetSize(); labIndex++)
 			{
@@ -1542,12 +1739,11 @@ namespace T_VER
 					measuredTemperature	= getDeviceTemperature(ML_STAR,labIndex);
 					tempText	= StrConcat4("  - ",T_VAR::arrDescription.GetAt(labIndex),
 													" (", VerTool::convertXYcoordToTrackSite(T_VAR::arrDeckPosition.GetAt(labIndex)) );
-					Trace("Test : showTimerDialog start: Time =>",time,"<  measuredTemperature =>",measuredTemperature,"<==");
+					//Trace("Test : showTimerDialog start: Time =>",time,"<  measuredTemperature =>",measuredTemperature,"<==");
 					if(setTemperature > 0) 
 					{
 						tempText	= StrConcat8(tempText," / ",LdT("Set Temp.")," ", VerTool::FormatNumber_PointAsDecimal(setTemperature,1), " °C )","","");
 					
-//						if(measuredTemperature > 0) tempText	= StrConcat4(tempText," : ",VerTool::FormatNumber_PointAsDecimal(measuredTemperature,1)," °C");
 						if(measuredTemperature > 0) 
 						{
 							if (VerDef::SimulationMode) 
@@ -1559,12 +1755,8 @@ namespace T_VER
 							{
 								measuredTemperature = StrConcat2(Floor(measuredTemperature* 10),"/");
 								arrRecordedValues.SetAt(labIndex, arrRecordedValues.GetAt(labIndex) + measuredTemperature);
-								if (VerDef::SimulationMode) arrRecordedValues.SetAt(labIndex, arrRecordedValues.GetAt(labIndex) + measuredTemperature);
-//								if(heatingPhase == 1) 	
-//										T_VAR::arrRecordedValues.SetAt(labIndex, T_VAR::arrRecordedValues.GetAt(labIndex) + measuredTemperature);
-//								else	T_VAR::arrRecordedValues_2.SetAt(labIndex, T_VAR::arrRecordedValues_2.GetAt(labIndex) + measuredTemperature);
-								
-								Trace("Test : showTimerDialog start: remainingTime =>",remainingTime,"<  T_VAR::arrRecordedValues.GetAt(labIndex) =>",T_VAR::arrRecordedValues.GetAt(labIndex),"<==");
+								if (VerDef::SimulationMode) arrRecordedValues.SetAt(labIndex, arrRecordedValues.GetAt(labIndex) + measuredTemperature);							
+								//Trace("Test : showTimerDialog start: remainingTime =>",remainingTime,"<  T_VAR::arrRecordedValues.GetAt(labIndex) =>",T_VAR::arrRecordedValues.GetAt(labIndex),"<==");
 							}
 						}
 					}	
@@ -1604,8 +1796,9 @@ namespace T_VER
 			if(dialogDelay < 1) dialogDelay = 1;
 			//Trace("Test 3: showTimerDialog: => userResponse =>",userResponse,"<  remainingTime =>",remainingTime,"<  dialogDelay =>",dialogDelay,"<  triggerTime =>",triggerTime,"<==");
 		}	
-	//VerTool::TraceArray("Test:  ----  arr Recorded Values Array ---------", T_VAR::arrRecordedValues);	
-	//VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::arrRecordedValues_2);	
+
+    	//VerTool::TraceArray("Test:  ----  arr Recorded Values Array ---------", T_VAR::arrRecordedValues);	
+   	//VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::arrRecordedValues_2);	
 
 	}  // -- end of function "showTimerDialog"
 
@@ -1667,7 +1860,7 @@ namespace T_VER
 				}
 				while(StrGetLength(strReportedValues) > 3)
 				{
-	//Trace(" Test: strReportedValues =>",strReportedValues,"<===");
+            	//Trace(" Test: strReportedValues =>",strReportedValues,"<===");
 					VerTool::WriteCell_2( colNo, rowNo, time, hslInteger);
 					VerTool::WriteCell_2( colNo + 1, rowNo, setValue, hslInteger);
 					reportedValue = IVal(StrLeft(strReportedValues, StrFind(strReportedValues,"/"))) / 10.0;
@@ -1682,18 +1875,18 @@ namespace T_VER
 							if (heatingPhase > 1) 
 							{
 								arrRecordedValueStatus_2.SetAt(deviceNo, VerDef::failed);
-								Trace("Test: processID =>",processID,"<   time =>",time,"<  reportedValue =>",reportedValue,"< upperLimit =>", upperLimit,"< lowerLimit =>",lowerLimit,"<  status 2 =>",arrRecordedValueStatus_2.GetAt(deviceNo),"<=== ");
+								//Trace("Test: processID =>",processID,"<   time =>",time,"<  reportedValue =>",reportedValue,"< upperLimit =>", upperLimit,"< lowerLimit =>",lowerLimit,"<  status 2 =>",arrRecordedValueStatus_2.GetAt(deviceNo),"<=== ");
 							}
 							else						 
 							{
 								arrRecordedValueStatus.SetAt(deviceNo, VerDef::failed);	
-								Trace("Test: processID =>",processID,"<   time =>",time,"<  reportedValue =>",reportedValue,"< upperLimit =>", upperLimit,"< lowerLimit =>",lowerLimit,"<  status 1 =>",arrRecordedValueStatus.GetAt(deviceNo),"<=== ");
+								//Trace("Test: processID =>",processID,"<   time =>",time,"<  reportedValue =>",reportedValue,"< upperLimit =>", upperLimit,"< lowerLimit =>",lowerLimit,"<  status 1 =>",arrRecordedValueStatus.GetAt(deviceNo),"<=== ");
 							}
 						}								
 					}
 					
 					strReportedValues = StrRight(strReportedValues,StrGetLength(strReportedValues)- StrFind(strReportedValues,"/") - 1);
-//					Trace("Test: time =>",time,"<  reportedValue =>",reportedValue,"<===");
+               //					Trace("Test: time =>",time,"<  reportedValue =>",reportedValue,"<===");
 					rowNo++;
 					time = time + 0.5;  //  increment of 30 seconds;
 				}
@@ -1708,7 +1901,7 @@ namespace T_VER
 	}// -- end of function "EvaluateRecordedData"
 
 	//------------------------------------------------------------------------------
-	private function EvaluateSummary(device ML_STAR ) 
+	private function EvaluateSummary(device ML_STAR, variable isSensorReport) 
 	// data are arranged in data array in 96er pattern 
 	// measurement loops: 1 times
 	//------------------------------------------------------------------------------
@@ -1720,7 +1913,8 @@ namespace T_VER
 		variable processedState, processedDate , processedTime, verificationInterval,expiryDate;
 		variable dateOkay, remarks;
 		variable processedState_1, setValue, setOffset, targetValue, measuredValue, strValue("");
-		variable deviationSpec, deviation, singleDeviceStatus; 
+      variable deviceValue, sensorUnit("");
+		variable deviationSpec, deviation, singleDeviceStatus, singleDeviceStatus_1;
 		variable heatingPhase(0);
 		variable digits(1);
 		variable confirmedDevices(hslFalse), excludedDevices(hslFalse);
@@ -1728,11 +1922,11 @@ namespace T_VER
 
 		processSummaryState	= VerDef::passed;
 
-//		VerTool::TraceArray("Test: EvaluateSummary  ----  arrMeasuredValue DataArray ---------", T_VAR::arrMeasuredValue);	
-//		VerTool::TraceArray("Test: EvaluateSummary  ----  arrMeasuredValue #2 DataArray ---------", T_VAR::arrMeasuredValue_2);	
-//VerTool::TraceArray("Test: EvaluateSummary:  ----  arrAction Temp verification  ---------", T_VAR::arrAction);
+      //		VerTool::TraceArray("Test: EvaluateSummary  ----  arrMeasuredValue DataArray ---------", T_VAR::arrMeasuredValue);	
+      //		VerTool::TraceArray("Test: EvaluateSummary  ----  arrMeasuredValue #2 DataArray ---------", T_VAR::arrMeasuredValue_2);	
+      //    VerTool::TraceArray("Test: EvaluateSummary:  ----  arrAction Temp verification  ---------", T_VAR::arrAction);
 
-		if(RPD::extendedReportMode > 0)
+		if ( RPD::extendedReportMode > 0)
 		{ // Open extended reporting report 
 			RPD::reportTemplateFileName ="Report_Temperature_VerX";		// Report_Temperature_VerXEnu.xls
 			// Open report data sheet
@@ -1744,10 +1938,12 @@ namespace T_VER
 		else			
 		{	// Open report 
 			//------------------------------------------------------------------------------
-
-			if(VerDef::isIVD )	RPD::reportTemplateFileName ="Report_Temperature_IVD_Ver";	// Report_Temperature_IVD_VerEnu.xls
-			else						RPD::reportTemplateFileName ="Report_Temperature_Ver";		// Report_Temperature_VerEnu.xls
-
+         if(isSensorReport)      RPD::reportTemplateFileName ="Report_Sensor_Ver";		// Report_Sensor_VerEnu.xls
+         else
+         {
+			   if(VerDef::isIVD )   RPD::reportTemplateFileName ="Report_Temperature_IVD_Ver";	// Report_Temperature_IVD_VerEnu.xls
+			   else						RPD::reportTemplateFileName ="Report_Temperature_Ver";		// Report_Temperature_VerEnu.xls
+         }
 			VerTool::CreateReportFile(RPD::reportTemplateFileName);
 		}
 
@@ -1770,16 +1966,20 @@ namespace T_VER
 		VerTool::WriteCell( 8, 13, IR_Temp::Sensor_ExpiryDate);			// cell H13: IR temperature measurement device  valid until
 
 		// ---  Evaluate all installed devices 
-//		Trace("Test: ----  Evaluate all installed devices ---");
+      //		Trace("Test: ----  Evaluate all installed devices ---");
 		dataIndex = 0;
 		for(deviceNo = 0; deviceNo < T_VAR::arrLabwareID.GetSize(); deviceNo++)
 		{ // data of individual devices
 			singleDeviceStatus 	= PS::successful;
+         singleDeviceStatus_1 = singleDeviceStatus;
 			heatingPhase			= 0;
 			labwareID 				= T_VAR::arrLabwareID.GetAt(deviceNo);
 			deviceName 				= T_VAR::arrDescription.GetAt(deviceNo);
 			serialNo					= StrConcat2(T_VAR::arrSerialNumber.GetAt(deviceNo), "");
-			deckPosition			= T_VAR::arrDeckPosition.GetAt(deviceNo);
+			deckPosition			= T_VAR::arrDeckPosition.GetAt(deviceNo);     
+         sensorUnit			   = T_VAR::arrUnit.GetAt(deviceNo);
+         deviceValue 	      = T_VAR::arrDeviceValue.GetAt(deviceNo);
+
 			processID 				= PID::Temperature + labwareID ;
 			if(serialNo == "")	
 			{
@@ -1787,6 +1987,7 @@ namespace T_VER
 				T_VAR::arrSerialNumber.SetAt(deviceNo, serialNo);
 			}
 			VerTool::GetProcessDataFromFile(processID, processedState, processedDate , processedTime, verificationInterval);
+            verificationInterval = VerDef::setVerifyInterval;
 			if(T_VAR::arrAction.GetAt(deviceNo) != 0)
 			{			
 				processedDate	= GetDate("%Y-%m-%d");
@@ -1795,14 +1996,14 @@ namespace T_VER
 				T_VAR::arrExpiryDate.SetAt(deviceNo, expiryDate);
 			}
 
-//Trace("test: ----  processID =>",processID,"< processedDate ==>",processedDate,"<==");
-
-			processID = PID::Temperature_1 + labwareID ;
+         //Trace("test: ----  processID =>",processID,"< processedDate ==>",processedDate,"<==");
+	
 			loop(2)
-			{ // report calculated data of individual device and criteria
+			{ // report calculated data of individual device and criteria for both temperature sets(if requested)
 				heatingPhase++;
 				if (heatingPhase > 1)
 				{ // get corresponding data of second set temperature
+            	processID      = PID::Temperature_2 + labwareID ;
 					setValue 		= T_VAR::arrSetValue_2.GetAt(deviceNo);
 					setOffset 		= T_VAR::arrOffsetValue_2.GetAt(deviceNo);
 					deviationSpec	= T_VAR::arrCriteriaValue_2.GetAt(deviceNo);
@@ -1810,20 +2011,87 @@ namespace T_VER
 				}
 				else
 				{// get corresponding data of first set temperature
+            	processID      = PID::Temperature_1 + labwareID ;
 					setValue 		= T_VAR::arrSetValue.GetAt(deviceNo);
 					setOffset 		= T_VAR::arrOffsetValue.GetAt(deviceNo);
 					deviationSpec	= T_VAR::arrCriteriaValue.GetAt(deviceNo);
 					measuredValue	= T_VAR::arrMeasuredValue.GetAt(deviceNo);
 				}			
-//Trace("test: ----  deviceNo =>",deviceNo,"< setValue ==>",setValue,"<==");
-				if(setValue > 0)
-				{		
+            //Trace("test: ----  deviceNo =>",deviceNo,"< setValue ==>",setValue,"<==");
+            if(isSensorReport )
+            {
+               if(sensorUnit != "") //  ----- detailed data of sensor verification
+               {
+                  columnNo = 4 + (dataIndex%5);	
+						rowNo = baseReportRow + (dataIndex/5)* offsetReportRows;
+						dataIndex++;
+
+					// device/site header 
+						VerTool::WriteCell( columnNo, rowNo, LdT("Site") + " " + IStr(dataIndex)); 
+					// device name
+						VerTool::WriteCell( columnNo, rowNo+1, deviceName); 
+					// device serial number
+						VerTool::WriteCell( columnNo, rowNo+2, serialNo);
+					// device position on deck
+						VerTool::WriteCell( columnNo, rowNo+3,	deckPosition); 
+               // device operating point
+               	VerTool::WriteCell( columnNo, rowNo+5, StrConcat4("",VerTool::FormatNumber_PointAsDecimal(setValue,digits)," ",sensorUnit)); 
+					// device internal value
+         	      VerTool::WriteCell( columnNo, rowNo+7, StrConcat4("",VerTool::FormatNumber_PointAsDecimal(deviceValue,digits)," ",sensorUnit));  
+					// external reference value
+                  VerTool::WriteCell( columnNo, rowNo+8, StrConcat4("",VerTool::FormatNumber_PointAsDecimal(measuredValue,digits)," ",sensorUnit));  
+					// device deviation specification
+						VerTool::WriteCell( columnNo, rowNo+10,StrConcat4("<= +/- ", VerTool::FormatNumber_PointAsDecimal(deviationSpec,digits)," ",sensorUnit));
+					// device process status	 
+                  if (GetType(deviceValue) == "s") deviceValue = -99;
+                  if (GetType(measuredValue) == "s") measuredValue = 99;
+               //Trace("Test:  ----  processID =>",processID,"< deviceValue ==>",deviceValue,"< measuredValue ==>",measuredValue,"<==");
+                  deviation = deviceValue - measuredValue;
+                  if (deviation < 0) deviation = -1.0 * deviation;
+               //Trace("Test:  ----  processID =>",processID,"< deviation ==>",deviation,"< deviationSpec ==>",deviationSpec,"<==");
+  						if(deviation > deviationSpec) 
+						{
+								singleDeviceStatus 	= PS::failed;
+								processSummaryState	= VerDef::failed;
+								VerTool::WriteCell( columnNo, rowNo+11, VerDef::failed); 
+                        T_VAR::arrStatus.SetAt(deviceNo, 		 VerDef::failed); 
+						}
+						else 	
+                  {
+                        VerTool::WriteCell( columnNo, rowNo+11, VerDef::passed);  
+                        T_VAR::arrStatus.SetAt(deviceNo, 		 VerDef::passed); 
+					   }   
+              	// device verifcation date
+						VerTool::WriteCell( columnNo, rowNo+13, processedDate);  
+             	// device verifcation time
+                  processedTime = T_VAR::arrProcessTime.GetAt(deviceNo);
+						VerTool::WriteCell( columnNo, rowNo+14, processedTime);   
+  
+      				if(T_VAR::arrAction.GetAt(deviceNo) != 0)
+	      			{  // store evaluated data for corresponding device
+
+                     processID      = PID::Temperature_1 + labwareID ;
+                     VerTool::UpdateVerificationInformation(0,processID , setValue, setOffset, measuredValue, deviationSpec, processedDate);		
+                    
+                     processID = PID::Device_Temp + labwareID ;
+			         	VerTool::UpdateVerificationInformation(0, processID, sensorUnit, deviceValue , "", "", processedDate);
+
+                     processID = PID::Temperature + labwareID ;
+					      VerTool::UpdateVerificationInformation(0, processID, singleDeviceStatus, verificationInterval , processedTime, serialNo, processedDate);
+                     //Trace("Test: EvaluateSummary -> UpdateVerificationInformation sensor data=>",processID,"<  heatingPhase =>",heatingPhase,"<  singleDeviceStatus =>",singleDeviceStatus,"<==");
+				      }
+               }
+            }
+            else 
+            { // ------ detailed data of temperature verification
+               if((setValue > 0) && (sensorUnit == "")) 
+			   	{  	
 						columnNo = 4 + (dataIndex%5);	
 						rowNo = baseReportRow + (dataIndex/5)* offsetReportRows;
 						dataIndex++;
 
 					// device/site header 
-						VerTool::WriteCell( columnNo, rowNo, LdT("Site") + " " + IStr(deviceNo+1)); 
+						VerTool::WriteCell( columnNo, rowNo, LdT("Site") + " " + IStr(dataIndex)); 
 					// device name
 						VerTool::WriteCell( columnNo, rowNo+1, deviceName); 
 					// device serial number
@@ -1831,7 +2099,7 @@ namespace T_VER
 					// device position on deck
 						VerTool::WriteCell( columnNo, rowNo+3,	deckPosition);
 					// device set temperature
-						VerTool::WriteCell( columnNo, rowNo+5, VerTool::FormatNumber_PointAsDecimal(setValue,digits)); 
+						VerTool::WriteCell( columnNo, rowNo+5, VerTool::FormatNumber_PointAsDecimal(setValue,digits)); 	
 					// device temperature offset
 						VerTool::WriteCell( columnNo, rowNo+6, VerTool::FormatNumber_PointAsDecimal(setOffset,digits)); 
 					// device target temperature
@@ -1848,25 +2116,25 @@ namespace T_VER
 						}
 
 					// device measure temperature
-//Trace("test: ----  deviceNo =>",deviceNo,"< T_VAR::arrAction ==>",T_VAR::arrAction.GetAt(deviceNo),"<==");
+               //Trace("test: ----  deviceNo =>",deviceNo,"< T_VAR::arrAction ==>",T_VAR::arrAction.GetAt(deviceNo),"<==");
 						if(T_VAR::arrAction.GetAt(deviceNo) >= 0)
 						{ // verified value calculation
 							VerTool::WriteCell( columnNo, rowNo+10, VerTool::FormatNumber_PointAsDecimal(measuredValue ,digits)); 
 							// device test result
 							deviation = targetValue - measuredValue;
 							if (deviation < 0) deviation = -1.0 * deviation;
-//Trace(" ----  processID =>",processID,"< deviation ==>",deviation,"< deviationSpec ==>",deviationSpec,"<==");
+                     //Trace(" ----  processID =>",processID,"< deviation ==>",deviation,"< deviationSpec ==>",deviationSpec,"<==");
 							if(deviationSpec > 0)
 							{
 								if(deviation > deviationSpec) 
 								{
 										singleDeviceStatus 	= PS::failed;
 										processSummaryState	= VerDef::failed;
-										VerTool::WriteCell( columnNo, rowNo+12, VerDef::failed); 
+										VerTool::WriteCell( columnNo, rowNo+12, VerDef::failed);
 								}
-								else 	VerTool::WriteCell( columnNo, rowNo+12, VerDef::passed);
+								else  VerTool::WriteCell( columnNo, rowNo+12, VerDef::passed);
 							}
-							else 	VerTool::WriteCell( columnNo, rowNo+12, VerDef::notDefined);
+							else 	   VerTool::WriteCell( columnNo, rowNo+12, VerDef::notDefined);
 	 					}
 						else // excluded or confirm verification status
 						{
@@ -1886,35 +2154,57 @@ namespace T_VER
 							}
 						}
 						
-					// device date of verifcation
+				   	// device date of verifcation
 						VerTool::WriteCell( columnNo, rowNo+14, processedDate); 
+				
+                  // combine single status for both heating up phases
+                  if (heatingPhase > 1) 
+                  {
+                     if((singleDeviceStatus == PS::failed) || (singleDeviceStatus_1 == PS::failed))               singleDeviceStatus = PS::failed;
+                     else
+                     {
+                        if((singleDeviceStatus == PS::excluded) || (singleDeviceStatus_1 == PS::excluded))        singleDeviceStatus = PS::excluded;
+                        else if((singleDeviceStatus == PS::accepted) || (singleDeviceStatus_1 == PS::accepted))   singleDeviceStatus = PS::accepted; 
+                     }
+                  }
+                  else
+                  {
+                     singleDeviceStatus_1 = singleDeviceStatus;
+                  }
 
-					// store evaluated data for corresponding set temperature
-						VerTool::UpdateVerificationInformation(0,processID , setValue, setOffset, measuredValue, deviationSpec, processedDate);
-
+                  if(T_VAR::arrAction.GetAt(deviceNo) != 0)
+	      			{  // store evaluated data for corresponding device
+                     if (heatingPhase > 1) processID = PID::Temperature_2 + labwareID ;
+                     else                  processID = PID::Temperature_1 + labwareID ;
+                     VerTool::UpdateVerificationInformation(0,processID , setValue, setOffset, measuredValue, deviationSpec, processedDate);	
+ 
+                     processID = PID::Temperature + labwareID ;
+                     VerTool::UpdateVerificationInformation(0, processID, singleDeviceStatus, verificationInterval , processedTime, serialNo, processedDate);
+                     if((singleDeviceStatus == PS::failed) || (singleDeviceStatus == PS::excluded))   T_VAR::arrStatus.SetAt(deviceNo, VerDef::failed);
+                     else                                                                             T_VAR::arrStatus.SetAt(deviceNo, VerDef::passed);
+                     //Trace("Test: EvaluateSummary -> UpdateVerificationInformation temperature data=>",processID,"<  heatingPhase =>",heatingPhase,"<  singleDeviceStatus =>",singleDeviceStatus,"<==");
+                  }
+               }
 				}
+
+
 				if(T_VAR::arrSetValue_2.GetAt(deviceNo) < 1) break; // no additional data for reporting
-				// for second temperature evaluation
-				processID = PID::Temperature_2 + labwareID ;
-			}
-			// store device data in config file
-			if(T_VAR::arrAction.GetAt(deviceNo) != 0)
-			{			
-				processID 		= PID::Temperature + labwareID ;
-				VerTool::UpdateVerificationInformation(0, processID, singleDeviceStatus, verificationInterval , processedTime, serialNo, processedDate);
-			}
-			// store recorded data
+			}  // end of loop
+
+			// store extended report data (from  device)
 			if(RPD::extendedReportMode > 0)
 			{
 				processID 		= PID::Recorded_Temp + labwareID ;
 				VerTool::UpdateVerificationInformation(0, processID, T_VAR::arrRecordedValues.GetAt(deviceNo), T_VAR::arrRecordedValues_2.GetAt(deviceNo) , VerDef::notDefined, serialNo, processedDate);
 			}
 
-		}
+		} // end of single device information loops
 
 	// ---  add pdf file information close to "header"
 		VerTool::WriteCell(4, 10, 	RPD::pdfReportFileName);	// cell D10: on first page 
 		VerTool::WriteCell(1, 46, 	RPD::pdfReportFileName);	// cell A46: on second page 
+   // --- summury process state of corrsponding report
+      VerTool::WriteCell(5, 20, processSummaryState);       // cell E20: overall process status 
 
 	// ---  add footnote for confirmed or excluded status
 	// cell A15
@@ -1945,9 +2235,9 @@ namespace T_VER
 		// ---  add recording data informations
 		if(RPD::extendedReportMode > 0) 
 		{
-//	VerTool::TraceArray("Test:  ----  arr Labware ID ---------", T_VAR::arrLabwareID);	
-//	VerTool::TraceArray("Test:  ----  arr Recorded Status 1 ---------", arrRecordedValueStatus);	
-//	VerTool::TraceArray("Test:  ----  arr Recorded Status 2 ---------", arrRecordedValueStatus_2);	
+         //	VerTool::TraceArray("Test:  ----  arr Labware ID ---------", T_VAR::arrLabwareID);	
+         //	VerTool::TraceArray("Test:  ----  arr Recorded Status 1 ---------", arrRecordedValueStatus);	
+         //	VerTool::TraceArray("Test:  ----  arr Recorded Status 2 ---------", arrRecordedValueStatus_2);	
 
 			rowNo = baseRecordReportRow;
 			loop(10)
@@ -1981,7 +2271,7 @@ namespace T_VER
 						setValue 			= T_VAR::arrSetValue.GetAt(deviceNo);
 						prop1					= T_VAR::arrRecordedValues.GetAt(deviceNo);
 					}	
-Trace("Test: deviceNo =>",deviceNo,"<  heatingPhase =>",heatingPhase,"<  processedState =>",processedState,"<==");
+               //Trace("Test: Recording data of deviceNo =>",deviceNo,"<  heatingPhase =>",heatingPhase,"<  processedState =>",processedState,"<==");
 					if(StrGetLength(prop1) > 4) 
 					{	
 					// device name
@@ -2006,14 +2296,25 @@ Trace("Test: deviceNo =>",deviceNo,"<  heatingPhase =>",heatingPhase,"<  process
 				{			
 					processID 		= PID::Temperature + labwareID ;
 					VerTool::UpdateVerificationInformation(0, processID, singleDeviceStatus, verificationInterval , processedTime, serialNo, processedDate);
+               //Trace("Test: EvaluateSummary -> UpdateVerificationInformation recording data=>",processID,"<  heatingPhase =>",heatingPhase,"<  singleDeviceStatus =>",singleDeviceStatus,"<==");
 				}
 			}	// loop over all devices				
-		}
+		} // end of adding recording data informations 
 
-		// ---  define summary state
-		VerTool::WriteCell( 5, 20, processSummaryState); // cell E20: overall process status 
+		// ---  define summary state over all temperature and sensor verification sites
+      processSummaryState = VerDef::passed;
+      for(deviceNo = 0; deviceNo <  T_VAR::arrStatus.GetSize(); deviceNo++)
+		{  // check all individual status
+         if(T_VAR::arrStatus.GetAt(deviceNo) == VerDef::failed)    processSummaryState = VerDef::failed;
+         if(T_VAR::arrStatus.GetAt(deviceNo) == VerDef::excluded)  processSummaryState = VerDef::failed;
+      }
+
 	
 		RPD::reportFile.Close();
+
+      // Generate pdf file
+		//------------------------------------------------------------------------------
+		VerTool::GeneratePDF_File();
 
 		if (processSummaryState == VerDef::passed) return(PS::successful);
 		return(PS::failed);
@@ -2037,10 +2338,10 @@ Trace("Test: deviceNo =>",deviceNo,"<  heatingPhase =>",heatingPhase,"<  process
 		variable index; 
 		variable startHeatingUp(0);
 		variable prop3(""),lcd(""),lcb(""); // dummy place holder ;
-VerTool::TraceArray("Test:  ----  arr Recorded Values Array ---------", T_VAR::arrRecordedValues);	
-VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::arrRecordedValues_2);	
+      //VerTool::TraceArray("Test:  ----  arr Recorded Values Array ---------", T_VAR::arrRecordedValues);	
+      //VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::arrRecordedValues_2);	
 
-//		Trace("Test: HeatUp_Temperature_Devices: heatingUpPhase =>",heatingUpPhase ,"< PID::doTemperature_Verification =>",PID::doTemperature_Verification ,"<  VerDef::numberOfTemperatureSites =>",VerDef::numberOfTemperatureSites,"<==");
+  		//Trace("Test: HeatUp_Temperature_Devices: heatingUpPhase =>",heatingUpPhase ,"< PID::doTemperature_Verification =>",PID::doTemperature_Verification ,"<  VerDef::numberOfTemperatureSites =>",VerDef::numberOfTemperatureSites,"<==");
 
 		// check for heating up phase
 		if((heatingUpPhase >= noMoreHeatingUp) || (PID::doTemperature_Verification < 1) || (VerDef::numberOfTemperatureSites < 1))
@@ -2052,12 +2353,12 @@ VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::
 		
 		// activate abort handler
 			RegisterAbortHandler("OnRun_Abort");
-
-		startHeatingUp = 0;
+		
 		VerTool::GetVerificationInformation(KeyTempDevice,IR_Temp::Sensor_ExpiryDate,IR_Temp::Sensor_ComPort,prop3,IR_Temp::Sensor_SerialNo,IR_Temp::Sensor_CalDate,lcd,lcb);
 
-
 		// preparations for temperature controls
+      PS::heatUpInterval   = PS::heatUpTime20min;
+      startHeatingUp       = 0;
 		for( index = 0; index < T_VAR::arrAction.GetSize(); index++)
 		{
 			if(T_VAR::arrAction.GetAt(index) > 0)
@@ -2077,6 +2378,10 @@ VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::
 						T_VAR::arrAction.SetAt(index, 2);
 						if(prepareTemperatureControl(ML_STAR, index, targetTemperature, heatingUpPhase)) startHeatingUp++; 
 					}
+               if(labDeviceType  == VerDef::MFX_Cooling_Heating_Module) 
+               { // Heating up time for "MFX Cooling Heating Module"phse 2 is 30 minutes
+                  PS::heatUpInterval   = PS::heatUpTime30min;
+               }
 				}
 			}
 		}
@@ -2103,8 +2408,8 @@ VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::
 					}
 				}
 
-//Trace("Test: T_VAR::arrLabwareID.GetAt(",index,") ==>",T_VAR::arrLabwareID.GetAt(index),
-//			"<  ==> labDeviceType  =>", labDeviceType,"<  targetTemperature =>", targetTemperature ,"<==");
+         //Trace("Test: T_VAR::arrLabwareID.GetAt(",index,") ==>",T_VAR::arrLabwareID.GetAt(index),
+			//"<  ==> labDeviceType  =>", labDeviceType,"<  targetTemperature =>", targetTemperature ,"<  heating up time =>",PS::heatUpInterval,"<==");
 			
 			}
 		}
@@ -2116,7 +2421,7 @@ VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::
 			Trace("  Temperature heat up phase ", heatingUpPhase, " started ....");
 			Trace(" ------------------------------------------------------");
 
-			PS::heatingUpPhase.SetTimer(PS::heatUpTime20min);
+			PS::heatingUpPhase.SetTimer(PS::heatUpInterval); //(PS::heatUpTime20min);
 			return(hslTrue);
 		}
 		else
@@ -2133,13 +2438,13 @@ VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::
 	{
 		variable labDeviceType;
 		variable targetTemperature, measuredTemperature;
-		variable remainingTime,heatingUpTime;
+		variable remainingTime,heatingUpTime, processedTime;
 		variable index, i;
 		variable amountOfDevices; // amount of verified devices 
+     	dialog userDlg;
 
-//Trace("Test: Temperature_Verification: heatingUpPhase =>",heatingUpPhase ,"< PID::doTemperature_Verification =>",PID::doTemperature_Verification ,"<  VerDef::numberOfTemperatureSites =>",VerDef::numberOfTemperatureSites,"<==");
+      //Trace("Test: Temperature_Verification: heatingUpPhase =>",heatingUpPhase ,"< PID::doTemperature_Verification =>",PID::doTemperature_Verification ,"<  VerDef::numberOfTemperatureSites =>",VerDef::numberOfTemperatureSites,"<==");
 
-//		if((heatingUpPhase >= noMoreHeatingUp) || (PID::doTemperature_Verification < 1) || (VerDef::numberOfTemperatureSites < 1))
 		if((heatingUpPhase >= noMoreHeatingUp) || (PID::doTemperature_Verification < 1) )
 		{			
 			heatingUpPhase = noMoreHeatingUp;
@@ -2151,16 +2456,16 @@ VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::
 
 		if((PS::heatingUpPhase.GetElapsedTime() < PS::heatUpTime15min) && (waitForTemperature == 0))
 		{
-//			Trace("Test: ------------------------------------------------------");
-//			Trace("Test: Temperature heat up time is running ...");
-//			Trace("Test: Remaining time :", Ceiling(PS::heatUpTime15min- PS::heatingUpPhase.GetElapsedTime()),"seconds.");
-//			Trace("Test: ------------------------------------------------------");
+      //			Trace("Test: ------------------------------------------------------");
+      //			Trace("Test: Temperature heat up time is running ...");
+      //			Trace("Test: Remaining time :", Ceiling(PS::heatUpTime15min- PS::heatingUpPhase.GetElapsedTime()),"seconds.");
+      //			Trace("Test: ------------------------------------------------------");
 			return;
 		}
 
 		// wait for heating up phase
-		//ec		PS::heatingUpPhase.WaitTimer( hslTrue, hslTrue );
-		heatingUpTime	= PS::heatUpTime20min;
+		//		PS::heatingUpPhase.WaitTimer( hslTrue, hslTrue );
+		heatingUpTime	= PS::heatUpInterval; // PS::heatUpTime20min;
 		remainingTime 	= Ceiling(heatingUpTime - PS::heatingUpPhase.GetElapsedTime() );
 		showTimerDialog(ML_STAR, remainingTime, heatingUpPhase);				// show timer for heating up /cooling down
 	
@@ -2180,7 +2485,7 @@ VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::
 		Trace(" ");
 		Trace("------------------------------------------------------------------------------");	
 		Trace("Test: Heating up phase # ", heatingUpPhase);
-		Trace("Test: Remaining time :", Ceiling(PS::heatUpTime20min- PS::heatingUpPhase.GetElapsedTime()),"seconds.");
+		Trace("Test: Remaining time :", Ceiling(PS::heatUpInterval - PS::heatingUpPhase.GetElapsedTime()),"seconds.");
 		Trace(" ");
 
 
@@ -2212,26 +2517,45 @@ VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::
 					}
 					amountOfDevices++;
 					measuredTemperature = targetTemperature;
-//Trace("Test: Temperature_Verification: T_VAR::arrLabwareID.GetAt(",index,") ==>",T_VAR::arrLabwareID.GetAt(index),
-//			"<  ==> labDeviceType  =>", labDeviceType,"<  target temperature of phase =>",heatingUpPhase, " is =>", measuredTemperature ,"<==");
-
-					// get measured temperature value
-					// implementation of sensor 		
-					showMeasureTemperature_Dialog(ML_STAR, index, heatingUpPhase, measuredTemperature );
-
-//Trace ("Test:showMeasureTemperature_Dialog:  measuredTemperature ==>", measuredTemperature,"<=="); 
+               //Trace("Test: Temperature_Verification: T_VAR::arrLabwareID.GetAt(",index,") ==>",T_VAR::arrLabwareID.GetAt(index),
+               //			"<  ==> labDeviceType  =>", labDeviceType,"<  target temperature of phase =>",heatingUpPhase, " is =>", measuredTemperature ,"<==");
 
 					if(heatingUpPhase == 1)	
 					{
-						T_VAR::arrMeasuredValue.SetAt(index,measuredTemperature );
+                  if(T_VAR::arrUnit.GetAt(index) != "") // get device temperature value for sensor verification
+                  {
+                     measuredTemperature = getDeviceTemperature (ML_STAR, index);
+               		if(VerDef::SimulationMode)			
+               		{
+               			userDlg.SetInputSize( 1 );
+               			//userDlg.SetInputField( 0, "Define device temperature ==>:", hslFloat, IVal(measuredTemperature));
+                        userDlg.SetInputField( 0, "Define device internal temperature ==>:", hslFloat, measuredTemperature);
+               			userDlg.ShowInput( "Define simulated internal device temperature:", 5);
+               			measuredTemperature = userDlg.GetInputField( 0 );
+               			Trace ("Test: Temperature_Verification:  simulated  internal device temperature ==>", measuredTemperature,"<=="); 
+               		}
+                     //Trace ("Test: Temperature_Verification:  Internal device temperature ==>", measuredTemperature,"<=="); 
+                     T_VAR::arrDeviceValue.SetAt(index, measuredTemperature); 
+                     processedTime	= GetTime("%H:%M");
+                     T_VAR::arrProcessTime.SetAt(index, processedTime);                 
+                  }
 					}					
-					if(heatingUpPhase == 2)	
-					{
-						T_VAR::arrMeasuredValue_2.SetAt(index,measuredTemperature );
-					}
+
+               // get external measured temperature value from IR sensor
+					// implementation of sensor 		
+					showMeasureTemperature_Dialog(ML_STAR, index, heatingUpPhase, measuredTemperature );
+              	if(heatingUpPhase == 1)	T_VAR::arrMeasuredValue.SetAt(index,measuredTemperature );
+               else                    T_VAR::arrMeasuredValue_2.SetAt(index,measuredTemperature );
+
+               //Trace ("Test: Temperature_Verification:  measured external Temperature ==>", measuredTemperature,"<=="); 
+
 				}
 			}
 		}
+
+      //VerTool::TraceArray("Test:  ----  arr Device description  ---------", T_VAR::arrDescription);
+      //VerTool::TraceArray("Test:  ----  arr Device temperature values  ---------", T_VAR::arrDeviceValue);
+
 		// remove IR Sensor from deck
 		if(amountOfDevices > 0) showRemoveSensor(ML_STAR);
 
@@ -2260,28 +2584,40 @@ VerTool::TraceArray("Test:  ----  arr Recorded Values Array 2---------", T_VAR::
 		variable processState;
 
 		amountOfDevices = 0;
-//VerTool::TraceArray(" --- Evaluate_Temperature_Verification: T_VAR::arrAction ----", T_VAR::arrAction);
+      //VerTool::TraceArray(" --- Evaluate_Temperature_Verification: T_VAR::arrAction ----", T_VAR::arrAction);
 		for( index = 0; index < T_VAR::arrAction.GetSize(); index++) if(T_VAR::arrAction.GetAt(index) != 0 ) amountOfDevices++;
-//Trace("Test:     Evaluate_Temperature_Verification:   -----  amount of devices =>",amountOfDevices,"<  PID::doTemperature_Verification  =>",PID::doTemperature_Verification ,"<==");
+      //Trace("Test:     Evaluate_Temperature_Verification:   -----  amount of devices =>",amountOfDevices,"<  PID::doTemperature_Verification  =>",PID::doTemperature_Verification ,"<==");
 
-		if (amountOfDevices == 0)return;
+		if (amountOfDevices == 0) return;
 
-		 // evaluate data of all heating phases
-		processState = EvaluateSummary(ML_STAR); // evaluate data
+		 // evaluate data of all heating phases 
+//			PID::doTemperature_Verification 	= VerDef::numberOfTemperatureSites;
+//       VerDef::numberOfHeaterCoolerSites = VerDef::numberOfTemperatureSites;
+//      Trace("Test:     Evaluate temperature/sensor data:  PID::doTemperature_Verification =>",PID::doTemperature_Verification,"<  VerDef::numberOfHeaterCoolerSites =>",VerDef::numberOfHeaterCoolerSites, 
+//       "<  VerDef::numberOfTemperatureSites =>",VerDef::numberOfTemperatureSites,"<  VerDef::numberOfSensorSites =>",VerDef::numberOfSensorSites,"<==");
+		if ((VerDef::numberOfHeaterCoolerSites - VerDef::numberOfSensorSites) > 0) processState = EvaluateSummary(ML_STAR, hslFalse); // evaluate data for temperature verification
+      else                                                                       processState = PS::successful;
+		if (VerDef::numberOfSensorSites > 0)                                       processState = EvaluateSummary(ML_STAR, hslTrue);  // evaluate data for sensor verification
 
 		// store status on instrument
 		//------------------------------------------------------------------------------
+      //VerTool::TraceArray("Test: ShowVerificationData: --- T_VAR::arrDescription ----", T_VAR::arrDescription);
+      //VerTool::TraceArray("Test: ShowVerificationData: --- T_VAR::arrStatus ----", T_VAR::arrStatus);
+
+
+      //for( index = 0; index < T_VAR::arrAction.GetSize(); index++)
+      //{
+      //    if((T_VAR::arrStatus.GetAt(index) != VerDef::valid) &&( T_VAR::arrStatus.GetAt(index) != VerDef::confirmed)) processState = PS::failed;
+      //}
+
 		VerTool::StoreProcessDataOnInstrument(PID::TemperatureSummary, processState, ML_STAR );
 
 		// end of temperature verification
 		//------------------------------------------------------------------------------
 		endTemperatureVerification(ML_STAR, processState); 
 
-		// Generate pdf file
-		//------------------------------------------------------------------------------
-		VerTool::GeneratePDF_File();
 	}  // -- end of  function "Evaluate_Temperature_Verification"
 
 } // end of namespace T_VER
 
-// $$author=wbarmettler$$valid=1$$time=2013-10-25 07:37$$checksum=2bda06d7$$length=088$$
+// $$author=ECaflisch$$valid=1$$time=2021-10-11 16:56$$checksum=926c0742$$length=086$$
