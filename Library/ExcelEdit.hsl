@@ -1,0 +1,252 @@
+#pragma global
+
+#ifndef __ExcelEdit_hsl__
+#define __ExcelEdit_hsl__ 1
+
+namespace ExcelEdit
+{
+   namespace GLOBAL
+   {
+      private file OPEN_FILE;
+   }   
+
+   namespace CELL_TYPE
+   {
+      const variable INTEGER(hslInteger);
+      const variable STRING(hslString);
+      const variable FLOAT(hslFloat);
+   }
+
+   //namespace FILE_OPEN_MODE
+   //{
+   //   const variable READ(hslRead);
+   //   const variable APPEND(hslAppend);
+   //   const variable WRITE(hslWrite);
+   //}
+
+
+   function OpenFile(variable& i_str_FilePath,variable& i_str_SheetName)
+   {
+
+      ExcelEdit::GLOBAL::OPEN_FILE.Close();
+
+      ExcelEdit::GLOBAL::OPEN_FILE.SetExtendedProperties("HDR=NO");
+
+      // open file
+      if(!ExcelEdit::GLOBAL::OPEN_FILE.Open(i_str_FilePath + " " + i_str_SheetName + "$", hslAppend))
+      {
+         Trace("Could not open file!");
+         Trace(i_str_FilePath);
+         Trace("Sheet:: ",i_str_SheetName);
+      }
+
+   }
+
+   function OpenFile2(variable& i_str_FilePath,variable& i_str_SheetName)
+   {
+
+      ExcelEdit::GLOBAL::OPEN_FILE.Close();
+
+      ExcelEdit::GLOBAL::OPEN_FILE.SetExtendedProperties("HDR=NO");
+
+      // open file
+      if(!ExcelEdit::GLOBAL::OPEN_FILE.Open(i_str_FilePath + " " + i_str_SheetName + "", hslAppend))
+      {
+         Trace("Could not open file!");
+         Trace(i_str_FilePath);
+         Trace("Sheet:: ",i_str_SheetName);
+      }
+
+   }
+
+   function ReadCell(variable i_int_ColumnNumber,variable i_int_Row,variable i_ValueType) variable
+   {
+      variable ret_Value;
+
+      onerror goto ErrorHandleRead;
+
+      ExcelEdit::GLOBAL::OPEN_FILE.AddField(i_int_ColumnNumber,ret_Value,i_ValueType);
+      ExcelEdit::GLOBAL::OPEN_FILE.Seek(i_int_Row - 1,hslFirst);
+      ExcelEdit::GLOBAL::OPEN_FILE.ReadRecord();
+      ExcelEdit::GLOBAL::OPEN_FILE.RemoveFields();
+
+      onerror goto 0;
+      err.Clear();
+
+      return(ret_Value);
+
+      ErrorHandleRead : 
+      {
+      Trace("Close");
+         ExcelEdit::GLOBAL::OPEN_FILE.Close();
+         err.Clear();
+      }
+   }
+
+   function CloseFile()
+   {
+      ExcelEdit::GLOBAL::OPEN_FILE.Close();
+   }
+
+   function UpdateCell(variable i_int_ColumnNumber,variable i_int_Row,variable i_Value,variable i_ValueType)
+   {
+      //i_Value = i_Value + "";
+
+      //i_int_Row = i_int_Row -1;
+      
+      onerror goto ErrorHandleWrite;
+
+      ExcelEdit::GLOBAL::OPEN_FILE.AddField(i_int_ColumnNumber,i_Value,i_ValueType);
+      ExcelEdit::GLOBAL::OPEN_FILE.Seek(i_int_Row - 1,hslFirst);
+      ExcelEdit::GLOBAL::OPEN_FILE.UpdateRecord();
+      ExcelEdit::GLOBAL::OPEN_FILE.RemoveFields();
+
+      onerror goto 0;
+      err.Clear();
+
+      return;
+
+      ErrorHandleWrite : 
+      {
+      Trace("Close");
+         ExcelEdit::GLOBAL::OPEN_FILE.Close();
+         err.Clear();
+      }
+   }
+
+   function WriteColumn(variable i_str_FilePath,variable i_str_SheetName,variable i_str_Header,variable i_Values[],variable i_ValueType)
+   {
+      variable int_TotalValues, Value, i;
+
+      int_TotalValues = i_Values.GetSize();
+
+      if(int_TotalValues == 0) return;
+      
+      if(i_str_Header == "") ExcelEdit::GLOBAL::OPEN_FILE.SetExtendedProperties("HDR=NO");
+      else ExcelEdit::GLOBAL::OPEN_FILE.SetExtendedProperties("HDR=YES");
+      
+      ExcelEdit::GLOBAL::OPEN_FILE.AddField(i_str_Header,Value,i_ValueType);
+
+      
+      if(!ExcelEdit::GLOBAL::OPEN_FILE.Open(i_str_FilePath + " " + i_str_SheetName, hslWrite))
+      {
+         Trace("Could not open file!");
+         Trace(i_str_FilePath);
+         Trace("Sheet:: ",i_str_SheetName);
+         return;
+      }
+      
+      onerror goto ErrorHandleWrite;
+
+      for ( i = 0; i < int_TotalValues ; i++)
+      {
+         Value = i_Values.GetAt(i);
+         ExcelEdit::GLOBAL::OPEN_FILE.WriteRecord();
+      }
+
+      onerror goto 0;
+      err.Clear();
+      
+      ExcelEdit::GLOBAL::OPEN_FILE.RemoveFields();
+      ExcelEdit::GLOBAL::OPEN_FILE.Close();
+
+      return;
+
+      ErrorHandleWrite : 
+      {
+      Trace("Close");
+         ExcelEdit::GLOBAL::OPEN_FILE.Close();
+         err.Clear();
+      }
+
+   }
+
+   function ReadColumn(variable i_str_FilePath,variable i_str_SheetName,variable i_int_Column,variable i_ValueType) variable[]
+   {
+      variable ret_Values[], Value;
+
+      ret_Values.SetSize(0);
+
+      ExcelEdit::GLOBAL::OPEN_FILE.SetExtendedProperties("HDR=NO");
+      ExcelEdit::GLOBAL::OPEN_FILE.AddField(i_int_Column,Value,i_ValueType);
+
+      if(!ExcelEdit::GLOBAL::OPEN_FILE.Open(i_str_FilePath + " " + i_str_SheetName + "$", hslRead))
+      {
+         Trace("Could not open file!");
+         Trace(i_str_FilePath);
+         Trace("Sheet:: ",i_str_SheetName);
+         return(ret_Values);
+      }
+
+      onerror goto ErrorHandleRead;
+
+      while ((ExcelEdit::GLOBAL::OPEN_FILE.Eof() == 0))
+      {
+         ExcelEdit::GLOBAL::OPEN_FILE.ReadRecord();
+
+            ret_Values.AddAsLast(Value);
+
+      }
+      
+      ExcelEdit::GLOBAL::OPEN_FILE.RemoveFields();
+      ExcelEdit::GLOBAL::OPEN_FILE.Close();
+
+      onerror goto 0;
+      err.Clear();
+
+      return(ret_Values);
+
+      ErrorHandleRead : 
+      {
+      Trace("Close");
+         ExcelEdit::GLOBAL::OPEN_FILE.Close();
+         err.Clear();
+         return(ret_Values);
+      }
+   }
+
+   function ReadColumn2(variable i_str_FilePath,variable i_str_SheetName,variable i_int_Column,variable i_ValueType) variable[]
+   {
+      variable ret_Values[], Value;
+
+      ret_Values.SetSize(0);
+
+      ExcelEdit::GLOBAL::OPEN_FILE.SetExtendedProperties("HDR=NO");
+      ExcelEdit::GLOBAL::OPEN_FILE.AddField(i_int_Column,Value,i_ValueType);
+
+      if(!ExcelEdit::GLOBAL::OPEN_FILE.Open(i_str_FilePath + " " + i_str_SheetName + "", hslRead))
+      {
+         Trace("Could not open file!");
+         Trace(i_str_FilePath);
+         Trace("Sheet:: ",i_str_SheetName);
+         return(ret_Values);
+      }
+
+      onerror goto ErrorHandleRead;
+
+      while ((ExcelEdit::GLOBAL::OPEN_FILE.Eof() == 0))
+      {
+         ExcelEdit::GLOBAL::OPEN_FILE.ReadRecord();
+         ret_Values.AddAsLast(Value);
+      }
+      
+      ExcelEdit::GLOBAL::OPEN_FILE.RemoveFields();
+      ExcelEdit::GLOBAL::OPEN_FILE.Close();
+
+      onerror goto 0;
+      err.Clear();
+
+      return(ret_Values);
+
+      ErrorHandleRead : 
+      {
+      Trace("Close");
+         ExcelEdit::GLOBAL::OPEN_FILE.Close();
+         err.Clear();
+         return(ret_Values);
+      }
+   }
+}
+
+#endif
+// $$author=Bare_B$$valid=0$$time=2020-06-22 15:29$$checksum=32869234$$length=085$$
